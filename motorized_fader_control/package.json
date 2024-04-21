@@ -31,6 +31,11 @@
 	"dependencies": {
 		"fs-extra": "^0.28.0",
 		"kew": "^0.7.0",
-		"v-conf": "^1.4.0"
+		"serialport": "^9.2.8",
+		"v-conf": "^1.4.0",
+		"winston": "^3.13.0"
+	},
+	"devDependencies": {
+	  "jest": "^26.6.3"
 	}
 }

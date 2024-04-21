@@ -18,6 +18,14 @@ function motorizedFaderControl(context) {
 
 }
 
+const Fader = require('./Fader');
+const MidiParser = require('./MidiParser');
+
+// Instantiate Fader and MidiParser
+const fader = new Fader('/dev/ttyUSB0');
+const midiParser = new MidiParser();
+
+// Use fader and midiParser in your plugin
 
 
 motorizedFaderControl.prototype.onVolumioStart = function()
