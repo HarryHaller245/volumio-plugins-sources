@@ -4,7 +4,7 @@
 	"description": "A volumio plugin enabling the use of a motorized fader as a playback controller.",
 	"main": "index.js",
 	"scripts": {
-		"test": "echo \"Error: no test specified\" && exit 1"
+		"test": "jest"
 	},
 	"author": "HarryHaller245",
 	"license": "ISC",
@@ -36,6 +36,6 @@
 		"winston": "^3.13.0"
 	},
 	"devDependencies": {
-	  "jest": "^26.6.3"
+		"jest": "^26.6.3"
 	}
 }

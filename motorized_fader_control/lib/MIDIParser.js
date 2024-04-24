@@ -1,8 +1,5 @@
-
-
 // Path: lib/MIDIParser.js
 // MIDIParser.js
-
 
 const { Transform } = require('stream');
 
@@ -28,7 +25,7 @@ class MIDIParser extends Transform {
             if (this.buffer.length >= 3) {
                 if (this.parse(this.buffer)) {
                     const midiData = {
-                        type: this.buffer[0], // Send the type as a binary value
+                        type: this.buffer[0],
                         channel: this.channel,
                         data1: this.data1,
                         data2: this.data2
@@ -89,16 +86,49 @@ class MIDIParser extends Transform {
         }
     }
 
-
-
-    // missing method to translate a MIDImessage into a log
-
-    // missing methods
-    formatLogMessage(midiData) {
-        const type = translateType(midiData[0])
-        const msg = "MIDI MESSAGE: TYPE: " + midiData.[0] 
+    getFaderIndex(midiDataArr) {
+        //If the message is a PITCH_BEND message, the channel is stored in the channel
+        //If the message is a NOTE ON message, the channel is stored in the data1
+        // data1 - 104 is the Fader index
+        if (midiDataArr[0] === 0xE0) {
+            return midiDataArr[1];
+        } else if (midiDataArr[0] === 0x90 || midiDataArr[0] === 0x80) {
+            return midiDataArr[2] - 104;
+        } else {
+            //not a Pitch Bend or Control Change message
+            return false;
+        }
     }
 
+
+    formatLogMessageArr(midiDataArr) {
+        const type = this.translateType(midiDataArr[0]);
+        const msg = "MIDI MESSAGE: TYPE: " + type + " CHANNEL: " + midiDataArr[1] + " DATA1: " + midiDataArr[2] + " DATA2: " + midiDataArr[3];
+        return msg;
+    }
+
+    formatLogMessageObject(midiDataObject) {
+        // Convert the MIDI message object to an array and returns a log message
+        const msg = this.formatMidiMessageToArray(midiDataObject);
+        return this.formatLogMessageArr(msg);
+    }
+
+    formatMidiMessageToArray(midiDataObject) {
+        // convert MidiDataObject to Array
+        const midiData = [midiDataObject.type, midiDataObject.channel, midiDataObject.data1, midiDataObject.data2];    return midiData
+        return midiData;
+    }
+
+    formatMidiMessageArrToObject(midiDataArray) {
+        // convert MidiData Array to MidiDataObject
+        const midiData = {
+            type: midiDataArray[0],
+            channel: midiDataArray[1],
+            data1: midiDataArray[2],
+            data2: midiDataArray[3]
+        };
+    return midiData 
+    }
 }
 
 module.exports = MIDIParser;

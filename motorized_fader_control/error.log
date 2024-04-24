@@ -1,0 +1,329 @@
+{"level":"error","message":"An error occurred while stopping the FaderController: TypeError: this.resetFaders is not a function"}
+{"level":"error","message":"An error occurred while stopping the FaderController: TypeError: Cannot read property 'write' of null"}
+{"level":"error","message":"An error occurred while stopping the FaderController: ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: translateType is not defined"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.faders[faderIndex].setTouch is not a function"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"An error occurred while stopping the FaderController: TypeError: this.logger is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.translateType is not a function"}
+{"level":"error","message":"Error reading data:TypeError: this.translateType is not a function"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:144:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:163:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:144:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:163:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:144:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:163:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:144:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:163:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:144:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:163:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:144:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:163:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:144:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:163:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
+{"level":"error","message":"Error reading data:ReferenceError: index is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: index is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: parser is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: faderIndex is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: faderIndex is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"Error reading data:ReferenceError: midiData is not defined"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"An error occurred while stopping the FaderController: TypeError: Cannot read property 'setProgression' of undefined"}
+{"level":"error","message":"An error occurred while stopping the FaderController: TypeError: Cannot read property 'setProgression' of undefined"}
+{"level":"error","message":"An error occurred while stopping the FaderController: TypeError: Cannot read property 'setProgression' of undefined"}
+{"level":"error","message":"An error occurred while stopping the FaderController: TypeError: Cannot read property 'setProgression' of undefined"}
+{"level":"error","message":"MIDI device did not report readiness. Stopping FaderController..."}
+{"level":"error","message":"Error closing serial port:  Port is not open","stack":"Error: Port is not open\n    at SerialPort.Object.<anonymous>.SerialPort.close (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/@serialport/stream/lib/index.js:426:29)\n    at FaderController.closeSerial (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:143:19)\n    at FaderController.stop (/home/volumio/volumio-plugins-sources/motorized_fader_control/lib/FaderController.js:162:12)\n    at Object.<anonymous> (/home/volumio/volumio-plugins-sources/motorized_fader_control/test/FaderController.test.js:24:21)\n    at Object.asyncJestLifecycle (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/jasmineAsyncInstall.js:58:37)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:45:12\n    at new Promise (<anonymous>)\n    at mapper (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:28:19)\n    at /home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/queueRunner.js:75:41\n    at Object.fn (/home/volumio/volumio-plugins-sources/motorized_fader_control/node_modules/jest-jasmine2/build/treeProcessor.js:43:7)"}
