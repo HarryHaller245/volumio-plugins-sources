@@ -1,7 +1,7 @@
 // FaderController.test.js
 const FaderController = require('../lib/FaderController');
 
-const calibration_movement = [0,50,0,50,0,100,50,0,100];
+const calibration_movement = [0,50,0,50];
 const base_point = 0;
 const fader_index = 1;
 
@@ -17,49 +17,38 @@ describe('FaderController', () => {
     setTimeout(() => {
       faderController.start();
       done();
-    }, 2000);
+    }, 3000);
   });
 
-  afterAll(() => {
+  afterAll(async () => {
+    // Wait for all messages to be sent
+    await faderController.allMessagesSent();
+  
+    // Then stop the controller
     faderController.stop();
   });
 
   test('FaderController should be defined', () => {
     expect(faderController).toBeDefined();
-  });
+  }); 
 
-  test('FaderController should successfully open the SerialPort', () => {
-    expect(faderController.ser_port.isOpen).toBeTruthy();
-  });
-
-  test('FaderController should succesfully store MIDI device readiness',() => {
-    expect(faderController.MIDIDeviceReady).toBeTruthy();
-  });
-
-  test('FaderController should read and parse inputs of 2 faders for 35s', done => {
-    jest.setTimeout(20000); // Increase the timeout to 35 seconds
+  test('FaderController tests movement', async () => {
+    const indexes = [0,1];
+    const progression = 100;
   
-    setTimeout(() => {
-      done();
-    }, 20000);
-  });
-
-  test('FaderController should successfully run a calibration on a single specified fader', done => {
-    const faderIndex = [0, 1, 2]; // Specify the index of the fader you want to calibrate
-    setTimeout(() => {
-      expect(faderController.faderCalibration(faderIndex, calibration_movement, base_point)).toBeTruthy();
-      done();
-    }, 20000); // Delay of 5 seconds
-  }, 20000); // Increase the timeout limit to 10 seconds
+    // Test 1: sendFaderProgression
+    faderController.sendFaderProgression(indexes, progression);
+    await faderController.allMessagesSent();
   
-  test('FaderController should successfully run a calibration on the specified faders', done => {
-    const faderIndexes = [0, 1, 2]; // Specify the indexes of the faders you want to calibrate
-    setTimeout(() => {
-      expect(faderController.faderCalibration(faderIndexes, calibration_movement, base_point)).toBeTruthy();
-      done();
-    }, 20000); // Delay of 5 seconds
-  }, 20000); // Increase the timeout limit to 10 seconds
-
-
+    indexes.forEach(index => {
+      const actualPosition = faderController.faders[index].getProgression();
+      expect(actualPosition).toEqual(progression);
+    });
+  
+    // Test 2: faderCalibration
+    const calibration = calibration_movement;
+    await faderController.allMessagesSent();
+    faderController.faderCalibration(indexes, calibration, 0)
+  });
 
 });

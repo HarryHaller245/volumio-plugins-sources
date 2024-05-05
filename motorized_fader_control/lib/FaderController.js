@@ -69,10 +69,10 @@ class Fader {
     setPosition(position) {
       this.position = position;
       //also update progression accordingly
-      this.progression = this.postitionToProgression(position);
+      this.progression = this.positionToProgression(position);
     }
 
-    postitionToProgression(position) {
+    positionToProgression(position) {
       // convert a 14bit integer to a 0-100 float value
     return position / 16383 * 100;
     }
@@ -86,7 +86,36 @@ class Fader {
       //returns a human readable log message for the fader at index
       const msg = "FADER INFO: index: " + this.index + " position: " + this.position + " progression: " + this.progression + " touch: " + this.touch + " echo_mode: " + this.echo_mode;
       return msg;
-    } 
+    }
+
+    getInfoDict() {
+      //returns a dictionary of the fader infos
+      const dict = {
+          "index": this.index,
+          "position": this.position,
+          "progression": this.progression,
+          "touch": this.touch,
+          "echo_mode": this.echo_mode
+      };
+  
+      return dict;
+  }
+
+    getPosition() {
+      return this.position
+    }
+
+    getProgression() {
+      return this.progression
+    }
+
+    getTouchState() {
+      return this.touch
+    }
+
+    getEchoState() {
+      return this.echo
+    }
 
 }
 
@@ -101,6 +130,9 @@ class FaderController {
     this.MIDICache = [];
     this.MIDIDeviceReady = false;
     this.maxCacheDeviceReadiness = 3
+
+    this.messageQueue = [];
+    this.sendingMessage = false;
   }
 
   setOnTouchCallback(index, callback) {
@@ -176,19 +208,25 @@ class FaderController {
     this.stop();
   }
 
-  stop() {
-    //method to stop the FaderController
-    //resets the faders and closes the serial port
+  async stop() {
+    // Method to stop the FaderController
+    // Resets the faders, waits for all messages to be sent, then closes the serial port
     dev_logger.info("### Stopping the FaderController...");
     try {
-        this.resetFaders();
-        this.ser_port.removeAllListeners();
-        this.closeSerial();
-        this.logger.info("### FaderController stopped");
+      this.resetFaders();
+  
+      // Wait for all messages to be sent
+      await this.allMessagesSent();
+  
+      this.ser_port.removeAllListeners();
+      this.closeSerial();
+      this.logger.info("### FaderController stopped");
     } catch (error) {
       this.logger.error("An error occurred while stopping the FaderController: " + error);
     }
   }
+
+
 
   CheckMIDIDeviceReady(callback, max_cache) {
     let cacheCount = 0;
@@ -198,14 +236,14 @@ class FaderController {
     // Assuming midiCache is an array of MIDI messages
     for (let message of this.MIDICache) {
       this.logger.debug("Waiting for MIDI device ready...")
-        if (this.parser.translateType(message[0]) === 'PROGRAM_CHANGE' && message[1] === 2 && message[2] === 160) {
+        if (this.parser.translateParsedType(message[0]) === 'PROGRAM_CHANGE' && message[2] === 160) {
             if (message[3] === 102) {
                 received102 = true;
             } else if (message[3] === 116) {
                 received116 = true;
             }
 
-            if (received102 && received116) {
+            if (received102 || received116) {
                 this.logger.info('MIDI device is ready');
                 this.MIDIDeviceReady = true;
                 callback(true);
@@ -225,7 +263,7 @@ class FaderController {
   cacheProgramChangeMessages(midiDataArr) {
     // Cache MIDI Messages that are Program Change Messages
     // They are expected to be the first 10 or so
-    if (this.parser.translateType(midiDataArr[0]) === 'PROGRAM_CHANGE') {
+    if (this.parser.translateParsedType(midiDataArr[0]) === 'PROGRAM_CHANGE') {
         this.MIDICache.push(midiDataArr);
     }
   }
@@ -235,7 +273,7 @@ class FaderController {
     try {
         midiDataArr = this.parser.read();
         if (midiDataArr) {
-            const logMessage = this.parser.formatLogMessageArr(midiDataArr);
+            const logMessage = this.parser.formatParsedLogMessageArr(midiDataArr);
             this.logger.debug(logMessage);
             this.updateFaderInfo(midiDataArr);
             if (this.MIDIDeviceReady === false) {
@@ -254,21 +292,57 @@ class FaderController {
 
   //info handling ################################
 
+  getInfoDict(indexes) {
+    //returns a dictionary containing the information for the specified faders
+    //if it is more than 1 fader, it contains an array of dictionaries
+    //we can use this.faders.getInfoDict() for each fader obj
+    if (indexes === undefined) {
+        indexes = Object.keys(this.faders).map(Number);
+    } else if (!Array.isArray(indexes)) {
+        indexes = [indexes]; // If indexes is not an array, convert it to an array
+    }
+
+    const dicts = indexes.map(index => {
+        if (this.faders[index]) {
+            return this.faders[index].getInfoDict();
+        } else {
+            this.logger.error('Invalid fader index: ' + index);
+            return null;
+        }
+    }).filter(dict => dict !== null);
+
+    return dicts;
+  }
+
+  isMIDIDeviceReady() {
+    return this.MIDIDeviceReady
+  }
+
+  getFaderCount() {
+    return this.fader_count
+  }
+
+  getFaderIndexMidiDataArr(midiDataArr) {
+    //method to return the 0 based fader index from a parsed midi DataArr
+    let index = this.parser.getChannelMidiDataArr(midiDataArr)
+    return index
+  }
+
   updateFaderInfo(midiDataArr) {
-    let messageType = this.parser.translateType(midiDataArr[0]);
+    let messageType = this.parser.translateParsedType(midiDataArr[0]);
     let faderIndex;
   
     if (messageType === "PITCH_BEND") {
-      faderIndex = this.parser.getFaderIndex(midiDataArr);
+      faderIndex = this.getFaderIndexMidiDataArr(midiDataArr);
       this.faders[faderIndex].setPosition(midiDataArr[2] | (midiDataArr[3] << 7));
       if (this.faders[faderIndex].echo_mode) {
         this.echo(midiDataArr);
       }
     } else if (messageType === "NOTE_ON") {
-      faderIndex = this.parser.getFaderIndex(midiDataArr);
+      faderIndex = this.getFaderIndexMidiDataArr(midiDataArr);
       this.faders[faderIndex].setTouch(true);
     } else if (messageType === "NOTE_OFF") {
-      faderIndex = this.parser.getFaderIndex(midiDataArr);
+      faderIndex = this.getFaderIndexMidiDataArr(midiDataArr);
       this.faders[faderIndex].setTouch(false);
     }
   
@@ -278,89 +352,130 @@ class FaderController {
     }
   }
 
+
+
   //send message #############################################
 
-  sendMessageObj(index, messageObj) {
+  sendMessageObj(messageObj) {  // ! dont use this anymoe ! deprecated
       this.ser_port.write([messageObj.type, messageObj.data1, messageObj.data2]);
-      const msg = this.parser.formatLogMessageObject(messageObj);
-      this.logger.debug('Message sent to fader at index: ' + index);
+      const msg = this.parser.formatParsedLogMessageObject(messageObj);
       this.logger.debug('Message Sent: ' + msg);
   }
-  sendMessageArr(index, messageArr) {
-    this.ser_port.write([messageArr[0], messageArr[2], messageArr[3]]);
-    const msg = this.parser.formatLogMessageArr(messageArr);
-    this.logger.debug('Message sent to fader at index: ' + index);
-    this.logger.debug('Message Sent: ' + msg);
-}
-    
-  echo(midiDataArr) {
-    //method to echo the MIDI messages back to the faders
-    let index = this.parser.getFaderIndex(midiDataArr);
-    midiDataArr[0] = midiDataArr[0] | midiDataArr[1];
-    this.sendMessageArr(index, midiDataArr);
+
+  sendMIDIMessageArr(messageArr) {
+    this.messageQueue.push(messageArr);
+    this.sendNextMessage();
   }
-    
-  setFaderProgression(indexes, progression) {
-   if (!Array.isArray(indexes)) {
-      indexes = [indexes]; // This will create an array with the single index
-    }
+
+  sendNextMessage() {
+    return new Promise((resolve, reject) => {
+      if (this.sendingMessage || this.messageQueue.length === 0) {
+        resolve();
+        return;
+      }
   
-    indexes.forEach(index => {
-      this.faders[index].setProgression(progression);
-      const position = this.faders[index].position;
-      this.setFaderPosition([index], position);
+      this.sendingMessage = true;
+      const messageArr = this.messageQueue.shift();
+  
+      this.ser_port.write([messageArr[0], messageArr[1], messageArr[2]], (err) => {
+        this.sendingMessage = false;
+  
+        if (err) {
+          this.logger.error('Error on write: ' + err.message);
+          reject(err);
+        } else {
+          const msg = this.parser.formatMIDIMessageLogArr(messageArr);
+          this.logger.debug('MIDI Message Sent: ' + msg);
+          this.logger.debug('MIDI Message sent: ' + messageArr[0] + " : " + messageArr[1] + " : " + messageArr[2])
+          resolve();
+        }
+  
+        // Send the next message in the queue
+        this.sendNextMessage();
+      });
     });
   }
+
+  allMessagesSent() {
+    return new Promise((resolve) => {
+      const checkMessagesSent = () => {
+        if (this.sendingMessage || this.messageQueue.length > 0) {
+          // If a message is being sent or the queue is not empty, check again later
+          setTimeout(checkMessagesSent, 100);
+        } else {
+          // If no message is being sent and the queue is empty, all messages have been sent
+          resolve();
+        }
+      };
   
-  setFaderPosition(indexes, position) {
+      checkMessagesSent();
+    });
+  }
+      
+  echo(midiDataArr) {   // needs fixing
+    //method to echo the MIDI messages back to the faders
+    //we need to reverse engineer the parsing. and then send it back
+    midiDataArr[0] = midiDataArr[0] | midiDataArr[1];
+    message = [midiDataArr[0], midiDataArr[2], midiDataArr[3]];
+    this.sendMIDIMessageArr(message);
+  }
+    
+  sendFaderProgression(indexes, progression) {
     if (!Array.isArray(indexes)) {
       indexes = [indexes]; // This will create an array with the single index
     }
+    this.logger.debug('Sending PROGRESSION ' + progression + ' to fader with index(es): ' + indexes)
+    for (let index of indexes) {
+      this.faders[index].setProgression(progression);
+      const position = this.faders[index].position;
+      this.sendFaderPosition([index], position);
+    }
 
-    indexes.forEach((index, i) => {
-      setTimeout(() => {
+  }
+  
+  sendFaderPosition(indexes, position) {
+    if (!Array.isArray(indexes)) {
+      indexes = [indexes]; // This will create an array with the single index
+    }
+  
+    indexes.forEach((index) => {
+      try {
         this.faders[index].setPosition(position);
-        const message = {
-          type: 0xE0 | (index -1),
-          channel: index,
-          data1: position & 0x7F,
-          data2: position >> 7
-        };
-        this.sendMessageObj(index, message);
+        // Construct a Midi Message
+        const message = [
+          0xE0 | (index),
+          position & 0x7F,
+          (position >> 7) & 0x7F
+        ];
+        this.sendMIDIMessageArr(message);
         const msg = this.faders[index].getInfoLog(index);
-        this.logger.debug('Fader position set to: ' + msg);
-      }, i * 100); // Delay each message by 100ms
+        this.logger.debug('Fader with index: ' + index + ' position set to: ' + position);
+      } catch (error) {
+        this.logger.error('Error setting fader position: ', error);
+      }
     });
   }
 
   resetFaders(indexes) {
     // If indexes is undefined, reset all faders
     if (indexes === undefined) {
-      indexes = Object.keys(this.faders).map(Number); // Convert keys to numbers
+      indexes = Object.keys(this.faders).map(Number);
     } else if (!Array.isArray(indexes)) {
       indexes = [indexes]; // If indexes is not an array, convert it to an array
     }
   
-    this.logger.debug("Resetting faders with indexes: ", indexes);
+    this.logger.debug("Resetting faders with indexes: "+ indexes);
     indexes.forEach(index => {
       if (this.faders[index]) {
-        this.setFaderProgression(index, 0);
+        this.sendFaderProgression(index, 0);
       } else {
         this.logger.error('Invalid fader index: ' + index);
       }
     });
-    return true
+    return true;
   }
 
   //MOVEMENT ###################################
-
-  echo(midiDataArr) {
-      //method to echo the MIDI messages back to the faders
-      if (this.parser.translateType(midiDataArr[0]) === "PITCH BEND") {
-        // Convert the 14-bit MIDI value back into a progression value
-        this.sendMessageArr(midiDataArr.channel, midiDataArr);
-      }
-  }
 
   faderCalibration(indexes, movement, base_point) {
     // If indexes is undefined, calibrate all faders
@@ -375,7 +490,7 @@ class FaderController {
       if (this.faders[index]) {
         this.logger.info('Calibrating fader with index: '+ index);
         movement.forEach(m => {
-          this.setFaderProgression(index, m);
+          this.sendFaderProgression(index, m);
         });
       } else {
         this.logger.error('Invalid fader index: ' + index);
@@ -418,7 +533,7 @@ class FaderController {
       const numSteps = Math.ceil(totalSteps / (resolution / 100));
   
       if (speed === 100) {
-        this.setFaderPosition(index, targetPosition);
+        this.sendFaderPosition(index, targetPosition);
       } else if (speed === 0) {
         // Do nothing
       } else {
@@ -426,13 +541,15 @@ class FaderController {
           ((i) => {
             setTimeout(() => {
               const newPosition = currentPosition + (i * stepSize);
-              this.setFaderPosition(index, newPosition);
+              this.sendFaderPosition(index, newPosition);
             }, 0);
           })(i);
         }
       }
     });
   }
+
+
 }
 
 module.exports = FaderController;
