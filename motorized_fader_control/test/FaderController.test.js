@@ -5,12 +5,16 @@ const calibration_movement = [0,50,0,50];
 const base_point = 0;
 const fader_index = 1;
 
+const fader_count = 2;
+
+const messageRateLimit = 100;
+
 
 describe('FaderController', () => {
   let faderController;
 
   beforeAll(done => {
-    faderController = new FaderController();
+    faderController = new FaderController(undefined, fader_count, messageRateLimit);
     faderController.setupSerial('/dev/ttyUSB0', 1000000);
   
     // Add a delay before starting the FaderController
@@ -21,11 +25,9 @@ describe('FaderController', () => {
   });
 
   afterAll(async () => {
-    // Wait for all messages to be sent
-    await faderController.allMessagesSent();
-  
     // Then stop the controller
-    faderController.stop();
+    await faderController.stop();
+    faderController.closeSerial();
   });
 
   test('FaderController should be defined', () => {
@@ -34,21 +36,33 @@ describe('FaderController', () => {
 
   test('FaderController tests movement', async () => {
     const indexes = [0,1];
-    const progression = 100;
-  
+    const progression = 80;
+
     // Test 1: sendFaderProgression
-    faderController.sendFaderProgression(indexes, progression);
-    await faderController.allMessagesSent();
-  
+    await faderController.sendFaderProgression(indexes, progression);
+
     indexes.forEach(index => {
       const actualPosition = faderController.faders[index].getProgression();
       expect(actualPosition).toEqual(progression);
     });
-  
+
     // Test 2: faderCalibration
     const calibration = calibration_movement;
-    await faderController.allMessagesSent();
-    faderController.faderCalibration(indexes, calibration, 0)
-  });
 
+    // // Call faderCalibration and await it
+    // try {
+    //   await faderController.faderCalibration(indexes, calibration, 0);
+    // } catch (error) {
+    //   console.error('Error in faderCalibration: ', error);
+    // }
+
+    //test 3: Parallel movement
+    const parallelProgression = 50;
+    const parallelProgressionDict = {0: parallelProgression, 1: parallelProgression};
+    await faderController.sendFaderProgressionsDict(parallelProgressionDict);
+
+    //test 4: Parallel calibration
+    await faderController.faderCalibrationParallel(indexes, calibration);
+
+  });
 });
