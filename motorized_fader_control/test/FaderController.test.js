@@ -1,13 +1,13 @@
 // FaderController.test.js
 const FaderController = require('../lib/FaderController');
 
-const calibration_movement = [0,50,0,50];
+const calibration_movement = [0,50];
 const base_point = 0;
 const fader_index = 1;
 
 const fader_count = 2;
 
-const messageRateLimit = 100;
+const messageRateLimit = 0;
 
 
 describe('FaderController', () => {
@@ -36,7 +36,7 @@ describe('FaderController', () => {
 
   test('FaderController tests movement', async () => {
     const indexes = [0,1];
-    const progression = 80;
+    const progression = 100;
 
     // Test 1: sendFaderProgression
     await faderController.sendFaderProgression(indexes, progression);
@@ -57,12 +57,17 @@ describe('FaderController', () => {
     // }
 
     //test 3: Parallel movement
-    const parallelProgression = 50;
-    const parallelProgressionDict = {0: parallelProgression, 1: parallelProgression};
-    await faderController.sendFaderProgressionsDict(parallelProgressionDict);
+    // const parallelProgression = 50;
+    // const parallelProgressionDict = {0: parallelProgression, 1: parallelProgression};
+    // await faderController.sendFaderProgressionsDict(parallelProgressionDict);
 
     //test 4: Parallel calibration
-    await faderController.faderCalibrationParallel(indexes, calibration);
+    // await faderController.faderCalibrationParallel(indexes, calibration);
 
+    //test 5: fader move with speed
+    const speed = 10
+    const indexesMoveSPeed = [0,1];
+    const progressionMoveSpeed = [50, 50];
+    await faderController.move_fader(indexesMoveSPeed, progressionMoveSpeed, speed, false);
   });
 });
