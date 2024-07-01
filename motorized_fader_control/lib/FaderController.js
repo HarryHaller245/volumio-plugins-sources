@@ -196,6 +196,37 @@ class Fader {
   }
 }
 
+
+
+/**
+ * Represents a fader move operation.
+ */
+class FaderMove {
+  /**
+   * Creates a new instance of the FaderMove class.
+   * @param {number|Array<number>} idx - The index or indexes of the faders.
+   * @param {number|Array<number>} targetProgression - The target progression value(s).
+   * @param {number|Array<number>} speed - The speed(s) of the fader move operation(s). From 0-100. 0 being no move 100 being instant
+   */
+  constructor(idx, targetProgression, speed) {
+    this.idx = Array.isArray(idx) ? idx : [idx];
+    this.targetProgression = Array.isArray(targetProgression) ? targetProgression : [targetProgression];
+    this.speed = Array.isArray(speed) ? speed : [speed];
+  }
+
+  /**
+   * Returns a dictionary representation of the fader move operation.
+   * @returns {Object} - The dictionary representation of the fader move operation.
+   */
+  getDict() {
+    return {
+      idx: this.idx,
+      targetProgression: this.targetProgression,
+      speed: this.speed
+    };
+  }
+}
+
 /**
  * Represents a fader controller.
  */
@@ -205,13 +236,16 @@ class FaderController {
    * @param {Object} logger - The logger object for logging messages.
    * @param {number} fader_count - The number of faders.
    * @param {number} messageRateLimit - The rate limit for sending messages.
+   * @param {boolean} MIDILog - Whether to log MIDI messages.
+   * 
    */
-  constructor(logger = dev_logger, fader_count = 12, messageRateLimit = 100) {
+  constructor(logger = dev_logger, fader_count = 12, messageRateLimit = 100, MIDILog = false) {
     this.fader_count = this.fader_count; // create an array of 12 faders of the Fader class
     this.faders = Array.from({ length: fader_count }, (_, i) => new Fader(i));
     this.ser_port = null;
     this.parser = null;
     this.logger = logger;
+    this.MIDILog = MIDILog
 
     this.MIDICache = [];
     this.MIDIDeviceReady = false;
@@ -469,7 +503,9 @@ class FaderController {
   sendMessageObj(messageObj) {  // ! dont use this anymoe ! deprecated
       this.ser_port.write([messageObj.type, messageObj.data1, messageObj.data2]);
       const msg = this.parser.formatParsedLogMessageObject(messageObj);
-      this.logger.debug('Message Sent: ' + msg);
+      if (this.MIDILog == true) {
+        this.logger.debug('Message Sent: ' + msg);
+      }
   }
 
     /**
@@ -523,7 +559,9 @@ class FaderController {
         queue.reject(err);
       } else {
         const msg = this.parser.formatMIDIMessageLogArr(messageArr);
-        this.logger.debug('Sent: ' + msg);
+        if (this.MIDILog == true) {
+          this.logger.debug('Sent: ' + msg);
+        }
         // If the queue is empty, remove it and resolve the Promise
         if (queue.messages.length === 0) {
           this.messageQueues.shift();
@@ -658,7 +696,13 @@ class FaderController {
     });
   }
   
-sendFaderProgressionsDict(progressionsDict) {
+    /**
+   * Sends a progression value to one or more faders.
+   * This function takes an index or an array of indexes and a progression or an array of progressions.
+   * @param {Object} progressionsDict - A dictionary where the keys are fader indexes and the values are the progressions to send to the faders.
+   */
+  sendFaderProgressionsDict(progressionsDict) {
+    //for example {0: [1,2,3,4,5], 1 : [1,2,3,4,5]}
     return new Promise(async (resolve, reject) => {
       const positionsDict = {};
       for (const [index, progressions] of Object.entries(progressionsDict)) {
@@ -671,6 +715,8 @@ sendFaderProgressionsDict(progressionsDict) {
         return `${index}: ${positions.length}`;
       }).join(', ');
       this.logger.debug(`(faderIdx):(AmountPositions): ${msg}`);
+
+      this.logger.debug('Sending Progressions to faders: ' + JSON.stringify(progressionsDict));
 
       try {
         await this.sendFaderPositionsDict(positionsDict);
@@ -691,7 +737,7 @@ sendFaderProgressionsDict(progressionsDict) {
     return new Promise(async (resolve, reject) => {
       const messages = [];
       const maxPositions = Math.max(...Object.values(positionsDict).map(positions => positions.length));
-  
+      // iterate over the positions first and then the faders. This way, you'll send the first position for all faders, then the second position for all faders, and so on
       for (let positionIndex = 0; positionIndex < maxPositions; positionIndex++) {
         for (const [index, positions] of Object.entries(positionsDict)) {
           if (positions[positionIndex] !== undefined) {
@@ -911,73 +957,120 @@ sendFaderProgressionsDict(progressionsDict) {
     return Array.from({ length: steps }, (_, i) => start + i * stepSize);
   }
 
-  
-  //move fader with index, speed, targetProgression specified, interrupting (clearing messages that have the same fader idxs)
-  move_fader(indexes, targetProgressions, speed, interrupting = false) {
-    //method to move the fader using a specified speed and target progression
-    //the indexes and the targetProgressions should be arrays
-    //the method should also work with only single values
-    //the speed is a float value between 0 and 100
-    //is the slowest (no movement) and 100 is the fastest (instant movement at the rate limit of the midi messages)
-    //if interrupting is true it will clear all messages that have the same fader indexes
-    //we will write a method for clearing specific midi messages from the queue
-    return new Promise(async (resolve, reject) => {
-      if (!Array.isArray(indexes)) {
-        indexes = [indexes]; // This will create an array with the single index
-      }
-      if (!Array.isArray(targetProgressions)) {
-        targetProgressions = [targetProgressions]; // This will create an array with the single targetProgression
-      }
-      if (interrupting) {
-        this.clearMessagesByFaderIndexes(indexes);
-      }
-      // we will need to construct the fader dict and then send it to the sendFaderProgressionDict method
-      // since this method is capable close to parallel command it is better to use this method
-      // however we will send A LOT OF MESSAGES per movement, depending on the speed
-      // we can use generateRamp to generate the progressions
+/**
+ * moves the faders at specified indexes with the specified targetProgressions and speed
+ * can be used to move multiple faders at the same time
+ * @param {number|Array<number>} indexes - The index or indexes of the faders to move.
+ * @param {number|Array<number>} targetProgressions - The target progression or progressions to move the faders to.
+ * @param {number|Array<number>} speeds - The speed or speeds at which the faders should be moved. 0-100
+ * 
+ */
+move_fader(indexes, targetProgressions, speeds, interrupting = false) {
+  return new Promise(async (resolve, reject) => {
+    if (!Array.isArray(indexes)) {
+      indexes = [indexes]; // This will create an array with the single index
+    }
+    if (!Array.isArray(targetProgressions)) {
+      targetProgressions = [targetProgressions]; // This will create an array with the single targetProgression
+    }
+    if (!Array.isArray(speeds)) {
+      speeds = Array(indexes.length).fill(speeds); // This will create an array with the single speed for all faders
+    }
+    if (interrupting) {
+      this.clearMessagesByFaderIndexes(indexes);
+    }
+    this.logger.debug('Moving Faders: \n Indexes: ' + indexes + '\n Target Progressions: ' + targetProgressions + '\n Speeds: ' + speeds + '\n Interrupting: ' + interrupting);
 
-      // first we will figure out the number of steps needed for the movement
-      // this is dependent of the speed and the distance between the current position and the target position
-      const distances = indexes.map((index, i) => {
-        return this.faders[index].progression - targetProgressions[i];
-      });
-        // we will use the distances and our speed to calculate the number of steps
-        // 0 means no movement, 100 means instant movement. Instant as in no ramping
-      const steps = distances.map((distance, i) => {
-        // Calculate the number of steps based on the speed and distance
-        // A lower speed or a greater distance results in more steps
-        // A higher speed or a smaller distance results in fewer steps
-        // The '+ 1' ensures that there is at least one step even at the highest speed
-        // The 'Math.max' ensures that the number of steps is not less than 1
-        return Math.max(Math.round(distance / (speed / 100) + 1), 1);
-      });
-      // we will use the steps to generate the ramps
-      const ramps = indexes.map((index, i) => {
-        return this.generateRamp(this.faders[index].progression, targetProgressions[i], steps[i]);
-      });
-
-      // we will construct the fader dict
-      const progressionsDict = {};
-      indexes.forEach((index, i) => {
-        progressionsDict[index] = ramps[i];
-      });
-
-      this.logger.debug('Move Fader Protocol: \n Indexes: ' + indexes + '\n Target Progressions: ' + targetProgressions + '\n Speed: ' + speed + '\n Interrupting: ' + interrupting + '\n Distances: ' + distances + '\n Steps: ' + steps + '\n Progressions Dict: ' + progressionsDict);
-
-
-      // we will send the fader dict to the sendFaderProgressionsDict method
-      try {
-        await this.sendFaderProgressionsDict(progressionsDict);
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
+    const distances = indexes.map((index, i) => {
+      return this.faders[index].progression - targetProgressions[i];
     });
-  }
+    const steps = distances.map((distance, i) => {
+      // Calculate the number of steps based on the speed and distance
+      return Math.max(Math.round(distance / (speeds[i] / 100) + 1), 1);
+    });
+    // we will use the steps to generate the ramps
+    const ramps = indexes.map((index, i) => {
+      return this.generateRamp(this.faders[index].progression, targetProgressions[i], steps[i]);
+    });
 
+    // we will construct the fader dict
+    const progressionsDict = {};
+    indexes.forEach((index, i) => {
+      progressionsDict[index] = ramps[i];
+    });
 
+    try {
+      await this.sendFaderProgressionsDict(progressionsDict);
+      this.logger.debug('Fader Move Protocol: \n Indexes: ' + indexes + '\n Target Progressions: ' + targetProgressions + '\n Speed: ' + speeds + '\n Interrupting: ' + interrupting + '\n Distances: ' + distances + '\n Steps: ' + steps + '\n Progressions Dict: ' + progressionsDict);
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
+
+/**
+ * Moves the faders according to the provided move specifications.
+ * @param {Array<{idx: number, target: number, speed: number}>} moves - The move specifications.
+ * usage example:
+ * const move1 = new FaderMove(0, 50, 100);
+ * const move2 = new FaderMove(1, 75, 50);
+ * const moves = [move1, move2].map(move => move.getDict());
+ * move_faders(moves, true);
+ */
+move_faders(moves, interrupting = false) {
+  return new Promise(async (resolve, reject) => {
+    if (interrupting) {
+      this.clearMessagesByFaderIndexes(moves.map(move => move.idx));
+    }
+    this.logger.debug('Moving Fader with Move(s) : ' + JSON.stringify(moves) + ' Interrupting: ' + interrupting);
+
+    //! the building of the progressiondict is not working correctly
+    const distances = moves.flatMap(move => {
+      return move.idx.map((idx, j) => {
+        return this.faders[idx].progression - move.targetProgression[j];
+      });
+    });
+    // Moves might look like this: [{"idx":[0],"targetProgression":[100],"speed":[20]},{"idx":[1],"targetProgression":[60],"speed":[20]}]
+    
+    const steps = distances.map((distance, i) => {
+      const moveIndex = Math.floor(i / moves[0].idx.length);
+      const speedIndex = i % moves[0].idx.length;
+      const speed = moves[moveIndex].speed[speedIndex];
+      return Math.max(Math.round(distance / (speed / 100) + 1), 1);
+    });
+    
+    this.logger.debug('Generating Move Ramps with: \n Distances: ' + distances + '\n Steps: ' + steps)
+    
+    const ramps = moves.flatMap((move, i) => {
+      return move.idx.map((idx, j) => {
+        return this.generateRamp(this.faders[idx].progression, move.targetProgression[j], steps[i * move.idx.length + j]);
+      });
+    });
+    
+    const progressionsDict = {};
+    //progressionsDict - A dictionary where the keys are fader indexes and the values are the progressions to send to the faders.
+    //for example {0: [1,2,3,4,5], 1 : [1,2,3,4,5]}
+    moves.forEach((move, i) => {
+      move.idx.forEach((idx, j) => {
+        progressionsDict[idx] = ramps[i * move.idx.length + j];
+      });
+    });
+
+    try {
+      const startTime = Date.now();
+      await this.sendFaderProgressionsDict(progressionsDict);
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+      this.logger.debug('FADER MOVE PROTOCOL: \n Moves: ' + JSON.stringify(moves) + '\n Interrupting: ' + interrupting + '\n Distances: ' + distances + '\n Steps: ' + steps + '\n Progressions Dict: ' + progressionsDict + '\n Duration: ' + duration + 'ms');
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 
 }
 
-module.exports = FaderController;
+module.exports = { FaderController, FaderMove };

@@ -1,5 +1,6 @@
 // FaderController.test.js
-const FaderController = require('../lib/FaderController');
+const { FaderController, FaderMove } = require('../lib/FaderController');
+
 
 const calibration_movement = [0,50];
 const base_point = 0;
@@ -7,14 +8,14 @@ const fader_index = 1;
 
 const fader_count = 2;
 
-const messageRateLimit = 0;
-
+const messageRateLimit = 1;
+const MIDILog = false;
 
 describe('FaderController', () => {
   let faderController;
 
   beforeAll(done => {
-    faderController = new FaderController(undefined, fader_count, messageRateLimit);
+    faderController = new FaderController(undefined, fader_count, messageRateLimit, MIDILog);
     faderController.setupSerial('/dev/ttyUSB0', 1000000);
   
     // Add a delay before starting the FaderController
@@ -46,28 +47,17 @@ describe('FaderController', () => {
       expect(actualPosition).toEqual(progression);
     });
 
-    // Test 2: faderCalibration
-    const calibration = calibration_movement;
-
-    // // Call faderCalibration and await it
-    // try {
-    //   await faderController.faderCalibration(indexes, calibration, 0);
-    // } catch (error) {
-    //   console.error('Error in faderCalibration: ', error);
-    // }
-
-    //test 3: Parallel movement
-    // const parallelProgression = 50;
-    // const parallelProgressionDict = {0: parallelProgression, 1: parallelProgression};
-    // await faderController.sendFaderProgressionsDict(parallelProgressionDict);
-
-    //test 4: Parallel calibration
-    // await faderController.faderCalibrationParallel(indexes, calibration);
-
     //test 5: fader move with speed
     const speed = 10
     const indexesMoveSPeed = [0,1];
     const progressionMoveSpeed = [50, 50];
     await faderController.move_fader(indexesMoveSPeed, progressionMoveSpeed, speed, false);
-  });
+
+    //test 6: fader move with speed with faderMove class
+    const move1 = new FaderMove(0, 80, 10);
+    const move2 = new FaderMove(1, 80, 10);
+    const moves = [move1, move2];
+    await faderController.move_faders(moves, false);
+
+  }, 50000);
 });
