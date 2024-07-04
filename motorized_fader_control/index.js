@@ -18,14 +18,18 @@ function motorizedFaderControl(context) {
 
 }
 
-const Fader = require('./Fader');
-const MidiParser = require('./MidiParser');
 
-// Instantiate Fader and MidiParser
-const fader = new Fader('/dev/ttyUSB0');
-const midiParser = new MidiParser();
+const { FaderController, FaderMove } = require('../lib/FaderController');
 
 // Use fader and midiParser in your plugin
+
+//start function
+
+
+//stop function
+
+
+
 
 
 motorizedFaderControl.prototype.onVolumioStart = function()
@@ -36,7 +40,7 @@ motorizedFaderControl.prototype.onVolumioStart = function()
 	this.config.loadFile(configFile);
 
     return libQ.resolve();
-}
+};
 
 motorizedFaderControl.prototype.onStart = function() {
     var self = this;

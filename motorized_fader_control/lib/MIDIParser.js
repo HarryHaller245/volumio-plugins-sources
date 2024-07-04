@@ -1,12 +1,18 @@
+
 // Path: lib/MIDIParser.js
-// MIDIParser.js
 
 const { Transform } = require('stream');
 
 
-
+/**
+ * A class that extends Transform stream to parse MIDI messages.
+ */
 class MIDIParser extends Transform {
     
+    /**
+     * Constructs a new MIDIParser instance.
+     * @param {Object} options - The options for the Transform stream.
+     */
     constructor(options) {
         super(options);
         this.expecting = "status";
@@ -17,6 +23,12 @@ class MIDIParser extends Transform {
         this.buffer = []; // Add a buffer to store incoming MIDI messages
     }
 
+    /**
+     * Transforms the incoming chunk of data.
+     * @param {Buffer} chunk - The chunk of data to be transformed.
+     * @param {string} encoding - The encoding of the chunk.
+     * @param {Function} callback - The callback function to be called when the transformation is complete.
+     */
     _transform(chunk, encoding, callback) {
         for (let i = 0; i < chunk.length; i++) {
             this.buffer.push(chunk[i]); // Add each byte to the buffer
@@ -44,6 +56,11 @@ class MIDIParser extends Transform {
         callback();
     }
 
+    /**
+     * Parses the MIDI message from the buffer.
+     * @param {Array} buffer - The buffer containing the MIDI message.
+     * @returns {boolean} - True if a complete MIDI message has been parsed, false otherwise.
+     */
     parse(buffer) {
         for (let i = 0; i < buffer.length; i++) {
             let byte = buffer[i];
@@ -65,6 +82,11 @@ class MIDIParser extends Transform {
         return false; // Return false if the buffer does not contain a complete MIDI message
     }
 
+    /**
+     * Translates the parsed MIDI message type to a human-readable string.
+     * @param {number} type - The parsed MIDI message type.
+     * @returns {string} - The translated MIDI message type.
+     */
     translateParsedType(type) {
         switch (type) {
             case 0x80:
@@ -86,20 +108,28 @@ class MIDIParser extends Transform {
         }
     }
 
+    /**
+     * Gets the channel of a parsed MIDI data array.
+     * @param {Array} midiDataArr - The parsed MIDI data array.
+     * @returns {number|boolean} - The channel of the MIDI data array, or false if it is not a valid message.
+     */
     getChannelMidiDataArr(midiDataArr) {
-        //returns the channel of a parsed midi Data Array
-        //similiar to getFaderIndexParsedArr but the index is 1 based
         if (midiDataArr[0] === 0xE0) {
-            //Message is pitch bend
+            // Message is pitch bend
             return midiDataArr[1];
         } else if (midiDataArr[0] === 0x90 || midiDataArr[0] === 0x80) {
             return midiDataArr[2] - 104;
         } else {
-            //not a Pitch Bend or Control Change message
+            // Not a Pitch Bend or Control Change message
             return false;
         }
     }
 
+    /**
+     * Formats the parsed MIDI data array into a log message.
+     * @param {Array} midiDataArr - The parsed MIDI data array.
+     * @returns {string} - The formatted log message.
+     */
     formatParsedLogMessageArr(midiDataArr) {
         const type = this.translateParsedType(midiDataArr[0]);
         const channel = this.getChannelMidiDataArr(midiDataArr)
@@ -107,45 +137,68 @@ class MIDIParser extends Transform {
         return msg;
     }
 
-    formatParsedLogMessageObject(midiDataObject) { //!! deprecated
-        // Convert the MIDI message object to an array and returns a log message
+    /**
+     * Converts the parsed MIDI data object to an array and returns a log message.
+     * @param {Object} midiDataObject - The parsed MIDI data object.
+     * @returns {string} - The formatted log message.
+     * @deprecated This method is deprecated. Use formatParsedLogMessageArr instead.
+     */
+    formatParsedLogMessageObject(midiDataObject) {
         const msg = this.formatParsedMidiDataToArray(midiDataObject);
         return this.formatParsedLogMessageArr(msg);
     }
 
+    /**
+     * Converts the MIDI data object to an array.
+     * @param {Object} midiDataObject - The MIDI data object.
+     * @returns {Array} - The MIDI data array.
+     */
     formatParsedMidiDataToArray(midiDataObject) {
-        // convert MidiDataObject to Array
         const midiData = [midiDataObject.type, midiDataObject.channel, midiDataObject.data1, midiDataObject.data2];
         return midiData;
     }
 
+    /**
+     * Converts the MIDI data array to a MIDI data object.
+     * @param {Array} midiDataArray - The MIDI data array.
+     * @returns {Object} - The MIDI data object.
+     */
     formatParsedMidiDataArrToObject(midiDataArray) {
-        // convert MidiData Array to MidiDataObject
         const midiData = {
             type: midiDataArray[0],
             channel: midiDataArray[1],
             data1: midiDataArray[2],
             data2: midiDataArray[3]
         };
-    return midiData 
+        return midiData;
     }
-
 
     // MIDI MESSAGE TOOLS
 
+    /**
+     * Gets the channel of a MIDI message array.
+     * @param {Array} midiMessageArr - The MIDI message array.
+     * @returns {number} - The channel of the MIDI message.
+     */
     getChannelMIDIMessage(midiMessageArr) {
-        // use the MIDI message to retrieve the channel of a midi message array containing the 3 bytes
         return midiMessageArr[0] & 0x0F;
     }
     
+    /**
+     * Gets the channel of a note message array.
+     * @param {Array} midiMessageArr - The note message array.
+     * @returns {number} - The channel of the note message.
+     */
     getChannelNOTEMessage(midiMessageArr) {
-        // use the MIDI message to retrieve the channel of a midi message array containing the 3 bytes
-        // in case of a note on/off message the channel is the second byte - 103
         return midiMessageArr[1] - 104;
     }
     
+    /**
+     * Formats a MIDI message array into a readable string for logging.
+     * @param {Array} midiMessageArr - The MIDI message array.
+     * @returns {string} - The formatted log message.
+     */
     formatMIDIMessageLogArr(midiMessageArr) {
-        //formats a Midi Message array, consisting of the 3 bytes into readable string to be logged
         const status = this.translateStatusByte(midiMessageArr[0]);
         let channel;
         if (status === 'NOTE_ON' || status === 'NOTE_OFF') {
@@ -157,38 +210,44 @@ class MIDIParser extends Transform {
         return msg;
     }
     
-    translateStatusByte(StatusByte) {
-        const messageType = StatusByte & 0xF0; // Get the message type by masking the channel bits
-        const channel = StatusByte & 0x0F; // Get the channel by masking the message type bits
+    /**
+     * Translates the status byte of a MIDI message to a human-readable string.
+     * @param {number} statusByte - The status byte of the MIDI message.
+     * @returns {string} - The translated status byte.
+     */
+    translateStatusByte(statusByte) {
+        const messageType = statusByte & 0xF0; // Get the message type by masking the channel bits
+        const channel = statusByte & 0x0F; // Get the channel by masking the message type bits
     
-        let Status;
+        let status;
         switch (messageType) {
           case 0x80:
-            Status = 'NOTE_OFF';
+            status = 'NOTE_OFF';
             break;
           case 0x90:
-            Status = 'NOTE_ON';
+            status = 'NOTE_ON';
             break;
           case 0xA0:
-            Status = 'POLYPHONIC_AFTERTOUCH';
+            status = 'POLYPHONIC_AFTERTOUCH';
             break;
           case 0xB0:
-            Status = 'CONTROL_CHANGE';
+            status = 'CONTROL_CHANGE';
             break;
           case 0xC0:
-            Status = 'PROGRAM_CHANGE';
+            status = 'PROGRAM_CHANGE';
             break;
           case 0xD0:
-            Status = 'CHANNEL_AFTERTOUCH';
+            status = 'CHANNEL_AFTERTOUCH';
             break;
           case 0xE0:
-            Status = 'PITCH_BEND';
+            status = 'PITCH_BEND';
             break;
           default:
-            Status = messageType;
+            status = messageType;
         }
     
-        return Status;
+        return status;
     }
 }
+
 module.exports = MIDIParser;
