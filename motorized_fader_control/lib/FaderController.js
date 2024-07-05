@@ -212,19 +212,13 @@ class FaderMove {
     this.idx = Array.isArray(idx) ? idx : [idx];
     this.targetProgression = Array.isArray(targetProgression) ? targetProgression : Array(this.idx.length).fill(targetProgression);
     this.speed = Array.isArray(speed) ? speed : Array(this.idx.length).fill(speed);
-    return {
-      idx : this.idx,
-      targetProgression : this.targetProgression,
-      speed : this.speed
-    }
   }
 
   /**
    * Returns a dictionary representation of the fader move operation.
    * @returns {Object} - The dictionary representation of the fader move operation.
    */
-  getDict() { //! deprecated use the class object, it returns the dictionary
-    //! possible error when 2 indexes but only one target
+  getDict() { //! deprecated use the class object
     return {
       idx: this.idx,
       targetProgression: this.targetProgression,
@@ -938,18 +932,21 @@ start() {
     });
   }
 
-  moveFader(move, interrupting = false) {
+  moveFaders(move, interrupting = false) {
     return new Promise(async (resolve, reject) => {
       // the moves is no array this time. 
       // however we will accept an array of indexes and targets
       // each index will have a corresponding target, if it is only one target, it will be repeated for all indexes
       // we will also accept an array of speeds, if it is only one speed, it will be repeated for all indexes
-      // the dictionary would look something like this {idx: [0,1,2], target: [50, 75, 100], speed: [100, 50, 25]}
+      // the FaderMove class values look something like this {idx: [0,1,2], target: [50, 75, 100], speed: [100, 50, 25]}
       // or for one target and one speed {idx: [0,1,2], target: 50, speed: 100}
     if (interrupting) {
+      //use the idx key and values to clear the message queue
       this.clearMessagesByFaderIndexes(move.idx);
     }
-    this.logger.debug('Moving Faders: ' + )
+
+    this.logger.debug('Moving Faders: ' + move.idx + ' to ' + move.target + ' with speed: ' + move.speed + ' Interrupting: ' + interrupting);
+  });
   }
 
   /**

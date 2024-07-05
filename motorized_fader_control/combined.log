@@ -8737,3 +8737,182 @@
 {"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}]\n Interrupting: true\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[0],\"1\":[0]}\n Duration: 11ms"}
 {"level":"info","message":"### FaderController stopped"}
 {"level":"info","message":"SerialPort is closed"}
+{"level":"info","message":"### Initializing SerialPort: /dev/ttyUSB0 at baud rate: 1000000"}
+{"level":"info","message":"### SerialPort initialized."}
+{"level":"debug","message":"### Starting the FaderController..."}
+{"level":"info","message":"### FaderController started!"}
+{"level":"debug","message":"MIDI DATA: TYPE: PROGRAM_CHANGE CHANNEL: false DATA1: 160 DATA2: 102"}
+{"level":"debug","message":"Waiting for MIDI device ready..."}
+{"level":"info","message":"MIDI device is ready"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}] Interrupting: false"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 100, Target = 100\nFader 1: Current = 100, Target = 100"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Generating ramp for fader 0 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[100],[100]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[100],\"1\":[100]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}]\n Interrupting: false\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[100],\"1\":[100]}\n Duration: 18ms"}
+{"level":"info","message":"### Stopping the FaderController..."}
+{"level":"info","message":"Resetting faders: 0,1"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}] Interrupting: true"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 0, Target = 0\nFader 1: Current = 0, Target = 0"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Generating ramp for fader 0 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[0],[0]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[0],\"1\":[0]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}]\n Interrupting: true\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[0],\"1\":[0]}\n Duration: 16ms"}
+{"level":"info","message":"### FaderController stopped"}
+{"level":"info","message":"SerialPort is closed"}
+{"level":"info","message":"### Initializing SerialPort: /dev/ttyUSB0 at baud rate: 1000000"}
+{"level":"info","message":"### SerialPort initialized."}
+{"level":"debug","message":"### Starting the FaderController..."}
+{"level":"info","message":"### FaderController started!"}
+{"level":"debug","message":"MIDI DATA: TYPE: PROGRAM_CHANGE CHANNEL: false DATA1: 160 DATA2: 102"}
+{"level":"debug","message":"Waiting for MIDI device ready..."}
+{"level":"info","message":"MIDI device is ready"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}] Interrupting: false"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 100, Target = 100\nFader 1: Current = 100, Target = 100"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Generating ramp for fader 0 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[100],[100]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[100],\"1\":[100]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}]\n Interrupting: false\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[100],\"1\":[100]}\n Duration: 14ms"}
+{"level":"info","message":"### Stopping the FaderController..."}
+{"level":"info","message":"Resetting faders: 0,1"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}] Interrupting: true"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 0, Target = 0\nFader 1: Current = 0, Target = 0"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Generating ramp for fader 0 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[0],[0]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[0],\"1\":[0]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}]\n Interrupting: true\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[0],\"1\":[0]}\n Duration: 26ms"}
+{"level":"info","message":"### FaderController stopped"}
+{"level":"info","message":"SerialPort is closed"}
+{"level":"info","message":"### Initializing SerialPort: /dev/ttyUSB0 at baud rate: 1000000"}
+{"level":"info","message":"### SerialPort initialized."}
+{"level":"info","message":"### Initializing SerialPort: /dev/ttyUSB0 at baud rate: 1000000"}
+{"level":"info","message":"### SerialPort initialized."}
+{"level":"debug","message":"### Starting the FaderController..."}
+{"level":"debug","message":"### Starting the FaderController..."}
+{"level":"info","message":"### FaderController started!"}
+{"level":"debug","message":"MIDI DATA: TYPE: PROGRAM_CHANGE CHANNEL: false DATA1: 160 DATA2: 102"}
+{"level":"debug","message":"Waiting for MIDI device ready..."}
+{"level":"info","message":"MIDI device is ready"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}] Interrupting: false"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 100, Target = 100\nFader 1: Current = 100, Target = 100"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Generating ramp for fader 0 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[100],[100]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[100],\"1\":[100]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}]\n Interrupting: false\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[100],\"1\":[100]}\n Duration: 15ms"}
+{"level":"info","message":"### Stopping the FaderController..."}
+{"level":"info","message":"Resetting faders: 0,1"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}] Interrupting: true"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 0, Target = 0\nFader 1: Current = 0, Target = 0"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Generating ramp for fader 0 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[0],[0]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[0],\"1\":[0]}"}
+{"level":"info","message":"### FaderController started!"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}] Interrupting: false"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 100, Target = 100\nFader 1: Current = 100, Target = 100"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Generating ramp for fader 0 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[100],[100]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[100],\"1\":[100]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}]\n Interrupting: true\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[0],\"1\":[0]}\n Duration: 13ms"}
+{"level":"info","message":"### FaderController stopped"}
+{"level":"info","message":"SerialPort is closed"}
+{"level":"info","message":"### Stopping the FaderController..."}
+{"level":"info","message":"Resetting faders: 0,1"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}] Interrupting: true"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 0, Target = 0\nFader 1: Current = 0, Target = 0"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Generating ramp for fader 0 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[0],[0]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[0],\"1\":[0]}"}
+{"level":"info","message":"### Initializing SerialPort: /dev/ttyUSB0 at baud rate: 1000000"}
+{"level":"info","message":"### SerialPort initialized."}
+{"level":"debug","message":"### Starting the FaderController..."}
+{"level":"info","message":"### FaderController started!"}
+{"level":"debug","message":"MIDI DATA: TYPE: PROGRAM_CHANGE CHANNEL: false DATA1: 160 DATA2: 102"}
+{"level":"debug","message":"Waiting for MIDI device ready..."}
+{"level":"info","message":"MIDI device is ready"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}] Interrupting: false"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 100, Target = 100\nFader 1: Current = 100, Target = 100"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Generating ramp for fader 0 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[100],[100]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[100],\"1\":[100]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}]\n Interrupting: false\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[100],\"1\":[100]}\n Duration: 26ms"}
+{"level":"info","message":"### Stopping the FaderController..."}
+{"level":"info","message":"Resetting faders: 0,1"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}] Interrupting: true"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 0, Target = 0\nFader 1: Current = 0, Target = 0"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Generating ramp for fader 0 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[0],[0]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[0],\"1\":[0]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}]\n Interrupting: true\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[0],\"1\":[0]}\n Duration: 23ms"}
+{"level":"info","message":"### FaderController stopped"}
+{"level":"info","message":"SerialPort is closed"}
+{"level":"info","message":"### Initializing SerialPort: /dev/ttyUSB0 at baud rate: 1000000"}
+{"level":"info","message":"### SerialPort initialized."}
+{"level":"debug","message":"### Starting the FaderController..."}
+{"level":"info","message":"### FaderController started!"}
+{"level":"debug","message":"MIDI DATA: TYPE: PROGRAM_CHANGE CHANNEL: false DATA1: 160 DATA2: 102"}
+{"level":"debug","message":"Waiting for MIDI device ready..."}
+{"level":"info","message":"MIDI device is ready"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}] Interrupting: false"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 100, Target = 100\nFader 1: Current = 100, Target = 100"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Generating ramp for fader 0 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 100 to 100 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[100],[100]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[100],\"1\":[100]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[100,100],\"speed\":[10,10]}]\n Interrupting: false\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[100],\"1\":[100]}\n Duration: 20ms"}
+{"level":"info","message":"### Stopping the FaderController..."}
+{"level":"info","message":"Resetting faders: 0,1"}
+{"level":"debug","message":"Moving Fader with Move(s) : [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}] Interrupting: true"}
+{"level":"debug","message":"Initial Current Progressions: \nFader 0: Current = 100\nFader 1: Current = 100"}
+{"level":"debug","message":"Current and Target Progressions: \nFader 0: Current = 0, Target = 0\nFader 1: Current = 0, Target = 0"}
+{"level":"debug","message":"Updated Current Progressions: \nFader 0: Current = 0\nFader 1: Current = 0"}
+{"level":"debug","message":"Generating ramp for fader 0 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Generating ramp for fader 1 from 0 to 0 with 1 steps"}
+{"level":"debug","message":"Ramps created: [[0],[0]]"}
+{"level":"debug","message":"(faderIdx):(AmountPositions): 0: 1, 1: 1"}
+{"level":"debug","message":"Sending Progressions to faders: {\"0\":[0],\"1\":[0]}"}
+{"level":"debug","message":"FADER MOVE PROTOCOL: \n Moves: [{\"idx\":[0,1],\"targetProgression\":[0,0],\"speed\":[50,50]}]\n Interrupting: true\n Distances: 0,0\n Steps: 1,1\n Progressions Dict: {\"0\":[0],\"1\":[0]}\n Duration: 14ms"}
+{"level":"info","message":"### FaderController stopped"}
+{"level":"info","message":"SerialPort is closed"}

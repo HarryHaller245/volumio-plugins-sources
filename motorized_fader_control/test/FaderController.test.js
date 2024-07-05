@@ -16,7 +16,7 @@ describe('FaderController', () => {
   
     // Add a delay before starting the FaderController
     setTimeout(async () => {
-      await faderController.start();
+      faderController.start();
       done();
     }, 3000);
   });
@@ -32,10 +32,6 @@ describe('FaderController', () => {
   }); 
 
   test('FaderController tests movement', async () => {
-
-    //test 0 
-    await faderController.calibrate(undefined)
-
     //test 1: move faders to a position
     const indexes = [0,1];
     const progression = 100;
@@ -43,5 +39,5 @@ describe('FaderController', () => {
     const moveA = new FaderMove(indexes, 100, 10); 
     await faderController.move_faders(moveA, false);
 
-  }, 50000);
+  }, 5000);
 });
