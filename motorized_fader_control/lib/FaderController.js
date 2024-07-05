@@ -22,9 +22,6 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 
-
-
-
 /**
  * Represents a fader object. Holds the information of a motorized fader
  */
@@ -41,6 +38,7 @@ class Fader {
     this.onTouch = null; // Callback for touch event
     this.onUntouch = null; // Callback for untouch event
     this.echo_mode = false;
+    this.trim = [0,100], // Trim values for the fader, [0,100] means no trim
   }
 
   /**
@@ -66,6 +64,8 @@ class Fader {
   setEchoMode(echo_mode) {
     this.echo_mode = echo_mode;
   }
+
+
 
   /**
    * Sets the touch state of the fader.
@@ -95,14 +95,64 @@ class Fader {
   }
 
   /**
+   * Sets the progression value for the fader.
+   *
+   * @param {number} progression - The progression value to set.
+   */
+  setPositionOnly(position) {
+    // map the position to the trim range
+    position = this.mapPositionToTrimRange(position);
+    // only sets the position value
+    this.position = position;
+  }
+
+  /**
    * Sets the position of the fader.
    * Also updates the progression accordingly.
    * @param {number} position - The position value to be set.
    */
   setPosition(position) {
+    // map the position to the trim range
+    position = this.mapPositionToTrimRange(position);
     this.position = position;
     // also update progression accordingly
     this.progression = this.positionToProgression(position);
+  }
+
+  /**
+   * Sets the position value of the fader
+   *
+   * @param {number} position - The position value to set.
+   */
+  setPositionOnly(position) {
+    // only sets the position value
+    this.position = position;
+  }
+
+  /**
+   * Maps a progression value to the trim range.
+   * @param {number} progression - The progression value to be mapped.
+   * @returns {number} The mapped progression value.
+   */
+  mapProgressionToTrimRange(progression) {
+    const lower = this.trim[0];
+    const upper = this.trim[1];
+    // map the progression to the trim range
+    return lower + (progression / 100) * (upper - lower);
+}
+
+  /**
+   * Maps a position value to the trim range.
+   * @param {number} position - The position value to be mapped.
+   * @returns {number} The mapped position value.
+   */
+  mapPositionToTrimRange(position) {
+    const lower = this.progressionToPosition(this.trim[0]);
+    const upper = this.progressionToPosition(this.trim[1]);
+    // map the position to the trim range
+    const progression = this.positionToProgression(position);
+    const trimmedProgression = this.mapProgressionToTrimRange(progression);
+    return this.progressionToPosition(trimmedProgression);
   }
 
   /**
@@ -205,12 +255,12 @@ class FaderMove {
   /**
    * Creates a new instance of the FaderMove class.
    * @param {number|Array<number>} idx - The index or indexes of the faders.
-   * @param {number|Array<number>} targetProgression - The target progression value(s).
+   * @param {number|Array<number>} target - The target progression value(s).
    * @param {number|Array<number>} speed - The speed(s) of the fader move operation(s). From 0-100. 0 being no move 100 being instant
    */
-  constructor(idx, targetProgression, speed) {
+  constructor(idx, target, speed) {
     this.idx = Array.isArray(idx) ? idx : [idx];
-    this.targetProgression = Array.isArray(targetProgression) ? targetProgression : Array(this.idx.length).fill(targetProgression);
+    this.target = Array.isArray(target) ? target : Array(this.idx.length).fill(target);
     this.speed = Array.isArray(speed) ? speed : Array(this.idx.length).fill(speed);
   }
 
@@ -221,7 +271,7 @@ class FaderMove {
   getDict() { //! deprecated use the class object
     return {
       idx: this.idx,
-      targetProgression: this.targetProgression,
+      target: this.target,
       speed: this.speed
     };
   }
@@ -235,18 +285,20 @@ class FaderController {
    * Creates a new instance of the FaderController class.
    * @param {Object} logger - The logger object for logging messages.
    * @param {number} fader_count - The number of faders.
-   * @param {number} messageRateLimit - The rate limit for sending messages.
+   * @param {number} messageDelay - The rate limit for sending messages.
    * @param {boolean} MIDILog - Whether to log MIDI messages.
    * @param {Array<number>} speeds - The standard speeds used. [fastSpeed, mediumSpeed, slowSPeed]
-   * 
+   * @param {boolean} ValueLog - Whether to log the verbose values in high amounts.
    */
-  constructor(logger = dev_logger, fader_count = 1, messageRateLimit = 100, MIDILog = false, speeds = [80, 50, 10]) {
+  constructor(logger = dev_logger, fader_count = 1, messageDelay = 100, MIDILog = false, speeds = [80, 50, 10], ValueLog = false) {
     this.fader_count = fader_count;
     this.faders = null;
     this.ser_port = null;
     this.parser = null;
+
     this.logger = logger;
     this.MIDILog = MIDILog
+    this.ValueLog = ValueLog
 
     this.MIDICache = [];
     this.MIDIDeviceReady = false;
@@ -257,7 +309,7 @@ class FaderController {
     this.sendingMessage = false;
 
     this.lastMessageTime = 0;
-    this.messageRateLimit = messageRateLimit; // Limit
+    this.messageDelay = messageDelay; // Limit
 
     this.speedFast = speeds[0]
     this.speedMedium = speeds[1]
@@ -275,7 +327,7 @@ class FaderController {
     //method to update the config of a running FaderController
     //I.e only variables can be modified by this
     // messageRateLimit for example
-    this.messageRateLimit = messageRateLimit;
+    this.messageDelay = messageRateLimit;
     this.speedFast = speeds[0]
     this.speedMedium = speeds[1]
     this.speedSlow = speeds[2]
@@ -350,34 +402,39 @@ class FaderController {
    * Starts the fader controller.
    * @returns {Promise} A promise that resolves if the controller was started successfully, or rejects if an error occurs.
    */
-start() {
-    return new Promise(async (resolve, reject) => {
-      try {
-        this.logger.debug("### Starting the FaderController...");
+  async start() {
+    try {
+      this.logger.debug("### Starting the FaderController...");
 
-        if (!this.ser_port || !this.parser) {
-          this.logger.error("Serial port and parser not set up.");
-          reject(new Error("Serial port and parser not set up."));
-          return;
-        }
-
-        this.configure();
-
-        this.setupPortListeners();
-
-        // Start reading data
-        this.parser.on("readable", () => {
-          this.readAndParseData();
-        });
-        
-        this.logger.info("### FaderController started!");
-
-        resolve();
-      } catch (error) {
-        this.logger.error("Error starting FaderController: ", error);
-        reject(error);
+      if (!this.ser_port || !this.parser) {
+        this.logger.error("Serial port and parser not set up.");
+        throw new Error("Serial port and parser not set up.");
       }
-    });
+
+      this.configure();
+
+      this.setupPortListeners();
+
+      // Start reading data
+      await new Promise((resolve, reject) => {
+        this.parser.on("readable", async () => {
+          try {
+            await this.readAndParseData();
+            resolve();
+          } catch (error) {
+            reject(error);
+          }
+        });
+      });
+
+      // we need to wait here for a mididevice ready before continuing
+      await this.calibrate()
+
+      this.logger.info("### FaderController started!");
+    } catch (error) {
+      this.logger.error("Error starting FaderController: ", error);
+      throw error;
+    }
   }
 
   /**
@@ -484,28 +541,50 @@ start() {
    * Reads and parses MIDI data.
    */
   readAndParseData() {
-    let midiDataArr;
-    try {
+    return new Promise((resolve, reject) => {
+      let midiDataArr;
+      try {
         midiDataArr = this.parser.read();
         if (midiDataArr) {
-            const logMessage = this.parser.formatParsedLogMessageArr(midiDataArr);
-            this.logger.debug(logMessage);
-            this.updateFaderInfo(midiDataArr);
-            if (this.MIDIDeviceReady === false) {
-              this.cacheProgramChangeMessages(midiDataArr);
-              this.CheckMIDIDeviceReady((isReady) => {
-                  if (!isReady) {
-                      this.handleMIDIDeviceNotReady(); 
-                  }
-              }, this.maxCacheDeviceReadiness);
-            }
+          const logMessage = this.parser.formatParsedLogMessageArr(midiDataArr);
+          this.logger.debug(logMessage);
+          this.updateFaderInfo(midiDataArr);
+          if (this.MIDIDeviceReady === false) {
+            this.cacheProgramChangeMessages(midiDataArr);
+            this.CheckMIDIDeviceReady((isReady) => {
+              if (!isReady) {
+                this.handleMIDIDeviceNotReady(); 
+              } else {
+                resolve();
+              }
+            }, this.maxCacheDeviceReadiness);
+          } else {
+            resolve();
+          }
         }
-    } catch (error) {
-      this.logger.error('Error reading data:' + error);
-    }
+      } catch (error) {
+        this.logger.error('Error reading data:' + error);
+        reject(error);
+      }
+    });
   }
 
   // info handling ################################
+
+  /**
+   * Retrieves the progressions of the faders at the specified indexes.
+   * If the indexes parameter is not an array, it will be converted into an array with a single index.
+   *
+   * @param {number|Array<number>} indexes - The indexes of the faders to retrieve progressions for.
+   * @returns {Array<number>} An array of fader progressions.
+   */
+  getFaderProgressions(indexes) {
+    if (!Array.isArray(indexes)) {
+      indexes = [indexes]; // This will create an array with the single index
+    }
+    return indexes.map(index => this.faders[index].getProgression());
+  }
+
 
   /**
    * Returns a dictionary containing the information for the specified faders.
@@ -516,7 +595,7 @@ start() {
    * @returns {Object[]} - An array of dictionaries containing the information for the specified faders.
    * If an invalid fader index is encountered, it will be skipped and not included in the result.
    */
-  getInfoDict(indexes) {
+  getFaderInfoDict(indexes) {
     if (indexes === undefined) {
         indexes = Object.keys(this.faders).map(Number);
     } else if (!Array.isArray(indexes)) {
@@ -573,7 +652,7 @@ start() {
     }
   }
 
-  //send message #############################################
+  //send MIDI MESSAGES #############################################
 
     /**
    * Sends an array of MIDI messages.
@@ -606,8 +685,8 @@ start() {
     }
 
     const now = Date.now();
-    if (now - this.lastMessageTime < this.messageRateLimit) {
-      setTimeout(() => this.sendNextMessage(), this.messageRateLimit - (now - this.lastMessageTime));
+    if (now - this.lastMessageTime < this.messageDelay) {
+      setTimeout(() => this.sendNextMessage(), this.messageDelay - (now - this.lastMessageTime));
       return;
     }
 
@@ -696,12 +775,14 @@ start() {
       const msg = Object.entries(positionsDict).map(([index, positions]) => {
         return `${index}: ${positions.length}`;
       }).join(', ');
-      this.logger.debug(`(faderIdx):(AmountPositions): ${msg}`);
+      this.logger.debug(`ProgressionsDict sent analysis (faderIdx):(AmountPositions): ${msg}`);
 
-      this.logger.debug('Sending Progressions to faders: ' + JSON.stringify(progressionsDict));
+      if (this.ValueLog == true) {
+        this.logger.debug('Sending Progressions to faders: ' + JSON.stringify(progressionsDict));
+      }
 
       try {
-        await this.sendFaderPositionsDict(positionsDict);
+        await this.sendFaderPositionsDict(positionsDict, progressionsDict);
         resolve();
       } catch (error) {
         reject(error);
@@ -715,41 +796,45 @@ start() {
    * @param {Object} positionsDict - A dictionary where the keys are fader indexes and the values are the positions to set the faders to.
    * @returns {Promise} A promise that resolves when all MIDI messages have been sent, or rejects if an error occurs.
    */
-  sendFaderPositionsDict(positionsDict) {
-    return new Promise(async (resolve, reject) => {
-      const messages = [];
-      const maxPositions = Math.max(...Object.values(positionsDict).map(positions => positions.length));
-      // iterate over the positions first and then the faders. This way, you'll send the first position for all faders, then the second position for all faders, and so on
-      for (let positionIndex = 0; positionIndex < maxPositions; positionIndex++) {
-        for (const [index, positions] of Object.entries(positionsDict)) {
-          if (positions[positionIndex] !== undefined) {
-            try {
+sendFaderPositionsDict(positionsDict, progressionsDict) {
+  return new Promise(async (resolve, reject) => {
+    const messages = [];
+    const maxPositions = Math.max(...Object.values(positionsDict).map(positions => positions.length));
+    for (let positionIndex = 0; positionIndex < maxPositions; positionIndex++) {
+      for (const [index, positions] of Object.entries(positionsDict)) {
+        if (positions[positionIndex] !== undefined) {
+          try {
+            // If progressionsDict is provided, update the progression
+            if (progressionsDict && progressionsDict[index]) {
+              this.faders[index].setProgressionOnly(progressionsDict[index][positionIndex]);
+              this.faders[index].setPositionOnly(positions[positionIndex]);
+            } else {
+              // If progressionsDict is not provided, use the standard setPosition method
               this.faders[index].setPosition(positions[positionIndex]);
-              // Construct a Midi Message
-              const message = [
-                0xE0 | (index),
-                positions[positionIndex] & 0x7F,
-                (positions[positionIndex] >> 7) & 0x7F
-              ];
-              messages.push(message);
-            } catch (error) {
-              this.logger.error('Error setting fader position: ', error);
-              reject(error);
-              return;
             }
+            const message = [
+              0xE0 | (index),
+              positions[positionIndex] & 0x7F,
+              (positions[positionIndex] >> 7) & 0x7F
+            ];
+            messages.push(message);
+          } catch (error) {
+            this.logger.error('Error setting fader position: ', error);
+            reject(error);
+            return;
           }
         }
       }
-  
-      try {
-        await this.sendMIDIMessages(messages);
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
+    }
 
+    try {
+      await this.sendMIDIMessages(messages);
+      resolve();
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
   // FADER MOVEMENT ###################################
 
   /**
@@ -787,45 +872,115 @@ start() {
    * @param {Array<number>|number} indexes - The indexes of the faders to calibrate. If not provided, all faders will be calibrated.
    * @returns {Promise<void>} A promise that resolves when the calibration is complete, or rejects with an error if an error occurs.
    */
-  calibrate(indexes) {
-    //performs a standard calibration of all faders
-    //this will move all faders to the top and then back to the bottom
-    //on 2 speeds
-    return new Promise(async (resolve, reject) => {
-      //get an array of all configured faders
+  async calibrate(indexes) {
+    indexes = this.normalizeIndexes(indexes);
+    const move1 = new FaderMove(indexes, 100, this.speedMedium);
+    const move2 = new FaderMove(indexes, 0, this.speedSlow);
+
+    try {
+      this.logger.info(`Calibrating faders: ${indexes} with moves: ${JSON.stringify([move1, move2])}`);
+      await this.moveFaders(move1, false);
+      await this.moveFaders(move2, false);
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async calibrateSpeeds(indexes, start = 0, end = 100, count = 10, startSpeed = 1, endSpeed = 100) {
       indexes = this.normalizeIndexes(indexes);
-      const move1 = new FaderMove(indexes, 100, this.speedMedium);
-      const move2 = new FaderMove(indexes, 0, this.speedSlow);
-      const moves = [move1, move2];
-      try {
-        this.logger.info('Calibrating faders: ' + indexes + ' with moves: ' + JSON.stringify(moves));
-        await this.move_faders(moves, false);
-        resolve();
-      } catch (error) {
-        reject(error);
+
+      const moves = [];
+      const distance = Math.abs(start - end);
+      const results = {};
+      const speedStep = (endSpeed - startSpeed) / (count - 1);
+
+      for (let i = 0; i < count; i++) {
+          const positions = [];
+          // If i is even, move from end to start, otherwise move from start to end
+          if (i % 2 === 0) {
+              positions.push(end);
+              positions.push(start);
+          } else {
+              positions.push(start);
+              positions.push(end);
+          }
+          const speed = startSpeed + i * speedStep;
+          const move = new FaderMove(indexes, positions, speed);
+          moves.push(move);
       }
-    });
+
+      const log = [];
+      for (let move of moves) {
+          try {
+              const duration = await this.moveFaders(move, false);
+              log.push(`TIME: ${duration}ms @SPEEDS: ${move.speed}% @DISTANCE: ${distance}%`);
+              // Store the result in the results dictionary
+              for (let index of indexes) {
+                  if (!results[index]) {
+                      results[index] = {};
+                  }
+                  results[index][move.speed] = duration;
+              }
+          } catch (error) {
+              throw error;
+          }
+      }
+
+      this.logger.info(`\n--- START FADER CALIBRATION REPORT ---`);
+      this.logger.info(`Faders: ${indexes.join(',')}`);
+      this.logger.info(`Moves: ${count}`);
+      this.logger.info(`Distance: ${distance}% Start: ${start}% to End: ${end}%`);
+      this.logger.info(`@Speeds: ${moves.map(move => move.speed).join(', ')} %`);
+      this.logger.info(`------------------------------------\n`);
+      for (let line of log) {
+          this.logger.info(line);
+      }
+
+      // Initialize min and max durations and their corresponding speeds
+      let minDuration = Infinity;
+      let maxDuration = -Infinity;
+      let minSpeed = -1;
+      let maxSpeed = -1;
+
+      // Iterate over the results dictionary
+      for (let index in results) {
+          for (let speed in results[index]) {
+              const duration = results[index][speed];
+              if (duration < minDuration) {
+                  minDuration = duration;
+                  minSpeed = speed;
+              }
+              if (duration > maxDuration) {
+                  maxDuration = duration;
+                  maxSpeed = speed;
+              }
+          }
+      }
+
+      // Log the min and max durations and their corresponding speeds
+      this.logger.info(`Min duration: ${minDuration}ms at speed: ${minSpeed}%`);
+      this.logger.info(`Max duration: ${maxDuration}ms at speed: ${maxSpeed}%`);
+      this.logger.info(`--- END FADER CALIBRATION REPORT ---\n`);
+
+      // Return the results dictionary
+      return results;
   }
 
   /**
    * Resets the faders to 0.
    * @param {Array<number>|number} indexes - The indexes of the faders to calibrate. If not provided, all faders will be calibrated.
    * @returns {Promise<void>} A promise that resolves when the faders are reset, or rejects with an error if an error occurs.
-  */
-  reset(indexes) {
-    //resets the faders to the base position
-    return new Promise(async (resolve, reject) => {
-      indexes = this.normalizeIndexes(indexes);
-      const resetMove = new FaderMove(indexes, 0, this.speedMedium);
-      try {
-        this.logger.info('Resetting faders: ' + indexes)
-        await this.move_faders(resetMove, true);
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
-
+   *
+   */
+  async reset(indexes) {
+    indexes = this.normalizeIndexes(indexes);
+    const resetMove = new FaderMove(indexes, 0, this.speedMedium);
+    try {
+      this.logger.info(`Resetting faders: ${indexes}`);
+      await this.moveFaders(resetMove, true);
+    } catch (error) {
+      throw error
+    }
   }
 
   /**
@@ -844,109 +999,77 @@ start() {
     return ramp;
   }
 
-  /**
-   * Moves the faders according to the provided move specifications.
-   * @param {Array<{idx: number, target: number, speed: number}>} moves - The move specifications.
-   * usage example:
-   * const move1 = new FaderMove(0, 50, 100);
-   * const move2 = new FaderMove(1, 75, 50);
-   * const moves = [move1, move2].map(move => move.getDict());
-   * move_faders(moves, true);
-   */
-  move_faders(moves, interrupting = false) {   //! deprecated, way to complicated
-    return new Promise(async (resolve, reject) => {
-      if (!Array.isArray(moves)) {
-        moves = [moves];
-      }
-
-      if (interrupting) {
-        this.clearMessagesByFaderIndexes(moves.map(move => move.idx));
-      }
-      this.logger.debug('Moving Fader with Move(s) : ' + JSON.stringify(moves) + ' Interrupting: ' + interrupting);
-      
-    let expectedProgressions = this.faders.map(fader => fader.progression);
-
-    this.logger.debug('Initial Current Progressions: \n' + expectedProgressions.map((progression, idx) => {
-      return `Fader ${idx}: Current = ${progression}`;
-    }).join('\n'));
-
-    moves.forEach((move, i) => {
-      move.idx.forEach((idx, j) => {
-        expectedProgressions[idx] = move.targetProgression[j];
-      });
-    });
-
-    this.logger.debug('Current and Target Progressions: \n' + moves.flatMap((move, i) => {
-      return move.idx.map((idx, j) => {
-        let currentProgression = expectedProgressions[idx];
-        let targetProgression = move.targetProgression[j];
-        return `Fader ${idx}: Current = ${currentProgression}, Target = ${targetProgression}`;
-      });
-    }).join('\n'));
-      
-      const distances = moves.flatMap(move => {
-        return move.idx.map((idx, j) => {
-          const distance = Math.abs(expectedProgressions[idx] - move.targetProgression[j]);
-          expectedProgressions[idx] = move.targetProgression[j]; // Update expectedProgressions here
-          return distance;
-        });
-      });
-      
-      this.logger.debug('Updated Current Progressions: \n' + expectedProgressions.map((progression, idx) => {
-        return `Fader ${idx}: Current = ${progression}`;
-      }).join('\n'));
-
-      const steps = distances.map((distance, i) => {
-        const moveIndex = Math.floor(i / moves[0].idx.length);
-        const speedIndex = i % moves[0].idx.length;
-        const speed = moves[moveIndex].speed[speedIndex];
-        return Math.max(Math.round(distance / (speed / 100) + 1), 1);
-      });
-
-      const ramps = moves.flatMap((move, i) => {
-        return move.idx.map((idx, j) => {
-          this.logger.debug('Generating ramp for fader ' + idx + ' from ' + expectedProgressions[idx] + ' to ' + move.targetProgression[j] + ' with ' + steps[i * move.idx.length + j] + ' steps');
-          return this.generateRamp(expectedProgressions[idx], move.targetProgression[j], steps[i * move.idx.length + j]);
-        });
-      });
-
-      this.logger.debug('Ramps created: ' + JSON.stringify(ramps));
-
-      const progressionsDict = {};
-      moves.forEach((move, i) => {
-        move.idx.forEach((idx, j) => {
-          progressionsDict[idx] = ramps[i * move.idx.length + j];
-        });
-      });
-
-      try {
-        const startTime = Date.now();
-        await this.sendFaderProgressionsDict(progressionsDict);
-        const endTime = Date.now();
-        const duration = endTime - startTime;
-        this.logger.debug('FADER MOVE PROTOCOL: \n Moves: ' + JSON.stringify(moves) + '\n Interrupting: ' + interrupting + '\n Distances: ' + distances + '\n Steps: ' + steps + '\n Progressions Dict: ' + JSON.stringify(progressionsDict) + '\n Duration: ' + duration + 'ms');
-        resolve();
-      } catch (error) {
-        reject(error);
-      }
-    });
-  }
-
-  moveFaders(move, interrupting = false) {
-    return new Promise(async (resolve, reject) => {
-      // the moves is no array this time. 
-      // however we will accept an array of indexes and targets
-      // each index will have a corresponding target, if it is only one target, it will be repeated for all indexes
-      // we will also accept an array of speeds, if it is only one speed, it will be repeated for all indexes
-      // the FaderMove class values look something like this {idx: [0,1,2], target: [50, 75, 100], speed: [100, 50, 25]}
-      // or for one target and one speed {idx: [0,1,2], target: 50, speed: 100}
+  async moveFaders(move, interrupting = false) {
     if (interrupting) {
-      //use the idx key and values to clear the message queue
       this.clearMessagesByFaderIndexes(move.idx);
     }
 
-    this.logger.debug('Moving Faders: ' + move.idx + ' to ' + move.target + ' with speed: ' + move.speed + ' Interrupting: ' + interrupting);
-  });
+    this.logger.debug(`Moving Faders: ${move.idx} to ${move.target} with speed: ${move.speed} Interrupting: ${interrupting}`);
+
+    this.target = this.ensureCorrectLength(move.target, move.idx.length);
+    this.speed = this.ensureCorrectLength(move.speed, move.idx.length);
+
+    move.distance = move.idx.map((idx, i) => Math.abs(this.faders[idx].progression - move.target[i]));
+
+    
+    move.steps = move.distance.map((distance, i) => Math.max(Math.round(distance / (move.speed[i] / 100) + 1), 1));
+    move.stepSize = move.distance.map((distance, i) => distance / move.steps[i]);
+
+    move.ramps = move.idx.map((idx, i) => {
+      if (this.ValueLog == true) {
+      this.logger.debug(`Generating ramp for fader ${idx} from ${this.faders[idx].progression} to ${move.target[i]} with ${move.steps[i]} steps`);
+      }
+      return this.generateRamp(this.faders[idx].progression, move.target[i], move.steps[i]);
+    });
+
+    if (this.ValueLog == true) {
+      this.logger.debug(`Ramps created: ${JSON.stringify(move.ramps)}`);
+    }
+    
+    const progressionsDict = move.idx.reduce((dict, idx, i) => ({ ...dict, [idx]: move.ramps[i] }), {});
+
+    try {
+      const startTime = Date.now();
+      await this.sendFaderProgressionsDict(progressionsDict);
+      const endTime = Date.now();
+      const duration = endTime - startTime;
+
+    const rampStartActual = move.idx.map(idx => move.ramps[idx][0]);
+    const rampEndActual = move.idx.map(idx => move.ramps[idx][move.ramps[idx].length - 1]);
+
+    this.logger.debug(`FADER MOVE PROTOCOL: 
+    Moved Faders: ${JSON.stringify(move.idx)}
+    StartPoints: ${JSON.stringify(this.faders.map(fader => fader.progression))}
+    Targets: ${JSON.stringify(move.target)}
+    RampStartActual: ${JSON.stringify(rampStartActual)}
+    RampEndActual: ${JSON.stringify(rampEndActual)}
+    Speeds: ${JSON.stringify(move.speed)}
+    StepSize: ${JSON.stringify(move.stepSize)}
+    Steps: ${JSON.stringify(move.steps)}
+    Duration: ${duration}ms
+    FaderInfo: ${JSON.stringify(this.getFaderInfoDict(move.idx))}`
+    )
+    return duration
+
+    } catch (error) {
+      throw error;
+    }
+  }
+
+// HELPER METHODS #############
+
+  ensureCorrectLength(arr, length) {
+    if (!Array.isArray(arr)) {
+      // If arr is not an array, repeat its value length times
+      return Array(length).fill(arr);
+    } else if (arr.length !== length) {
+      // If arr is an array but its length doesn't match, log a warning and use the first value
+      console.warn('Array length does not match idx length. Using first value.');
+      return Array(length).fill(arr[0]);
+    } else {
+      // If arr is an array and its length matches, use it as is
+      return arr;
+    }
   }
 
   /**
@@ -956,6 +1079,7 @@ start() {
    * @returns {Array<number>} The normalized indexes array.
    */
   normalizeIndexes(indexes) {
+    
     if (indexes === undefined) {
         return Object.values(this.faders).map(fader => fader.index);
     } else if (!Array.isArray(indexes)) {
