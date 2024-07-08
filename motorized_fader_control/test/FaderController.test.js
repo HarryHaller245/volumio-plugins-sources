@@ -12,6 +12,7 @@ const speedHigh = 30;
 const speedMedium = 20;
 const speedLow = 10;
 const speeds = [speedHigh, speedMedium, speedLow];
+const ProgressionMap = [0,100];
 
 jest.setTimeout(30000); // 30 seconds
 
@@ -20,12 +21,13 @@ describe('FaderController', () => {
 
   beforeAll(done => {
     faderController = new FaderController(undefined, fader_count, messageDelay, MIDILog, speeds, ValueLog);
-    faderController.setupSerial('/dev/ttyUSB0', 1000000);
-  
+    faderController.setupSerial('/dev/ttyUSB0', 1000000);  
     // Add a delay before starting the FaderController
     new Promise(resolve => setTimeout(resolve, 5000))
       .then(async () => {
         await faderController.start();
+        faderController.setFaderProgressionMap([0,1],ProgressionMap);
+
         done();
       });
   });
@@ -51,7 +53,21 @@ describe('FaderController', () => {
     expect(faderController.getFaderProgressions(indexes)).toEqual([progression, progression]);
 
     //test 4: Speed Calibration
-    await faderController.calibrateSpeeds(indexes, 0, 100, 20, 1, 20);
+    const startProgression = 0;
+    const endProgression = 100;
+    const count = 20;
+    const startSpeed = 0;
+    const endSpeed = 20;
+    await faderController.calibrateSpeeds(indexes, startProgression, endProgression, count, startSpeed, endSpeed);
     
-  }, 50000);
+    //test 5: Find fastest speed 0-100 with visual confirmation
+    // we will make a move from 0-100-0 in from speeds 0-100, each time waiting for user confirmation
+    // yes - fader reached 100, no - fader reached maximum speed and did not reach 100
+    const prompt = require('prompt-sync')();
+
+    //test 6: echo mode
+    // we will enable echo mode on both fader 0,1 and let the user manipulate them by hand
+    // the faders should keep the set posiiton. We will give 45 seconds of time to test this
+
+  }, 100000);
 });
