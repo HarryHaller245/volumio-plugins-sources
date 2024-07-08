@@ -37,9 +37,19 @@ class Fader {
     this.touch = false; // Whether the fader is currently being touched
     this.onTouch = null; // Callback for touch event
     this.onUntouch = null; // Callback for untouch event
-    this.echo_mode = false;
-    this.trim = [0,100], // Trim values for the fader, [0,100] means no trim
+    this.echo_mode = false; //echo mode for a fader, means it will immediately mirror any adjustment made to it by hand
+    this.ProgressionMap = [0,100]; // mapping range values for the fader, [0,100] means no trim and is the max range
   }
+
+  /**
+   * Sets the progression map for the fader controller.
+   *
+   * @param {Object} ProgressionMap - The progression map object.
+   */
+  set_ProgressionMap(ProgressionMap) {
+    this.ProgressionMap = ProgressionMap;
+  }
+
 
   /**
    * Sets the callback function for the touch event.
@@ -89,22 +99,16 @@ class Fader {
    * @param {number} progression - The progression value to be set.
    */
   setProgression(progression) {
-    this.progression = progression;
+    this.setProgressionOnly(progression)
     // also update position accordingly
-    this.position = this.progressionToPosition(progression);
+    const position = this.progressionToPosition(progression);
+    this.setPositionOnly(position)
   }
 
-  /**
-   * Sets the progression value for the fader.
-   *
-   * @param {number} progression - The progression value to set.
-   */
-  setPositionOnly(position) {
-    // map the position to the trim range
-    position = this.mapPositionToTrimRange(position);
-    // only sets the position value
-    this.position = position;
+  setProgressionOnly(progression) {
+    this.progression = this.mapProgressionToTrimRange(progression);
   }
+
 
   /**
    * Sets the position of the fader.
@@ -113,10 +117,10 @@ class Fader {
    */
   setPosition(position) {
     // map the position to the trim range
-    position = this.mapPositionToTrimRange(position);
-    this.position = position;
+    this.setPositionOnly(position)
     // also update progression accordingly
-    this.progression = this.positionToProgression(position);
+    const progression = this.positionToProgression(position);
+    this.setProgressionOnly(progression)
   }
 
   /**
@@ -126,7 +130,7 @@ class Fader {
    */
   setPositionOnly(position) {
     // only sets the position value
-    this.position = position;
+    this.position = this.mapPositionToTrimRange(position);
   }
 
   /**
@@ -135,25 +139,16 @@ class Fader {
    * @returns {number} The mapped progression value.
    */
   mapProgressionToTrimRange(progression) {
-    const lower = this.trim[0];
-    const upper = this.trim[1];
-    // map the progression to the trim range
+    const lower = this.ProgressionMap[0];
+    const upper = this.ProgressionMap[1];
     return lower + (progression / 100) * (upper - lower);
 }
 
-  /**
-   * Maps a position value to the trim range.
-   * @param {number} position - The position value to be mapped.
-   * @returns {number} The mapped position value.
-   */
-  mapPositionToTrimRange(position) {
-    const lower = this.progressionToPosition(this.trim[0]);
-    const upper = this.progressionToPosition(this.trim[1]);
-    // map the position to the trim range
-    const progression = this.positionToProgression(position);
-    const trimmedProgression = this.mapProgressionToTrimRange(progression);
-    return this.progressionToPosition(trimmedProgression);
-  }
+mapPositionToTrimRange(position) {
+    const lower = this.progressionToPosition(this.ProgressionMap[0]);
+    const upper = this.progressionToPosition(this.ProgressionMap[1]);
+    return lower + ((position - lower) / (upper - lower)) * (upper - lower);
+}
 
   /**
    * Converts a position value to a progression value.
@@ -338,25 +333,33 @@ class FaderController {
     this.setupFadersArray(this.fader_count);
   }
 
-
   /**
-   * Sets the callback function for the touch event of a fader.
-   * @param {number} index - The index of the fader.
-   * @param {Function} callback - The callback function to be called when the fader is touched.
+   * Sets the progression maps for one or more faders.
+   * 
+   * @param {number[]} indexes - The indexes of the faders to set the progression maps for.
+   * @param {Object} ProgressionMap - The progression map to set for the faders.
    */
-  setOnTouchCallback(index, callback) {
-    //! update this to accept an array of indexes as well
-    this.faders[index].setTouchCallback(callback);
+  setFaderProgressionMap(indexes, ProgressionMap) {
+    //sets the passed progression maps for one or more faders
+    indexes = this.normalizeIndexes(indexes);
+    indexes.map(index => {
+      this.faders[index].set_ProgressionMap(ProgressionMap);
+    });
   }
 
-  /**
-   * Sets the callback function for the untouch event of a fader.
-   * @param {number} index - The index of the fader.
-   * @param {Function} callback - The callback function to be called when the fader is untouched.
-   */
-  setOnUntouchCallback(index, callback) {
-    //! update this to accept an array of indexes as well
-    this.faders[index].setUntouchCallback(callback);
+
+  setOnTouchCallback(indexes, callback) {
+    indexes = this.normalizeIndexes(indexes);
+    indexes.forEach(index => {
+      this.faders[index].setTouchCallback(callback);
+    });
+  }
+
+  setOnUntouchCallback(indexes, callback) {
+    indexes = this.normalizeIndexes(indexes);
+    indexes.forEach(index => {
+      this.faders[index].setUntouchCallback(callback);
+    });
   }
 
   setupFadersArray(fader_count) {
@@ -886,6 +889,17 @@ sendFaderPositionsDict(positionsDict, progressionsDict) {
     }
   }
 
+  /**
+   * Calibrates the speeds of the fader controller.
+   * 
+   * @param {number[]} indexes - The indexes of the faders to calibrate.
+   * @param {number} start - The start position of the faders (default: 0).
+   * @param {number} end - The end position of the faders (default: 100).
+   * @param {number} count - The number of moves to perform (default: 10).
+   * @param {number} startSpeed - The starting speed of the moves (default: 1).
+   * @param {number} endSpeed - The ending speed of the moves (default: 100).
+   * @returns {Object} - The results dictionary containing the durations for each index and speed.
+   */
   async calibrateSpeeds(indexes, start = 0, end = 100, count = 10, startSpeed = 1, endSpeed = 100) {
       indexes = this.normalizeIndexes(indexes);
 
@@ -913,7 +927,7 @@ sendFaderPositionsDict(positionsDict, progressionsDict) {
       for (let move of moves) {
           try {
               const duration = await this.moveFaders(move, false);
-              log.push(`TIME: ${duration}ms @SPEEDS: ${move.speed}% @DISTANCE: ${distance}%`);
+              log.push(`TIME: ${duration}ms @SPEEDS: ${move.speed[0]}% @DISTANCE: ${distance}%`);
               // Store the result in the results dictionary
               for (let index of indexes) {
                   if (!results[index]) {
@@ -930,7 +944,7 @@ sendFaderPositionsDict(positionsDict, progressionsDict) {
       this.logger.info(`Faders: ${indexes.join(',')}`);
       this.logger.info(`Moves: ${count}`);
       this.logger.info(`Distance: ${distance}% Start: ${start}% to End: ${end}%`);
-      this.logger.info(`@Speeds: ${moves.map(move => move.speed).join(', ')} %`);
+      this.logger.info(`@Speeds: ${moves.map(move => move.speed[0]).join(', ')} %`);
       this.logger.info(`------------------------------------\n`);
       for (let line of log) {
           this.logger.info(line);
@@ -958,10 +972,10 @@ sendFaderPositionsDict(positionsDict, progressionsDict) {
       }
 
       // Log the min and max durations and their corresponding speeds
-      this.logger.info(`Min duration: ${minDuration}ms at speed: ${minSpeed}%`);
-      this.logger.info(`Max duration: ${maxDuration}ms at speed: ${maxSpeed}%`);
+      this.logger.info(`Min duration: ${minDuration}ms at speed: ${minSpeed[0]}%`);
+      this.logger.info(`Max duration: ${maxDuration}ms at speed: ${maxSpeed[0]}%`);
+      this.logger.info(`System MESSAGE DELAY: ${this.messageDelay}`);
       this.logger.info(`--- END FADER CALIBRATION REPORT ---\n`);
-
       // Return the results dictionary
       return results;
   }
