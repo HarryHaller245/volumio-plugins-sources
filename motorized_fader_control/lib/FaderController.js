@@ -39,6 +39,9 @@ class Fader {
     this.onUntouch = null; // Callback for untouch event
     this.echo_mode = false; //echo mode for a fader, means it will immediately mirror any adjustment made to it by hand
     this.ProgressionMap = [0,100]; // mapping range values for the fader, [0,100] means no trim and is the max range
+    //! this produces an array length error atm, or memory leak not sure
+
+    this.MovementSpeedFactor = 1; // The speed factor for the fader movement
   }
 
   /**
@@ -283,8 +286,10 @@ class FaderController {
    * @param {boolean} MIDILog - Whether to log MIDI messages.
    * @param {Array<number>} speeds - The standard speeds used. [fastSpeed, mediumSpeed, slowSPeed]
    * @param {boolean} ValueLog - Whether to log the verbose values in high amounts.
+   * @param {boolean} MoveLog - Whether to log the verbose movement values in high amounts.
+   * @param {boolean} CalibrationOnStart - Whether to calibrate the faders on start.
    */
-  constructor(logger = dev_logger, fader_count = 1, messageDelay = 100, MIDILog = false, speeds = [80, 50, 10], ValueLog = false, MoveLog = false) {
+  constructor(logger = dev_logger, fader_count = 1, messageDelay = 100, MIDILog = false, speeds = [80, 50, 10], ValueLog = false, MoveLog = false, CalibrationOnStart = true) {
     this.fader_count = fader_count;
     this.faders = null;
     this.ser_port = null;
@@ -309,6 +314,8 @@ class FaderController {
     this.speedFast = speeds[0]
     this.speedMedium = speeds[1]
     this.speedSlow = speeds[2]
+
+    this.CalibrationOnStart = CalibrationOnStart;
   }
 
   /**
@@ -430,8 +437,9 @@ class FaderController {
         });
       });
 
-      // we need to wait here for a mididevice ready before continuing
-      await this.calibrate()
+      if (this.CalibrationOnStart) {
+        await this.calibrate_old()
+      }
 
       this.logger.info("### FaderController started!");
     } catch (error) {
@@ -876,6 +884,7 @@ class FaderController {
     }
   }
 
+  // CALIBRATION ########################################
   /**
    * Performs a standard calibration of all faders.
    * This will move all faders to the top and then back to the bottom on 2 speeds.
@@ -883,7 +892,7 @@ class FaderController {
    * @param {Array<number>|number} indexes - The indexes of the faders to calibrate. If not provided, all faders will be calibrated.
    * @returns {Promise<void>} A promise that resolves when the calibration is complete, or rejects with an error if an error occurs.
    */
-  async calibrate(indexes) {
+  async calibrate_old(indexes) {
     indexes = this.normalizeIndexes(indexes);
     const move1 = new FaderMove(indexes, 100, this.speedMedium);
     const move2 = new FaderMove(indexes, 0, this.speedSlow);
@@ -894,6 +903,97 @@ class FaderController {
       await this.moveFaders(move2, false);
     } catch (error) {
       throw error;
+    }
+  }
+
+  async UserCalibration(indexes, count, startSpeed, endSpeed, userConfirmationCallback = null, consoleInput = true) {
+    // a calibration method where the fader will perform several moves from 0-100-0 at different increasing speeds.
+    // for each 0-100-0 move, the user will be prompted via a callback or if configured, console input to confirm if the fader reached the top before it returned.
+    // the goal is to calibrate the top speed for the fader to reach the top, avoiding performing non-full moves.
+    // the user will be prompted to press enter when the fader reached the top after a move from 0-100-0 at a certain speed (y or n).
+    // the speed will increase for each move until endSpeed or failure.
+  
+    indexes = this.normalizeIndexes(indexes);
+    const StartPosition = 0;
+    const EndPosition = 100;
+    const results = {};
+    const speedStep = (endSpeed - startSpeed) / (count - 1);
+  
+    try {
+      // Move faders to 0 before calibration
+      await this.reset(indexes);
+  
+      for (let i = 0; i < count; i++) {
+        const currentSpeed = startSpeed + i * speedStep;
+        const moveUp = new FaderMove(indexes, EndPosition, currentSpeed);
+        const moveDown = new FaderMove(indexes, StartPosition, currentSpeed);
+  
+        // Perform the move from 0 to 100
+        await this.moveFaders(moveUp, false);
+  
+        let userConfirmed;
+        if (consoleInput) {
+          const readline = require('readline');
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout
+          });
+  
+          const question = (query) => new Promise(resolve => rl.question(query, resolve));
+  
+          const answer = await question(`Did the fader reach the top position at speed ${currentSpeed}? (y/n): `);
+          rl.close();
+  
+          userConfirmed = answer.toLowerCase() === 'y';
+        } else if (userConfirmationCallback) {
+          userConfirmed = await userConfirmationCallback(`Did the fader reach the top position at speed ${currentSpeed}?`);
+        } else {
+          throw new Error("No method for user confirmation provided.");
+        }
+  
+        results[currentSpeed] = userConfirmed;
+        if (!userConfirmed) {
+          break;
+        }
+  
+        // Perform the move back from 100 to 0
+        await this.moveFaders(moveDown, false);
+      }
+  
+      return results;
+    } catch (error) {
+      console.error('Error during calibration:', error);
+      throw error; // Rethrow the error after logging it
+    }
+  }
+    
+  /**
+   * Calibrates the faders.
+   * 
+   * @param {number[]} indexes - The indexes of the faders to calibrate.
+   * @param {number} [start=0] - The start position of the faders (default: 0).
+   * @param {number} [end=100] - The end position of the faders (default: 100).
+   * @param {number} [count=10] - The number of moves to perform (default: 10).
+   * @param {number} [startSpeed=1] - The starting speed of the moves (default: 1).
+   * @param {number} [endSpeed=100] - The ending speed of the moves (default: 100).
+   * @param {number} [DurationGoalMaxSpeed=20] - The desired duration for max speed movement in ms.
+   * @param {number} [CalibrationTolerance=0.1] - The tolerance for the calibration.
+   * @returns {Object} - The results dictionary containing the durations for each index and speed.
+   * @throws {Error} If an error occurs during calibration.
+   */
+  async calibrate(indexes, start = 0, end = 100, count = 10, startSpeed = 1, endSpeed = 100, DurationGoalMaxSpeed = 20, CalibrationTolerance = 0.1) {
+    try {
+      indexes = this.normalizeIndexes(indexes);
+      //main calibration method, performs a full calibration of the faders
+      //calibrates the speed durations for the given indexes
+      this.logger.info('Calibrating faders...');
+      let results = await this.calibrateSpeeds(indexes, start, end, count, startSpeed, endSpeed);
+      let speedScaleValues = await this.calibrateSpeedDuration(indexes, start, end, count, startSpeed, endSpeed, DurationGoalMaxSpeed);
+      let validationResult = await this.validateSpeedCalibration(indexes, speedScaleValues, results, DurationGoalMaxSpeed, CalibrationTolerance);
+      this.logger.info('Fader calibration complete.');
+      return validationResult;
+    } catch (error) {
+      throw new Error('Fader calibration failed: ' + error.message);
     }
   }
 
@@ -980,11 +1080,87 @@ class FaderController {
     // Log the min and max durations and their corresponding speeds
     this.logger.info(`Min duration: ${minDuration}ms at speed: ${minSpeed}%`);
     this.logger.info(`Max duration: ${maxDuration}ms at speed: ${maxSpeed}%`);
-    this.logger.info(`System MESSAGE DELAY: ${this.messageDelay}ms`);
+    this.logger.info(`System MIDI MESSAGE DELAY: ${this.messageDelay}ms`);
     this.logger.info(`--- END FADER CALIBRATION REPORT ---\n`);
     // Return the results dictionary
     return results;
   }
+
+  /**
+   * Calibrates the speed duration for the given indexes.
+   * 
+   * @param {number[]} indexes - The indexes to calibrate the speed duration for.
+   * @param {number} [start=0] - The start value for calibration.
+   * @param {number} [end=100] - The end value for calibration.
+   * @param {number} [count=10] - The number of calibration steps.
+   * @param {number} [startSpeed=1] - The start speed for calibration.
+   * @param {number} [endSpeed=100] - The end speed for calibration.
+   * @param {number} [DurationGoalMaxSpeed=20] - The desired duration for max speed movement in ms.
+   * @returns {Object} - An object containing the speed scale values for each index.
+   */
+  async calibrateSpeedDuration(indexes, start = 0, end = 100, count = 10, startSpeed = 1, endSpeed = 100, DurationGoalMaxSpeed  = 20) {
+      try {
+          indexes = this.normalizeIndexes(indexes);
+          let results = await this.calibrateSpeeds(indexes, start, end, count, startSpeed, endSpeed);
+          let speedScaleValues = {};
+
+          for (let index of indexes) {
+              let maxSpeed = Math.min(...Object.keys(results[index]).map(Number));
+              let durationAtMaxSpeed = results[index][maxSpeed];
+              let speedScaleValueAtMaxSpeed = DurationGoalMaxSpeed / durationAtMaxSpeed;
+
+              speedScaleValues[index] = speedScaleValueAtMaxSpeed;
+              this.faders[index].MovementSpeedFactor = speedScaleValueAtMaxSpeed;
+              //also log the ms goal this factor results with the max speed
+              //also lets log the calculation for debugging
+              this.logger.debug(`SPEED FACTOR = ${DurationGoalMaxSpeed} / ${durationAtMaxSpeed} = ${speedScaleValueAtMaxSpeed}`)
+              this.logger.debug(`Duration @ MaxSpeed: ${durationAtMaxSpeed}ms for fader ${index} at ${maxSpeed}%`);
+              this.logger.info(`Set SPEED FACTOR for fader ${index} to ${speedScaleValueAtMaxSpeed}`);
+              this.logger.info(`System MIDI MESSAGE DELAY: ${this.messageDelay}ms`);
+          }
+
+          return speedScaleValues;
+      } catch (error) {
+          this.logger.error(`Error during speed duration calibration: ${error.message}`);
+          throw error;
+      }
+  }
+  /**
+   * Validates the speed calibration for the specified faders.
+   * This method checks if the speed factor set by the calibration method results in the desired duration for the max speed (100%).
+   *
+   * @param {number[]|number} indexes - The indexes of the faders to validate the speed calibration for.
+   * @param {number[]} speedScaleValues - The speed scale values obtained from the calibration.
+   * @param {number} DurationGoalMaxSpeed - The desired duration for max speed movement in milliseconds.
+   * @param {number} [CalibrationTolerance=1] - The tolerance value for the speed scale values. 
+   * @returns {Object} - An object containing the validation results for each fader.
+   */
+  async validateSpeedCalibration(indexes, speedScaleValues, DurationGoalMaxSpeed, CalibrationTolerance = 1) {
+    try {
+      indexes = this.normalizeIndexes(indexes);
+      let logMessages = [];
+      let results = {};
+      let move = new FaderMove(indexes, 100, 100);
+      let duration = await this.moveFaders(move, false);
+      let speed = 100;
+      let speedScaleValue = DurationGoalMaxSpeed / duration;
+      let speedScaleValueTolerance = speedScaleValues[0] * CalibrationTolerance;
+      let speedScaleValueMin = speedScaleValues[0] - speedScaleValueTolerance;
+      let speedScaleValueMax = speedScaleValues[0] + speedScaleValueTolerance;
+      let isValid = speedScaleValue >= speedScaleValueMin && speedScaleValue <= speedScaleValueMax;
+      results[0] = { speed, duration, speedScaleValue, isValid };
+      logMessages.push(`Fader: 0 Speed: ${speed} Duration: ${duration} SpeedScaleValue: ${speedScaleValue} isValid: ${isValid}`);
+      this.logger.info(`Speed Calibration Validation for fader 0: ${isValid}`);
+      for (let logMessage of logMessages) {
+        this.logger.debug(logMessage);
+      }
+      return results;
+    } catch (error) {
+      this.logger.error(`Error occurred during speed calibration validation: ${error}`);
+      throw error;
+    }
+  }
+
 
   /**
    * Resets the faders to 0.
@@ -997,7 +1173,7 @@ class FaderController {
     const resetMove = new FaderMove(indexes, 0, this.speedMedium);
     try {
       this.logger.info(`Resetting faders: ${indexes}`);
-      await this.moveFaders(resetMove, true);
+      await this.moveFaders(resetMove, true, 1);
     } catch (error) {
       throw error
     }
@@ -1019,65 +1195,72 @@ class FaderController {
     return ramp;
   }
 
-  async moveFaders(move, interrupting = false) {
+  async moveFaders(move, interrupting = false, MovementSpeedFactor = undefined) {
     if (interrupting) {
       this.clearMessagesByFaderIndexes(move.idx);
     }
-
+  
     this.logger.debug(`Moving Faders: ${move.idx} to ${move.target} with speed: ${move.speed} Interrupting: ${interrupting}`);
-
+  
     this.target = this.ensureCorrectLength(move.target, move.idx.length);
     this.speed = this.ensureCorrectLength(move.speed, move.idx.length);
-
+  
     move.distance = move.idx.map((idx, i) => Math.abs(this.faders[idx].progression - move.target[i]));
-
-    
-    move.steps = move.distance.map((distance, i) => Math.max(Math.round(distance / (move.speed[i] / 100) + 1), 1));
+  
+    // Here we need to introduce the speed scaling factor
+    // If none provided, we will use the MovementSpeedFactor in the faders[idx] object
+    // If provided, we use MovementSpeedFactor
+    const effectiveSpeeds = move.speed.map((speed, i) => {
+      const speedFactor = MovementSpeedFactor !== undefined ? MovementSpeedFactor : this.faders[move.idx[i]].MovementSpeedFactor;
+      return speed * speedFactor;
+    });
+  
+    move.steps = move.distance.map((distance, i) => Math.max(Math.round(distance / (effectiveSpeeds[i] / 100) + 1), 1));
     move.stepSize = move.distance.map((distance, i) => distance / move.steps[i]);
-
+  
     move.ramps = move.idx.map((idx, i) => {
-      if (this.ValueLog == true) {
-      this.logger.debug(`Generating ramp for fader ${idx} from ${this.faders[idx].progression} to ${move.target[i]} with ${move.steps[i]} steps`);
+      if (this.ValueLog) {
+        this.logger.debug(`Generating ramp for fader ${idx} from ${this.faders[idx].progression} to ${move.target[i]} with ${move.steps[i]} steps`);
       }
       return this.generateRamp(this.faders[idx].progression, move.target[i], move.steps[i]);
     });
-
-    if (this.ValueLog == true) {
+  
+    if (this.ValueLog) {
       this.logger.debug(`Ramps created: ${JSON.stringify(move.ramps)}`);
     }
-    
+  
     const progressionsDict = move.idx.reduce((dict, idx, i) => ({ ...dict, [idx]: move.ramps[i] }), {});
-
+  
     try {
       const startTime = Date.now();
       await this.sendFaderProgressionsDict(progressionsDict);
       const endTime = Date.now();
       const duration = endTime - startTime;
-      
-      if (this.MoveLog == true) {
-      const rampStartActual = move.idx.map(idx => move.ramps[idx][0]);
-      const rampEndActual = move.idx.map(idx => move.ramps[idx][move.ramps[idx].length - 1]);
-      this.logger.debug(`FADER MOVE PROTOCOL: 
-      Moved Faders: ${JSON.stringify(move.idx)}
-      StartPoints: ${JSON.stringify(this.faders.map(fader => fader.progression))}
-      Targets: ${JSON.stringify(move.target)}
-      RampStartActual: ${JSON.stringify(rampStartActual)}
-      RampEndActual: ${JSON.stringify(rampEndActual)}
-      Speeds: ${JSON.stringify(move.speed)}
-      StepSize: ${JSON.stringify(move.stepSize)}
-      Steps: ${JSON.stringify(move.steps)}
-      Duration: ${duration}ms
-      FaderInfo: ${JSON.stringify(this.getFaderInfoDict(move.idx))}`
-      );
-    }
-    return duration
-
+  
+      if (this.MoveLog) {
+        const rampStartActual = move.idx.map((idx, i) => move.ramps[i][0]);
+        const rampEndActual = move.idx.map((idx, i) => move.ramps[i][move.ramps[i].length - 1]);
+        this.logger.debug(`FADER MOVE PROTOCOL: 
+        Moved Faders: ${JSON.stringify(move.idx)}
+        StartPoints: ${JSON.stringify(this.faders.map(fader => fader.progression))}
+        Targets: ${JSON.stringify(move.target)}
+        RampStartActual: ${JSON.stringify(rampStartActual)}
+        RampEndActual: ${JSON.stringify(rampEndActual)}
+        Speeds: ${JSON.stringify(effectiveSpeeds)}
+        StepSize: ${JSON.stringify(move.stepSize)}
+        Steps: ${JSON.stringify(move.steps)}
+        Duration: ${duration}ms
+        FaderInfo: ${JSON.stringify(this.getFaderInfoDict(move.idx))}`);
+      }
+      return duration;
+  
     } catch (error) {
+      this.logger.error(`Error moving faders: ${error}`);
       throw error;
     }
   }
-
-// HELPER METHODS #############
+  
+  // HELPER METHODS #############
 
   ensureCorrectLength(arr, length) {
     if (!Array.isArray(arr)) {
