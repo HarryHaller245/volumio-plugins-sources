@@ -52,9 +52,9 @@ const runTest = async () => {
     const startSpeed = 1;
     const endSpeed = 100;
     const timeGoal = 10; // time goal for 100% speed in ms
-    const results = await faderController.calibrateSpeeds(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed);
+    const results = await faderController._calibrateSpeeds(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed);
 
-    const results2 = await faderController.calibrateSpeedDuration(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed, timeGoal);
+    const results2 = await faderController._calibrateSpeedDuration(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed, timeGoal);
 
     console.log('Speed Calibration Time Goal results:', results2);
 

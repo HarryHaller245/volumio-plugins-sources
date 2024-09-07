@@ -7,11 +7,13 @@ const MIDILog = false;
 const ValueLog = false;
 const MoveLog = false;
 
+const CalibrationOnStartParam = false;
+
 const speedHigh = 100;
 const speedMedium = 50;
 const speedLow = 5;
 const speeds = [speedHigh, speedMedium, speedLow];
-const TrimMap = [0, 100]; // applies a fader range trim to 0-100 is full range
+const TrimMap = [0, 100]; // applies a fader range trim 0-100 is full range
 
 jest.setTimeout(3000000); // 30 seconds
 
@@ -25,7 +27,7 @@ describe('FaderController', () => {
     // Add a delay before starting the FaderController
     new Promise(resolve => setTimeout(resolve, 5000))
       .then(async () => {
-        await faderController.start();
+        await faderController.start(CalibrationOnStartParam);
         faderController.setFaderProgressionMap(undefined, TrimMap);
         done();
       });
@@ -43,44 +45,22 @@ describe('FaderController', () => {
 
   test('FaderController should move faders to a position', async () => {
     const indexes = [0, 1];
-    const progression = 70;
+    const progression = 50;
 
     const moveA = new FaderMove(indexes, progression, 50);
     await faderController.moveFaders(moveA, false);
-    expect(faderController.getFaderProgressions(indexes)).toEqual([progression, progression]);
+    expect(faderController.getFaderProgressions(indexes)).toEqual([progression, progression]); // i might get an error here due to the trim mapping functionality
   }, 500000);
 
-  test('FaderController should perform speed calibration', async () => {
-    const calibrationindexes = 1;
+  test('FaderController should perform a complete calibration with a time goal', async () => {
+    // runs the speed factor calibration and verifies the speed factor to calibrate the max speed to the time goal
+    const calibrationindexes = [0,1]; //fader indexes to clibrate
     const startProgression = 0;
     const endProgression = 100;
-    const count = 10; // this creates memory problems when high, better do one per fader
+    const count = 20; // this creates memory problems when high, better do one per fader
     const startSpeed = 1;
     const endSpeed = 100;
-    const results = await faderController.calibrateSpeeds(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed);
-    expect(results).toBeDefined();
-  }, 500000);
-
-  test('FaderController should perform speed calibration with time goal', async () => {
-    const calibrationindexes = 1;
-    const startProgression = 0;
-    const endProgression = 100;
-    const count = 10; // this creates memory problems when high, better do one per fader
-    const startSpeed = 1;
-    const endSpeed = 100;
-    const timeGoal = 10; // time goal for 100% speed in ms
-    const results2 = await faderController.calibrateSpeedDuration(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed, timeGoal);
-    expect(results2).toBeDefined();
-  }, 500000);
-
-  test('FaderController should perform a complete calibration', async () => {
-    const calibrationindexes = 1;
-    const startProgression = 0;
-    const endProgression = 100;
-    const count = 10; // this creates memory problems when high, better do one per fader
-    const startSpeed = 1;
-    const endSpeed = 100;
-    const timeGoal = 10; // time goal for 100% speed in ms
+    const timeGoal = 100; // time goal for 100% speed in ms for tthe specified progression distance
     const CalibrationTolerance = 0.1; // 10% tolerance
     const results3 = await faderController.calibrate(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed, timeGoal, CalibrationTolerance);
 
