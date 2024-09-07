@@ -11,7 +11,7 @@ const CalibrationOnStartParam = false;
 
 const speedHigh = 100;
 const speedMedium = 50;
-const speedLow = 5;
+const speedLow = 10;
 const speeds = [speedHigh, speedMedium, speedLow];
 const TrimMap = [0, 100]; // applies a fader range trim 0-100 is full range
 
@@ -54,17 +54,22 @@ describe('FaderController', () => {
 
   test('FaderController should perform a complete calibration with a time goal', async () => {
     // runs the speed factor calibration and verifies the speed factor to calibrate the max speed to the time goal
+    // since we dont have an accuratet representation of the physical fader, we only calibrate the mididevice and the software timing
+    // for physical calibration we need user feedback or trust into the fader hardware
     const calibrationindexes = [0,1]; //fader indexes to clibrate
     const startProgression = 0;
     const endProgression = 100;
-    const count = 20; // this creates memory problems when high, better do one per fader
-    const startSpeed = 1;
+    const count = 10; // this creates memory problems when high, better do one per fader
+    const startSpeed = 10;
     const endSpeed = 100;
-    const timeGoal = 100; // time goal for 100% speed in ms for tthe specified progression distance
+    const timeGoal = 50; // time goal for 100% speed in ms for tthe specified progression distance
     const CalibrationTolerance = 0.1; // 10% tolerance
-    const results3 = await faderController.calibrate(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed, timeGoal, CalibrationTolerance);
+    const runInParallel = false;
+    const results3 = await faderController.calibrate(calibrationindexes, startProgression, endProgression, count, startSpeed, endSpeed, timeGoal, CalibrationTolerance, runInParallel);
 
     expect(results3).toBeDefined();
   }, 500000);
+
+  
 
 });
