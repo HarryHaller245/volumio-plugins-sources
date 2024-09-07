@@ -1,3 +1,20 @@
+/**
+ * @module FaderController
+ * 
+ * This module provides functionality to control and manage faders in a MIDI controller environment.
+ * 
+ * The main class in this module is `FaderController`, which handles the initialization, state management,
+ * and interaction with fader controls.
+ * 
+ * 
+ * 
+ * @requires events
+ **/
+
+
+
+
+
 const SerialPort = require('serialport'); // import the SerialPort module 
 const MIDIParser = require('./MIDIParser'); // import the MIDIParser
 
@@ -39,7 +56,7 @@ class Fader {
     this.onUntouch = null; // Callback for untouch event
     this.echo_mode = false; //echo mode for a fader, means it will immediately mirror any adjustment made to it by hand
     this.ProgressionMap = [0,100]; // mapping range values for the fader, [0,100] means no trim and is the max range
-    //! this produces an array length error atm, or memory leak not sure
+    //! this produces an array length error atm, or memory leak not sure, might be a problem with the way jest tests are run
 
     this.MovementSpeedFactor = 1; // The speed factor for the fader movement
   }
@@ -764,7 +781,7 @@ class FaderController {
 
   ///
       
-  echo_midi(midiDataArr) {   //! needs fixing
+  echo_midi(midiDataArr) {   //! needs fixing not fully implemented
     //method to echo the MIDI messages back to the faders
     //we need to reverse engineer the parsing. and then send it back
     midiDataArr[0] = midiDataArr[0] | midiDataArr[1];
@@ -808,7 +825,7 @@ class FaderController {
   }
 
     /**
-     * Sends MIDI messages to set the positions of multiple faders simultaneously.
+     * Sends MIDI messages to set the positions faders simultaneously.
      *
      * @param {Object} positionsDict - A dictionary where the keys are fader indexes and the values are the positions to set the faders to.
      * @returns {Promise} A promise that resolves when all MIDI messages have been sent, or rejects if an error occurs.
@@ -885,6 +902,7 @@ class FaderController {
   }
 
   // CALIBRATION ########################################
+  
   /**
    * Performs a standard calibration of all faders.
    * This will move all faders to the top and then back to the bottom on 2 speeds.
@@ -906,12 +924,23 @@ class FaderController {
     }
   }
 
+  /**
+   * Performs a calibration method where the fader will perform several moves from 0-100-0 at different increasing speeds.
+   * For each 0-100-0 move, the user will be prompted via a callback or if configured, console input to confirm if the fader reached the top before it returned.
+   * The goal is to calibrate the top speed for the fader to reach the top, avoiding performing non-full moves.
+   * The user will be prompted to press enter when the fader reached the top after a move from 0-100-0 at a certain speed (y or n).
+   * The speed will increase for each move until endSpeed or failure.
+   *
+   * @param {Array<number>} indexes - The indexes of the faders to calibrate.
+   * @param {number} count - The number of calibration moves to perform.
+   * @param {number} startSpeed - The starting speed for the calibration moves.
+   * @param {number} endSpeed - The ending speed for the calibration moves.
+   * @param {Function} [userConfirmationCallback=null] - The callback function for user confirmation.
+   * @param {boolean} [consoleInput=true] - Indicates whether to use console input for user confirmation.
+   * @returns {Promise<Object>} - A promise that resolves to an object containing the calibration results.
+   * @throws {Error} - If no method for user confirmation is provided.
+   */
   async UserCalibration(indexes, count, startSpeed, endSpeed, userConfirmationCallback = null, consoleInput = true) {
-    // a calibration method where the fader will perform several moves from 0-100-0 at different increasing speeds.
-    // for each 0-100-0 move, the user will be prompted via a callback or if configured, console input to confirm if the fader reached the top before it returned.
-    // the goal is to calibrate the top speed for the fader to reach the top, avoiding performing non-full moves.
-    // the user will be prompted to press enter when the fader reached the top after a move from 0-100-0 at a certain speed (y or n).
-    // the speed will increase for each move until endSpeed or failure.
   
     indexes = this.normalizeIndexes(indexes);
     const StartPosition = 0;
@@ -1098,33 +1127,37 @@ class FaderController {
    * @param {number} [DurationGoalMaxSpeed=20] - The desired duration for max speed movement in ms.
    * @returns {Object} - An object containing the speed scale values for each index.
    */
-  async calibrateSpeedDuration(indexes, start = 0, end = 100, count = 10, startSpeed = 1, endSpeed = 100, DurationGoalMaxSpeed  = 20) {
-      try {
-          indexes = this.normalizeIndexes(indexes);
-          let results = await this.calibrateSpeeds(indexes, start, end, count, startSpeed, endSpeed);
-          let speedScaleValues = {};
+async calibrateSpeedDuration(indexes, start = 0, end = 100, count = 10, startSpeed = 1, endSpeed = 100, DurationGoalMaxSpeed  = 20) {
+    try {
+        indexes = this.normalizeIndexes(indexes);
+        let results = await this.calibrateSpeeds(indexes, start, end, count, startSpeed, endSpeed);
+        let speedScaleValues = {};
 
-          for (let index of indexes) {
-              let maxSpeed = Math.min(...Object.keys(results[index]).map(Number));
-              let durationAtMaxSpeed = results[index][maxSpeed];
-              let speedScaleValueAtMaxSpeed = DurationGoalMaxSpeed / durationAtMaxSpeed;
+        for (let index of indexes) {
+            let maxSpeed = Math.max(...Object.keys(results[index]).map(Number));
+            let durationAtMaxSpeed = results[index][maxSpeed];
+            let speedScaleValueAtMaxSpeed = durationAtMaxSpeed / DurationGoalMaxSpeed;
 
-              speedScaleValues[index] = speedScaleValueAtMaxSpeed;
-              this.faders[index].MovementSpeedFactor = speedScaleValueAtMaxSpeed;
-              //also log the ms goal this factor results with the max speed
-              //also lets log the calculation for debugging
-              this.logger.debug(`SPEED FACTOR = ${DurationGoalMaxSpeed} / ${durationAtMaxSpeed} = ${speedScaleValueAtMaxSpeed}`)
-              this.logger.debug(`Duration @ MaxSpeed: ${durationAtMaxSpeed}ms for fader ${index} at ${maxSpeed}%`);
-              this.logger.info(`Set SPEED FACTOR for fader ${index} to ${speedScaleValueAtMaxSpeed}`);
-              this.logger.info(`System MIDI MESSAGE DELAY: ${this.messageDelay}ms`);
-          }
+            speedScaleValues[index] = speedScaleValueAtMaxSpeed;
+            this.faders[index].MovementSpeedFactor = speedScaleValueAtMaxSpeed;
 
-          return speedScaleValues;
-      } catch (error) {
-          this.logger.error(`Error during speed duration calibration: ${error.message}`);
-          throw error;
-      }
-  }
+            // Log the ms goal this factor results with the max speed
+            let goalDurationAtMaxSpeed = maxSpeed * speedScaleValueAtMaxSpeed;
+            this.logger.debug(`Goal duration @ MaxSpeed: ${goalDurationAtMaxSpeed}ms for fader ${index} at ${maxSpeed}%`);
+
+            // Log the calculation for debugging
+            this.logger.debug(`SPEED FACTOR = ${durationAtMaxSpeed} / ${DurationGoalMaxSpeed} = ${speedScaleValueAtMaxSpeed}`)
+            this.logger.debug(`Duration @ MaxSpeed: ${durationAtMaxSpeed}ms for fader ${index} at ${maxSpeed}%`);
+            this.logger.info(`Set SPEED FACTOR for fader ${index} to ${speedScaleValueAtMaxSpeed}`);
+            this.logger.info(`System MIDI MESSAGE DELAY: ${this.messageDelay}ms`);
+        }
+
+        return speedScaleValues;
+    } catch (error) {
+        this.logger.error(`Error during speed duration calibration: ${error.message}`);
+        throw error;
+    }
+  } 
   /**
    * Validates the speed calibration for the specified faders.
    * This method checks if the speed factor set by the calibration method results in the desired duration for the max speed (100%).
@@ -1149,7 +1182,7 @@ class FaderController {
       let speedScaleValueMax = speedScaleValues[0] + speedScaleValueTolerance;
       let isValid = speedScaleValue >= speedScaleValueMin && speedScaleValue <= speedScaleValueMax;
       results[0] = { speed, duration, speedScaleValue, isValid };
-      logMessages.push(`Fader: 0 Speed: ${speed} Duration: ${duration} SpeedScaleValue: ${speedScaleValue} isValid: ${isValid}`);
+      logMessages.push(`Fader: ${indexes} Speed: ${speed} Duration: ${duration} SpeedScaleValue: ${speedScaleValue} isValid: ${isValid}`);
       this.logger.info(`Speed Calibration Validation for fader 0: ${isValid}`);
       for (let logMessage of logMessages) {
         this.logger.debug(logMessage);
@@ -1195,6 +1228,15 @@ class FaderController {
     return ramp;
   }
 
+  /**
+   * Moves the faders to the specified target positions with optional interrupting and movement speed factor.
+   * 
+   * @param {Object} move - The move object containing the fader indexes, target positions, and speed.
+   * @param {boolean} [interrupting=false] - Indicates whether to clear messages by fader indexes.
+   * @param {number} [MovementSpeedFactor] - The movement speed factor to scale the speed of each fader.
+   * @returns {Promise<number>} - A promise that resolves with the duration of the fader movement in milliseconds.
+   * @throws {Error} - If there is an error moving the faders.
+   */
   async moveFaders(move, interrupting = false, MovementSpeedFactor = undefined) {
     if (interrupting) {
       this.clearMessagesByFaderIndexes(move.idx);
@@ -1262,6 +1304,16 @@ class FaderController {
   
   // HELPER METHODS #############
 
+  /**
+   * Ensures that the given array has the correct length.
+   * If the array is not an array, it will be repeated to match the desired length.
+   * If the array length doesn't match the desired length, a warning will be logged and the first value will be used to fill the array.
+   * If the array length matches the desired length, it will be used as is.
+   *
+   * @param {any[]} arr - The array to be checked and modified.
+   * @param {number} length - The desired length of the array.
+   * @returns {any[]} - The modified array with the correct length.
+   */
   ensureCorrectLength(arr, length) {
     if (!Array.isArray(arr)) {
       // If arr is not an array, repeat its value length times

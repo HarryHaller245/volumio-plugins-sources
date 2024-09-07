@@ -48,7 +48,7 @@ const runTest = async () => {
     const calibrationindexes = 1;
     const startProgression = 0;
     const endProgression = 100;
-    const count = 10; // this creates memory problems when high, better do one per fader
+    const count = 20; // this creates memory problems when high, better do one per fader
     const startSpeed = 1;
     const endSpeed = 100;
     const timeGoal = 10; // time goal for 100% speed in ms

@@ -1,4 +1,0 @@
-{"level":"error","message":"Error reading data:TypeError: this.CheckMIDIDeviceReady is not a function"}
-{"level":"error","message":"Error reading data:TypeError: this.CheckMIDIDeviceReady is not a function"}
-{"level":"error","message":"Error reading data:TypeError: this.CheckMIDIDeviceReady is not a function"}
-{"level":"error","message":"An error occurred while stopping the FaderController: ReferenceError: SJSON is not defined"}

@@ -1,7 +1,30 @@
 
 // Path: lib/MIDIParser.js
+/**
+ * @module MIDIParser
+ * 
+ * This module provides a class `MIDIParser` that extends the `Transform` stream to parse MIDI messages.
+ * 
+ * The `MIDIParser` class processes incoming MIDI data chunks, parses them into MIDI messages, and provides
+ * various utility methods to translate and format these messages.
+ * 
+ * Example usage:
+ * 
+ * const MIDIParser = require('./MIDIParser');
+ * const midiParser = new MIDIParser();
+ * 
+ * midiParser.on('data', (data) => {
+ *     console.log('Parsed MIDI message:', data);
+ * });
+ * 
+ * // Pipe MIDI data into the parser
+ * someMIDIStream.pipe(midiParser);
+ * 
+ * @requires stream
+ */
 
 const { Transform } = require('stream');
+
 
 
 /**
