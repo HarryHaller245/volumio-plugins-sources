@@ -22,6 +22,18 @@ function motorizedFaderControl(context) {
 
 	//caches
 
+const { FaderController, FaderMove } = require('../lib/FaderController');
+
+// Use fader and midiParser in your plugin
+
+//start function
+
+
+//stop function
+
+
+
+
 
 motorizedFaderControl.prototype.onVolumioStart = function() {
     var self = this;
