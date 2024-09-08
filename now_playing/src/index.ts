@@ -20,6 +20,7 @@ import { CommonSettingsCategory, LocalizationSettings, NowPlayingScreenSettings,
 import UIConfigHelper from './lib/config/UIConfigHelper';
 import ConfigBackupHelper from './lib/config/ConfigBackupHelper';
 import myBackgroundMonitor from './lib/utils/MyBackgroundMonitor';
+import { MetadataServiceOptions } from './lib/config/PluginConfig';
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 type DockedComponentKey<T = keyof NowPlayingScreenSettings> = T extends `docked${infer _X}` ? T : never;
@@ -66,6 +67,7 @@ class ControllerNowPlaying {
     const dockedVolumeIndicatorUIConf = uiconf.section_docked_volume_indicator;
     const dockedClockUIConf = uiconf.section_docked_clock;
     const dockedWeatherUIConf = uiconf.section_docked_weather;
+    const dockedMediaFormatUIConf = uiconf.section_docked_media_format;
     const idleScreenUIConf = uiconf.section_idle_view;
     const extraScreensUIConf = uiconf.section_extra_screens;
     const kioskUIConf = uiconf.section_kiosk;
@@ -148,7 +150,24 @@ class ControllerNowPlaying {
     /**
      * Metadata Service conf
      */
-    metadataServiceUIConf.content.geniusAccessToken.value = np.getConfigValue('geniusAccessToken');
+    const metadataServiceOptions = np.getConfigValue('metadataService');
+    metadataServiceUIConf.content.geniusAccessToken.value = metadataServiceOptions.geniusAccessToken;
+    metadataServiceUIConf.content.excludeParenthesized.value = metadataServiceOptions.excludeParenthesized;
+    metadataServiceUIConf.content.parenthesisType.value = {
+      value: metadataServiceOptions.parenthesisType,
+      label: ''
+    };
+    switch (metadataServiceOptions.parenthesisType) {
+      case 'round':
+        metadataServiceUIConf.content.parenthesisType.value.label = np.getI18n('NOW_PLAYING_ROUND_BRACKETS');
+        break;
+      case 'square':
+        metadataServiceUIConf.content.parenthesisType.value.label = np.getI18n('NOW_PLAYING_SQUARE_BRACKETS');
+        break;
+      case 'round+square':
+        metadataServiceUIConf.content.parenthesisType.value.label = np.getI18n('NOW_PLAYING_ROUND_SQUARE_BRACKETS');
+        break;
+    }
     const accessTokenSetupUrl = `${url}/genius_setup`;
     metadataServiceUIConf.content.accessTokenGuide.onClick = {
       type: 'openUrl',
@@ -308,6 +327,15 @@ class ControllerNowPlaying {
       label: nowPlayingScreen.playbackButtonSizeType == 'auto' ? np.getI18n('NOW_PLAYING_AUTO') : np.getI18n('NOW_PLAYING_CUSTOM')
     };
     widgetStylesUIConf.content.playbackButtonSize.value = nowPlayingScreen.playbackButtonSize;
+
+    widgetStylesUIConf.content.seekbarStyling.value = {
+      value: nowPlayingScreen.seekbarStyling,
+      label: nowPlayingScreen.seekbarStyling == 'default' ? np.getI18n('NOW_PLAYING_DEFAULT') : np.getI18n('NOW_PLAYING_CUSTOM')
+    };
+    widgetStylesUIConf.content.seekbarThickness.value = nowPlayingScreen.seekbarThickness;
+    widgetStylesUIConf.content.seekbarBorderRadius.value = nowPlayingScreen.seekbarBorderRadius;
+    widgetStylesUIConf.content.seekbarShowThumb.value = nowPlayingScreen.seekbarShowThumb;
+    widgetStylesUIConf.content.seekbarThumbSize.value = nowPlayingScreen.seekbarThumbSize;
 
     widgetStylesUIConf.content.widgetMargins.value = {
       value: nowPlayingScreen.widgetMargins,
@@ -564,6 +592,32 @@ class ControllerNowPlaying {
      */
     const dockedMenu = nowPlayingScreen.dockedMenu;
     dockedMenuUIConf.content.enabled.value = dockedMenu.enabled;
+    dockedMenuUIConf.content.iconSettings.value = {
+      value: dockedMenu.iconSettings,
+      label: dockedMenu.iconSettings == 'default' ? np.getI18n('NOW_PLAYING_DEFAULT') : np.getI18n('NOW_PLAYING_CUSTOM')
+    };
+    dockedMenuUIConf.content.iconStyle.value = {
+      value: dockedMenu.iconStyle,
+      label: ''
+    };
+    switch (dockedMenu.iconStyle) {
+      case 'ellipsis_h':
+        dockedMenuUIConf.content.iconStyle.value.label = np.getI18n('NOW_PLAYING_ELLIPSIS_H');
+        break;
+      case 'hamburger':
+        dockedMenuUIConf.content.iconStyle.value.label = np.getI18n('NOW_PLAYING_HAMBURGER');
+        break;
+      default:
+        dockedMenuUIConf.content.iconStyle.value.label = np.getI18n('NOW_PLAYING_ELLIPSIS_V');
+    }
+    dockedMenuUIConf.content.iconSize.value = dockedMenu.iconSize;
+    dockedMenuUIConf.content.margin.value = dockedMenu.margin;
+    if (!dockedMenu.enabled) {
+      dockedMenuUIConf.content = [ dockedMenuUIConf.content.enabled ] as any;
+      if (dockedMenuUIConf.saveButton) {
+        dockedMenuUIConf.saveButton.data = [ 'enabled' ];
+      }
+    }
 
     /**
      * Docked Action Panel Trigger
@@ -897,6 +951,55 @@ class ControllerNowPlaying {
       dockedWeatherUIConf.content = [ dockedWeatherUIConf.content.enabled ] as any;
       if (dockedWeatherUIConf.saveButton) {
         dockedWeatherUIConf.saveButton.data = [ 'enabled' ];
+      }
+    }
+
+    /**
+     * Docked Media Format
+     */
+    const dockedMediaFormat = nowPlayingScreen.dockedMediaFormat;
+    dockedMediaFormatUIConf.content.enabled.value = dockedMediaFormat.enabled;
+    dockedMediaFormatUIConf.content.placement.value = {
+      value: dockedMediaFormat.placement,
+      label: ''
+    };
+    switch (dockedMediaFormat.placement) {
+      case 'top-left':
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_TOP_LEFT');
+        break;
+      case 'top':
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_TOP');
+        break;
+      case 'top-right':
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_TOP_RIGHT');
+        break;
+      case 'left':
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_LEFT');
+        break;
+      case 'right':
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_RIGHT');
+        break;
+      case 'bottom-left':
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_BOTTOM_LEFT');
+        break;
+      case 'bottom':
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_BOTTOM');
+        break;
+      default:
+        dockedMediaFormatUIConf.content.placement.value.label = np.getI18n('NOW_PLAYING_POSITION_BOTTOM_RIGHT');
+    }
+    dockedMediaFormatUIConf.content.displayOrder.value = UIConfigHelper.sanitizeNumberInput(dockedMediaFormat.displayOrder);
+    dockedMediaFormatUIConf.content.fontSettings.value = {
+      value: dockedMediaFormat.fontSettings,
+      label: dockedMediaFormat.fontSettings == 'default' ? np.getI18n('NOW_PLAYING_DEFAULT') : np.getI18n('NOW_PLAYING_CUSTOM')
+    };
+    dockedMediaFormatUIConf.content.fontSize.value = dockedMediaFormat.fontSize;
+    dockedMediaFormatUIConf.content.fontColor.value = dockedMediaFormat.fontColor;
+    dockedMediaFormatUIConf.content.margin.value = dockedMediaFormat.margin;
+    if (!dockedMediaFormat.enabled) {
+      dockedMediaFormatUIConf.content = [ dockedMediaFormatUIConf.content.enabled ] as any;
+      if (dockedMediaFormatUIConf.saveButton) {
+        dockedMediaFormatUIConf.saveButton.data = [ 'enabled' ];
       }
     }
 
@@ -1501,6 +1604,11 @@ class ControllerNowPlaying {
       seekbarVisibility: data.seekbarVisibility,
       playbackButtonSizeType: data.playbackButtonSizeType.value,
       playbackButtonSize: data.playbackButtonSize,
+      seekbarStyling: data.seekbarStyling.value,
+      seekbarThickness: data.seekbarThickness,
+      seekbarBorderRadius: data.seekbarBorderRadius,
+      seekbarShowThumb: data.seekbarShowThumb,
+      seekbarThumbSize: data.seekbarThumbSize,
       widgetMargins: data.widgetMargins.value,
       playbackButtonsMargin: data.playbackButtonsMargin,
       seekbarMargin: data.seekbarMargin
@@ -1598,7 +1706,11 @@ class ControllerNowPlaying {
     this.#configSaveDockedComponentSettings(data, 'dockedWeather');
   }
 
-  #configSaveDockedComponentSettings(data: Record<string, any>, componentName: DockedComponentKey) {
+  configSaveDockedMediaFormatSettings(data: Record<string, any>) {
+    this.#configSaveDockedComponentSettings(data, 'dockedMediaFormat');
+  }
+
+  #configSaveDockedComponentSettings<T extends DockedComponentKey>(data: Record<string, any>, componentName: T) {
     const apply = this.#parseConfigSaveData(data);
     const screen = np.getConfigValue('screen.nowPlaying');
     const current = screen[componentName] || {};
@@ -1672,8 +1784,13 @@ class ControllerNowPlaying {
 
   configSaveMetadataServiceSettings(data: Record<string, any>) {
     const token = data['geniusAccessToken'].trim();
-    np.setConfigValue('geniusAccessToken', token);
-    metadataAPI.setAccessToken(token);
+    const settings: MetadataServiceOptions = {
+      geniusAccessToken: token,
+      excludeParenthesized: data['excludeParenthesized'],
+      parenthesisType: data['parenthesisType'].value
+    };
+    np.setConfigValue('metadataService', settings);
+    metadataAPI.updateSettings(settings);
     np.toast('success', np.getI18n('NOW_PLAYING_SETTINGS_SAVED'));
   }
 
@@ -1872,7 +1989,7 @@ class ControllerNowPlaying {
 
     await ConfigUpdater.checkAndUpdate();
 
-    metadataAPI.setAccessToken(np.getConfigValue('geniusAccessToken'));
+    metadataAPI.updateSettings(np.getConfigValue('metadataService'));
     this.#configureWeatherApi();
 
     // Register language change listener

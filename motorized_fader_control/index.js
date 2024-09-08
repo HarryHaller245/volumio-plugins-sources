@@ -19,6 +19,18 @@ function motorizedFaderControl(context) {
 }
 
 
+const { FaderController, FaderMove } = require('../lib/FaderController');
+
+// Use fader and midiParser in your plugin
+
+//start function
+
+
+//stop function
+
+
+
+
 
 motorizedFaderControl.prototype.onVolumioStart = function()
 {
@@ -28,15 +40,22 @@ motorizedFaderControl.prototype.onVolumioStart = function()
 	this.config.loadFile(configFile);
 
     return libQ.resolve();
-}
+};
 
 motorizedFaderControl.prototype.onStart = function() {
     var self = this;
 	var defer=libQ.defer();
 
 
-	// Once the Plugin has successfull started resolve the promise
-	defer.resolve();
+    this.faderController = new FaderController(this.logger, faderCount, messageDelay, MIDILog, speeds, ValueLog, MoveLog);
+    this.faderController.setupSerial('/dev/ttyUSB0', 1000000);
+
+    // Start FaderController
+    new Promise(resolve => setTimeout(resolve, 5000))
+        .then(async () => {
+            await self.faderController.start(false);
+            self.faderController.setFaderProgressionMap(undefined, trimMap);
+            defer.resolve();
 
     return defer.promise;
 };
