@@ -21,6 +21,7 @@ function motorizedFaderControl(context) {
     this.faderController = null;
 
 	//caches
+}
 
 const { FaderController, FaderMove } = require('../lib/FaderController');
 
@@ -246,7 +247,7 @@ motorizedFaderControl.prototype.getPlaybackTraceAlbum = function(state) {
 	//calculate the progression based on the current seek in the current track in the total playlist duration
 
 
-}
+};
 
 
 motorizedFaderControl.prototype.getPlaybackTracePlaylist = function(state) {
@@ -257,7 +258,7 @@ motorizedFaderControl.prototype.getPlaybackTracePlaylist = function(state) {
 	//this will be a bit more difficult
 	//calculate the progression based on the current seek in the current track in the total playlist duration
 	
-}
+};
 
 motorizedFaderControl.prototype.getPlaybackTraceRadio = function(state) {
 	//advanced version of the getPlaybackTrace method
@@ -265,7 +266,7 @@ motorizedFaderControl.prototype.getPlaybackTraceRadio = function(state) {
 	var self = this;
 	self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'motorizedFaderControl::handlePlaybackTrace');
 	//dont know if possible, radio does not have an end time
-}
+};
 
 motorizedFaderControl.prototype.getPlaybackTraceQueue = function(state) {
 	//advanced version of the getPlaybackTrace method
@@ -274,7 +275,7 @@ motorizedFaderControl.prototype.getPlaybackTraceQueue = function(state) {
 	self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'motorizedFaderControl::handlePlaybackTrace');
 	//get the complete queue duration
 	//calculate the progression based on the current seek in the current track in the total queue duration
-}
+};
 
 
 
