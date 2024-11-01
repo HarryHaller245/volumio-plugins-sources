@@ -975,7 +975,7 @@ motorizedFaderControl.prototype.getRealtimeOutputSeekAlbum = async function(stat
     try {
         let albumInfo;
         if (!self.checkAlbumInfoValid(this.cachedAlbumInfo, state)) {
-            albumInfo = await self.getAlbumInfoPlayingGoTo();
+            albumInfo = await self.getAlbumInfoPlayingGoTo(state);
             self.cachedAlbumInfo = albumInfo; // Cache the new album info
             //! we need to check here if it is still invalid, if yes skip or revert to track
             //! log error
@@ -1070,14 +1070,13 @@ motorizedFaderControl.prototype.handleFaderOnStateUpdate = async function(state)
         }
 
         if (self.config.get('DEBUG_MODE', false)) {
-        self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate: State Volume Setter  set Volume to : ${volume}`);
+        self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate: State Volume Setter set Volume to : ${volume}`);
         }
 
         if (progression !== null &&  self.hasCachedProgressionChanged(faderIdx, progression)) {
             const speed = self.config.get('FADER_CONTROLLER_SPEED_HIGH');
             faderMoves.push(new FaderMove(faderIdx, progression, speed));
         } else if (volume !== "" && self.hasOutputVolumeChanged(faderIdx, volume)) {
-
             const speed = self.config.get('FADER_CONTROLLER_SPEED_HIGH');
             faderMoves.push(new FaderMove(faderIdx, volume, speed));
         }
@@ -1224,7 +1223,7 @@ motorizedFaderControl.prototype.getAlbumProgression = async function (state) {
     try {
         let albumInfo;
         if (!self.checkAlbumInfoValid(this.cachedAlbumInfo, state)) {
-            albumInfo = await self.getAlbumInfoPlayingGoTo();
+            albumInfo = await self.getAlbumInfoPlayingGoTo(state);
             self.cachedAlbumInfo = albumInfo; // Cache the new album info
             //! we need to check here if it is still invalid, if yes skip or switch to track seek
             //! and use a fallback method of retrieving the data, i.e. getAlbumInfoPlayingBrowse(state)
@@ -1253,17 +1252,25 @@ motorizedFaderControl.prototype.getAlbumProgression = async function (state) {
 
 //* ALBUM INFO LOGIC
 
-motorizedFaderControl.prototype.getAlbumInfoPlayingGoTo = function () {  //! integrate fallback method with browseLibrary and search keys
+motorizedFaderControl.prototype.getAlbumInfoPlayingGoTo = function (state) {
     var self = this;
 
     return new Promise((resolve, reject) => {
         try {
             self.logger.debug('[motorized_fader_control]: Starting getAlbumInfoPlayingGoTo process.');
 
-            self.socket.emit('goTo', { 'type': 'album' });
+            let call = 'goTo';
+            let args = { type: 'album' };
 
-            //! getting errors when used with spotify
-            // Set a timeout to wait for the response, e.g., 1000ms
+            // If state.service is "spop", pass data.album as "value": "data.album"
+            if (state.service === "spop") {
+                self.logger.debug('[motorized_fader_control]: Detected spop service, setting args.value to state.album');
+                args.value = state.album;
+            }
+
+            self.logger.debug(`[motorized_fader_control]: Emitting WebSocket call: ${call} with args: ${JSON.stringify(args)}`);
+            self.socket.emit(call, args);
+
             const timeout = setTimeout(() => {
                 self.logger.error('[motorized_fader_control]: Timeout waiting for response from WebSocket: goTo');
                 reject(new Error('[motorized_fader_control]: Timeout waiting for response from WebSocket: goTo'));
@@ -1272,9 +1279,10 @@ motorizedFaderControl.prototype.getAlbumInfoPlayingGoTo = function () {  //! int
             // Listen for the response from WebSocket
             self.socket.once('pushBrowseLibrary', (response) => {
                 clearTimeout(timeout); // Clear the timeout once response is received
-                // self.logger.debug('[motorized_fader_control]: Received response from WebSocket: ' + JSON.stringify(response));
+                self.logger.debug('[motorized_fader_control]: Received response from WebSocket: pushBrowseLibrary');
 
                 if (response.navigation && response.navigation.lists) {
+                    self.logger.debug('[motorized_fader_control]: Valid response structure received from WebSocket');
                     // Extract album information
                     const album = response.navigation.info.album;
                     const artist = response.navigation.info.artist;
