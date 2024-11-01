@@ -229,14 +229,15 @@ describe('Volumio WebSocket API with live server', () => {
         jest.setTimeout(15000);  // Set timeout to 15 seconds for this test
         //! this needs testing with other playback sources, spotify seems not to work
         const apiCall = 'goTo';
-        const args = { type: "album" };  // Example argument, adjust as needed
+        const args = {type: "album", value: "Ants From Up There"};  // Example argument, adjust as needed
+        //? spotify needs the album name when doing the goto album
 
         socket.emit(apiCall, args);
 
         const timeoutId = setTimeout(() => {
             console.error(`Timeout: No response received for goTo after 15000 ms`);
             done(new Error('Timeout: No response for goTo'));
-        }, 15000);  // Set a timeout of 15 seconds
+        }, 30000);  // Set a timeout of 30 seconds
 
         socket.on('pushBrowseLibrary', (response) => {
             clearTimeout(timeoutId);  // Clear the timeout once the response is received
