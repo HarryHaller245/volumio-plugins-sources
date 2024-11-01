@@ -1,0 +1,127 @@
+{
+    "FADER_CONTROLLER_FADER_COUNT": {
+      "type": "number",
+      "value": 2
+    },
+    "FADER_CONTROLLER_MESSAGE_DELAY": {
+      "type": "number",
+      "value": 0.0001
+    },
+    "FADER_CONTROLLER_MIDI_LOG": {
+      "type": "boolean",
+      "value": false
+    },
+    "FADER_CONTROLLER_VALUE_LOG": {
+      "type": "boolean",
+      "value": false
+    },
+    "FADER_CONTROLLER_MOVE_LOG": {
+      "type": "boolean",
+      "value": false
+    },
+    "FADER_CONTROLLER_CALIBRATION_ON_START": {
+      "type": "boolean",
+      "value": true
+    },
+    "FADER_CONTROLLER_SPEED_HIGH": {
+      "type": "number",
+      "value": 100
+    },
+    "FADER_CONTROLLER_SPEED_MEDIUM": {
+      "type": "number",
+      "value": 50
+    },
+    "FADER_CONTROLLER_SPEED_LOW": {
+      "type": "number",
+      "value": 10
+    },
+    "SERIAL_PORT": {
+      "type": "string",
+      "value": "/dev/ttyUSB0"
+    },
+    "BAUD_RATE": {
+      "type": "number",
+      "value": 1000000
+    },
+    "FADERS_IDXS": {
+      "type": "string",
+      "value": "[0,1]"
+    },
+    "FADER_TRIM_MAP": {
+      "type": "string",
+      "value": "{\"0\":[0,100],\"1\":[0,100]}"
+    },
+    "FADER_BEHAVIOR": {
+      "type": "string",
+      "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"album\"},{\"FADER_IDX\":1,\"OUTPUT\":\"volume\",\"INPUT\":\"volume\",\"SEEK_TYPE\":\"track\"}]"
+    },
+    "FADER_SPEED_FACTOR": {
+        "type": "string",
+        "value": "[{\"0\":1}, {\"1\":1}]"
+    },
+    "CALIBRATION_START_PROGRESSION": {
+      "type": "number",
+      "value": 0
+    },
+    "CALIBRATION_END_PROGRESSION": {
+      "type": "number",
+      "value": 100
+    },
+    "CALIBRATION_COUNT": {
+      "type": "number",
+      "value": 20
+    },
+    "CALIBRATION_START_SPEED": {
+      "type": "number",
+      "value": 10
+    },
+    "CALIBRATION_END_SPEED": {
+      "type": "number",
+      "value": 100
+    },
+    "CALIBRATION_TIME_GOAL": {
+      "type": "number",
+      "value": 20
+    },
+    "CALIBRATION_TOLERANCE": {
+      "type": "number",
+      "value": 0.1
+    },
+    "CALIBRATION_RUN_IN_PARALLEL": {
+      "type": "boolean",
+      "value": true
+    },
+    "TEST_JEST_TIMEOUT": {
+      "type": "number",
+      "value": 3000000
+    },
+    "VOLUMIO_USE_WEB_SOCKET": {
+      "type": "boolean",
+      "value": true
+    },
+    "VOLUMIO_VOLUMIO_HOST": {
+      "type": "string",
+      "value": "localhost"
+    },
+    "VOLUMIO_VOLUMIO_PORT": {
+      "type": "number",
+      "value": 3000
+    },
+    "LOG_LEVEL": {
+      "type": "string",
+      "value": "debug"
+    },
+    "DEBUG_MODE": {
+      "type": "boolean",
+      "value": true
+    },
+    "STATE_UPDATE_INTERVAL": {
+      "type": "number",
+      "value": 600
+    },
+    "FADER_REALTIME_SEEK_INTERVAL": {
+      "type": "number",
+      "value": 1000
+    }
+  }
+    

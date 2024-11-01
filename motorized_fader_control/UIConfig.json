@@ -1,0 +1,416 @@
+{
+  "page": {
+    "label": "TRANSLATE.PAGE.FADER_CONTROLLER_CONFIGURATION"
+  },
+  "sections": [
+    {
+      "id": "section_general_settings",
+      "element": "section",
+      "label": "TRANSLATE.SECTION.GENERAL_SETTINGS",
+      "description": "TRANSLATE.SECTION.GENERAL_SETTINGS_DESCRIPTION",
+      "icon": "fa-cog",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "user_interface/motorized_fader_control",
+        "method": "saveFaderControllerSettingsRestart"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.BUTTON.SAVE",
+        "data": [
+          "FADER_CONTROLLER_MESSAGE_DELAY",
+          "FADER_CONTROLLER_CALIBRATION_ON_START",
+          "FADER_CONTROLLER_SPEED_HIGH",
+          "FADER_CONTROLLER_SPEED_MEDIUM",
+          "FADER_CONTROLLER_SPEED_LOW",
+          "SERIAL_PORT",
+          "BAUD_RATE"
+        ]
+      },
+      "content": [
+        {
+          "id": "FADER_CONTROLLER_CALIBRATION_ON_START",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.GENERAL.DOC_CALIBRATION_ON_START",
+          "label": "TRANSLATE.GENERAL.LABEL_CALIBRATION_ON_START",
+          "value": true
+        },
+        {
+          "id": "FADER_CONTROLLER_MESSAGE_DELAY",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_MESSAGE_DELAY",
+          "label": "TRANSLATE.GENERAL.LABEL_MESSAGE_DELAY",
+          "value": 0.001
+        },
+        {
+          "id": "FADER_CONTROLLER_SPEED_HIGH",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_SPEED_HIGH",
+          "label": "TRANSLATE.GENERAL.LABEL_SPEED_HIGH",
+          "value": 100
+        },
+        {
+          "id": "FADER_CONTROLLER_SPEED_MEDIUM",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_SPEED_MEDIUM",
+          "label": "TRANSLATE.GENERAL.LABEL_SPEED_MEDIUM",
+          "value": 50
+        },
+        {
+          "id": "FADER_CONTROLLER_SPEED_LOW",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_SPEED_LOW",
+          "label": "TRANSLATE.GENERAL.LABEL_SPEED_LOW",
+          "value": 10
+        },
+        {
+          "id": "SERIAL_PORT",
+          "type": "text",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_SERIAL_PORT",
+          "label": "TRANSLATE.GENERAL.LABEL_SERIAL_PORT",
+          "value": "/dev/ttyUSB0"
+        },
+        {
+          "id": "BAUD_RATE",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_BAUD_RATE",
+          "label": "TRANSLATE.GENERAL.LABEL_BAUD_RATE",
+          "value": 1000000
+        },
+        {
+          "id": "CALIBRATE_BUTTON",
+          "type": "button",
+          "element": "button",
+          "label": "TRANSLATE.BUTTON.LABEL_CALIBRATE",
+          "doc": "TRANSLATE.BUTTON.DOC_CALIBRATE",
+          "onClick": {
+            "type": "controller",
+            "endpoint": "user_interface/motorized_fader_control",
+            "method": "RunManualCalibration"
+          }
+        }
+      ]
+    },
+    {
+      "id": "section_fader_behavior",
+      "element": "section",
+      "label": "TRANSLATE.SECTION.FADER_BEHAVIOR",
+      "icon": "fa-sliders-h",
+      "description": "TRANSLATE.SECTION.FADER_BEHAVIOR_DESCRIPTION",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "user_interface/motorized_fader_control",
+        "method": "saveFaderElement"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.BUTTON.SAVE",
+        "data": [
+          "FADER_0_CONFIGURED",
+          "FADER_0_OUTPUT",
+          "FADER_0_INPUT",
+          "FADER_0_SEEK_TYPE",
+          "FADER_1_CONFIGURED",
+          "FADER_1_OUTPUT",
+          "FADER_1_INPUT",
+          "FADER_1_SEEK_TYPE",
+          "FADER_2_CONFIGURED",
+          "FADER_2_OUTPUT",
+          "FADER_2_INPUT",
+          "FADER_2_SEEK_TYPE",
+          "FADER_3_CONFIGURED",
+          "FADER_3_OUTPUT",
+          "FADER_3_INPUT",
+          "FADER_3_SEEK_TYPE"
+        ]
+      },
+      "content": [
+        {
+          "id": "FADER_0_CONFIGURED",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_0_CONFIGURED",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_0",
+          "value": false
+        },
+        {
+          "id": "FADER_0_OUTPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_0_OUTPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_0_OUTPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        {
+          "id": "FADER_0_INPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_0_INPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_0_INPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        {
+          "id": "FADER_0_SEEK_TYPE",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_0_SEEK_TYPE",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_0_SEEK_TYPE",
+          "value": "track",
+          "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
+          ]
+        },
+        {
+          "id": "FADER_1_CONFIGURED",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_1_CONFIGURED",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_1",
+          "value": false
+        },
+        {
+          "id": "FADER_1_OUTPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_1_OUTPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_1_OUTPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        {
+          "id": "FADER_1_INPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_1_INPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_1_INPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        {
+          "id": "FADER_1_SEEK_TYPE",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_1_SEEK_TYPE",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_1_SEEK_TYPE",
+          "value": "track",
+          "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
+          "options": [
+              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
+              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
+              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
+              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
+          ]
+        },
+        {
+          "id": "FADER_2_CONFIGURED",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_2_CONFIGURED",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_2",
+          "value": false
+        },
+        {
+          "id": "FADER_2_OUTPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_2_OUTPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_2_OUTPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_2_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        {
+          "id": "FADER_2_INPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_2_INPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_2_INPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_2_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        { "id": "FADER_2_SEEK_TYPE",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_2_SEEK_TYPE",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_2_SEEK_TYPE",
+          "value": "track",
+          "visibleIf": { "field": "FADER_2_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
+          ]
+        },
+        {
+          "id": "FADER_3_CONFIGURED",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_3_CONFIGURED",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_3",
+          "value": false
+        },
+        {
+          "id": "FADER_3_OUTPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_3_OUTPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_3_OUTPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_3_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        {
+          "id": "FADER_3_INPUT",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_3_INPUT",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_3_INPUT",
+          "value": "seek",
+          "visibleIf": { "field": "FADER_3_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
+          ]
+        },
+        {
+          "id": "FADER_3_SEEK_TYPE",
+          "element": "select",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_3_SEEK_TYPE",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_3_SEEK_TYPE",
+          "value": "track",
+          "visibleIf": { "field": "FADER_3_CONFIGURED", "value": true },
+          "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "section_logging_settings",
+      "element": "section",
+      "label": "TRANSLATE.SECTION.LOGGING_SETTINGS",
+      "icon": "fa-file-alt",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "user_interface/motorized_fader_control",
+        "method": "saveGeneralSettingsRestart"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.BUTTON.SAVE",
+        "data": [
+          "FADER_CONTROLLER_MIDI_LOG",
+          "FADER_CONTROLLER_VALUE_LOG",
+          "FADER_CONTROLLER_MOVE_LOG",
+          "LOG_LEVEL"
+        ]
+      },
+      "content": [
+        {
+          "id": "FADER_CONTROLLER_MIDI_LOG",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.LOGGING.DOC_MIDI_LOG",
+          "label": "TRANSLATE.LOGGING.LABEL_MIDI_LOG",
+          "value": false
+        },
+        {
+          "id": "FADER_CONTROLLER_VALUE_LOG",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.LOGGING.DOC_VALUE_LOG",
+          "label": "TRANSLATE.LOGGING.LABEL_VALUE_LOG",
+          "value": false
+        },
+        {
+          "id": "FADER_CONTROLLER_MOVE_LOG",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.LOGGING.DOC_MOVE_LOG",
+          "label": "TRANSLATE.LOGGING.LABEL_MOVE_LOG",
+          "value": false
+        },
+        {
+          "id": "LOG_LEVEL",
+          "type": "string",
+          "element": "select",
+          "doc": "TRANSLATE.LOGGING.DOC_LOG_LEVEL",
+          "label": "TRANSLATE.LOGGING.LABEL_LOG_LEVEL",
+          "value": "debug",
+          "options": [
+            { "label": "TRANSLATE.LOGGING.OPTION_DEBUG", "value": "debug" },
+            { "label": "TRANSLATE.LOGGING.OPTION_INFO", "value": "info" },
+            { "label": "TRANSLATE.LOGGING.OPTION_WARN", "value": "warn" },
+            { "label": "TRANSLATE.LOGGING.OPTION_ERROR", "value": "error" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "section_development_settings",
+      "element": "section",
+      "label": "TRANSLATE.SECTION.DEVELOPMENT_SETTINGS",
+      "icon": "fa-tools",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "user_interface/motorized_fader_control",
+        "method": "saveGeneralSettingsRestart"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.BUTTON.SAVE",
+        "data": [
+          "FADER_REALTIME_SEEK_INTERVAL",
+          "DEBUG_MODE"
+        ]
+      },
+      "content": [
+        {
+          "id": "DEBUG_MODE",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.DEV_SETTINGS.DOC_DEBUG_MODE",
+          "label": "TRANSLATE.DEV_SETTINGS.LABEL_DEBUG_MODE",
+          "value": "true"
+        },
+        {
+          "id": "FADER_REALTIME_SEEK_INTERVAL",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.DEV_SETTINGS.DOC_FADER_REALTIME_SEEK_INTERVAL",
+          "label": "TRANSLATE.DEV_SETTINGS.LABEL_FADER_REALTIME_SEEK_INTERVAL",
+          "value": 100
+        }
+      ]
+    }
+  ]
+}
+
