@@ -55,6 +55,14 @@
       "type": "string",
       "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"album\"},{\"FADER_IDX\":1,\"OUTPUT\":\"volume\",\"INPUT\":\"volume\",\"SEEK_TYPE\":\"track\"}]"
     },
+    "UPDATE_VOLUME_ON_MOVE": {
+      "type": "boolean",
+      "value": true
+    },
+    "UPDATE_SEEK_ON_MOVE": {
+      "type": "boolean",
+      "value": true
+    },
     "FADER_SPEED_FACTOR": {
         "type": "string",
         "value": "[{\"0\":1}, {\"1\":1}]"

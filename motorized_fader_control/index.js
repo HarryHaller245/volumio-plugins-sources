@@ -65,17 +65,16 @@ function motorizedFaderControl(context) {
 //* simplify callstack, especially plugin start/stop/lifecycle
 
 //TODO add translations to Toasts
+//TODO toasts dont work sometimes
 
 //TODO low prio
 //TODO FaderController Module: Fix setFaderProgressionMapsTrimMap
 //TODO FaderController Module: Fix echo mode 
 
 
-// PLUGIN LIFECYCLE ----------------------------------------------------
-
 //* PLUGIN LIFECYCLE ----------------------------------------------------
 
-motorizedFaderControl.prototype.setupMotorizedFaderControl = async function() {
+motorizedFaderControl.prototype.setupPlugin = async function() {
     var self = this;
     self.logger.debug('[motorized_fader_control]: Setting up plugin...');
     
@@ -87,30 +86,23 @@ motorizedFaderControl.prototype.setupMotorizedFaderControl = async function() {
         //self.logger.debug('CommandRouterStateMachineCurrentAlbum:' + (self.commandRouter.stateMachine.currentAlbum));
 
         // handle debug mode
-        if (config.get("DEBUG_MODE", false)) {
+        if (self.config.get("DEBUG_MODE", false)) {
             //* slow down timings
-            self.cachedFaderRealtimeSeekInterval = config.get("FADER_REALTIME_SEEK_INTERVAL", 100)
-            self.config.set("FADER_REALTIME_SEEK_INTERVAL", 5000)
+            self.cachedFaderRealtimeSeekInterval = self.config.get("FADER_REALTIME_SEEK_INTERVAL", 100);
+            self.config.set("FADER_REALTIME_SEEK_INTERVAL", 5000);
         }
 
-
         // Now we set the volumio log level according to our settings
-        if (self.setupFaderController() !== null) {
+        const faderControllerSetup = await self.setupFaderController();
+        if (faderControllerSetup !== null) {
             self.logger.debug('[motorized_fader_control]: FaderController setup completed successfully.');
             return libQ.resolve();
         } else {
-            return libQ.reject(new Error('Error setting up FaderController Module'));
+            throw new Error('Error setting up FaderController Module');
         }
     } catch (error) {
-        if (!self.faderController) {
-            self.logger.error('[motorized_fader_control]: Error setting up faderController: ' + error);
-            //! maybe disable the plugin, the reject needs to reach volumio plugin level
-            return libQ.reject(error);
-        } else {
-            self.logger.error('[motorized_fader_control]: Error setting up plugin: ' + error);
-            self.commandRouter.pushToastMessage('error', 'Error setting up plugin', 'This is probably a configuration error');
-            return libQ.reject(error);
-        }
+        self.logger.error('[motorized_fader_control]: Error setting up faderController: ' + error.message);
+        return libQ.reject(error);
     }
 };
 
@@ -120,16 +112,15 @@ motorizedFaderControl.prototype.startMotorizedFaderControl = async function() {
 
     try {
         // Start Plugin
-        await self.setupMotorizedFaderControl();
+        await self.setupPlugin();
 
         await self.startFaderController();
         
         const useWebSocket = self.config.get('VOLUMIO_USE_WEB_SOCKET');
         self.logger.info('Using WebSocket: ' + useWebSocket);
         self.setupWebSocket();
-        //! test if necessary
-        //self.registerVolumioVolumeChangeListener();
-        //? send a getVolume requeest to trigger a volume update, not sure if this is enough to trigger the VolumioVolumeChangeListener
+
+        self.registerVolumioVolumeChangeListener()
 
         this.logger.info('[motorized_fader_control]: -------- Started successfully. --------');
         return libQ.resolve();
@@ -148,7 +139,7 @@ motorizedFaderControl.prototype.stopMotorizedFaderControl = async function() {
         self.stopContinuousSeekUpdate();
         self.removeWebSocket();
         self.unregisterVolumioVolumeChangeListener();
-        await self.stopFaderController();
+        self.stopFaderController();
         
         if (config.get("DEBUG_MODE", false)) {
             self.config.set("FADER_REALTIME_SEEK_INTERVAL",  self.cachedFaderRealtimeSeekInterval)
@@ -299,7 +290,7 @@ motorizedFaderControl.prototype.stopFaderController = async function() {
         await Promise.race([stopPromise, timeoutPromise]);
 
         // Proceed to close the serial connection
-        await self.faderController.closeSerial();
+        self.faderController.closeSerial();
         self.logger.info('[motorized_fader_control]: Fader Controller stopped successfully');
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error stopping Fader Controller: ' + error.message);
@@ -386,12 +377,14 @@ motorizedFaderControl.prototype.setupFaderControllerTouchCallbacks = function() 
 
 motorizedFaderControl.prototype.setFaderCallbacks = function(faderIdx, type) {
     var self = this;
+    const UPDATE_VOLUME_ON_MOVE = self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100);
     try {
+        // const updateOnMove = self.
         if (type === 'seek') {
             self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchSeek());
             self.faderController.setOnUntouchCallbacks(faderIdx, self.OnUntouchSeek());
         } else if (type === 'volume') {
-            self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchVolume());
+            self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchVolume(updateOnMove= UPDATE_VOLUME_ON_MOVE));
             self.faderController.setOnUntouchCallbacks(faderIdx, self.OnUntouchVolume());
         } else {
             self.logger.warn(`[motorized_fader_control]: Unknown callback type for fader ${faderIdx}: ${type}`);
@@ -408,7 +401,7 @@ motorizedFaderControl.prototype.setFaderCallbacks = function(faderIdx, type) {
  * 
  * @returns {Function} An async function that takes a fader index and caches the fader info if it has changed.
  */
-motorizedFaderControl.prototype.OnTouchSeek = function() {
+motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
     var self = this;
     return async (faderIdx) => {
         self.logger.info(`[motorized_fader_control]: OnTouchSeek: Handling touch event for fader ${faderIdx}`);
@@ -514,20 +507,40 @@ motorizedFaderControl.prototype.handlePlaylistSeek = function(faderInfo, state) 
 /**
  * Handles the touch event for volume control.
  * 
+ * @param {boolean} updateOnMove - If true, updates the volume as soon as the fader is touched and moved.
  * @returns {Function} An async function that takes a fader index and caches the fader info.
  */
-motorizedFaderControl.prototype.OnTouchVolume = function() {
-    var self = this;
+motorizedFaderControl.prototype.OnTouchVolume = function(updateOnMove = false) {
+    const self = this;
+    self.touchIntervals = self.touchIntervals || {};
+
     return async (faderIdx) => {
         self.logger.info(`[motorized_fader_control]: OnTouchVolume: Handling touch event for fader ${faderIdx}`);
-        
-        //TODO check if needed as long as the fader is touched, we will cache the volume we get from the fader.controller continously until untouch
-        // this adds some element of feathering
-        // Cache the current fader info
-        if (self.checkFaderInfoChanged(faderIdx, "progression")) {
-            self.logger.info(`[motorized_fader_control]: OnTouchVolume: Fader info changed for fader ${faderIdx}, caching info`);
-            self.cacheFaderInfo(faderIdx);
+
+        // Clear any existing interval for this fader
+        if (self.touchIntervals[faderIdx]) {
+            clearInterval(self.touchIntervals[faderIdx]);
         }
+
+        // Activate echo mode for the fader to avoid an instant jump back to the setpoint
+        self.faderController.set_echoMode(faderIdx, true);
+
+        // Set an interval to continuously cache the fader info
+        self.touchIntervals[faderIdx] = setInterval(async () => {
+            if (self.checkFaderInfoChanged(faderIdx, "progression")) {
+                self.cacheFaderInfo(faderIdx);
+                self.logger.info(`[motorized_fader_control]: OnTouchVolume: Fader info changed for fader ${faderIdx}, info cached ${JSON.stringify(self.getCachedFaderInfo(faderIdx))}`);
+
+                if (updateOnMove) {
+                    const faderInfo = self.getCachedFaderInfo(faderIdx);
+                    const volume = parseInt(faderInfo.progression, 10); // Convert to integer
+                    self.logger.info(`[motorized_fader_control]: OnTouchVolume: Setting volume to ${volume}`);
+                    self.setVolume(volume);
+                    const move = new FaderMove(faderIdx, volume, 100);
+                    await self.faderController.moveFaders(move, true);
+                }
+            }
+        }, 100); // Adjust the interval time as needed
 
         self.logger.info(`[motorized_fader_control]: OnTouchVolume: Completed handling touch event for fader ${faderIdx}`);
     };
@@ -539,33 +552,41 @@ motorizedFaderControl.prototype.OnTouchVolume = function() {
  * @returns {Function} An async function that takes a fader index, checks if the touch state has changed, and clears the cache.
  */
 motorizedFaderControl.prototype.OnUntouchVolume = function() {
-    var self = this;
+    const self = this;
+    self.touchIntervals = self.touchIntervals || {};
+
+    const clearTouchInterval = (faderIdx) => {
+        if (self.touchIntervals[faderIdx]) {
+            clearInterval(self.touchIntervals[faderIdx]);
+            delete self.touchIntervals[faderIdx];
+            self.logger.info(`[motorized_fader_control]: OnUntouchVolume: Stopped caching fader info for fader ${faderIdx}`);
+        }
+    };
+
     return async (faderIdx) => {
         self.logger.debug(`[motorized_fader_control]: OnUntouchVolume: Handling untouch event for fader ${faderIdx}`);
         
         // Check if this fader untouch state was changed
         if (self.checkFaderInfoChanged(faderIdx, "touch")) {
             self.logger.debug(`[motorized_fader_control]: OnUntouchVolume: Fader untouch state changed for fader ${faderIdx}`);
-            // Actual new touch state
-            //* Use the cache to trigger volume move if needed
-            // translate the fader progression to volume
+            
             const faderInfo = self.getCachedFaderInfo(faderIdx);
             const volume = parseInt(faderInfo.progression, 10); // Convert to integer
-            self.logger.debug(`[motorized_fader_control]: OnUntouchVolume: Setting volume to ${volume}`);
-            // Set the volume to the new value
+            self.logger.info(`[motorized_fader_control]: OnUntouchVolume: Setting volume to ${volume}`);
+
+            self.faderController.set_echoMode(faderIdx, false);
             self.setVolume(volume);
             const move = new FaderMove(faderIdx, volume, 100);
             await self.faderController.moveFaders(move, true);
         }
 
-        // Clear the cache at index
+        clearTouchInterval(faderIdx);
         self.logger.debug(`[motorized_fader_control]: OnUntouchVolume: Clearing cache for fader ${faderIdx}`);
         self.clearCachedFaderInfo(faderIdx);
 
         self.logger.debug(`[motorized_fader_control]: OnUntouchVolume: Completed handling untouch event for fader ${faderIdx}`);
     };
 };
-
 //* VOLUMIO INTERACTION ----------------------------------------------------
 
 motorizedFaderControl.prototype.setupWebSocket = function() {
@@ -584,7 +605,7 @@ motorizedFaderControl.prototype.setupWebSocket = function() {
     // Handle Volumio state updates
     self.socket.on('pushState', function(state) {
         self.logger.info('[motorized_fader_control]: Received pushState update');
-        self.handleStateUpdate(state);  // Delegate state handling to the onPushState function
+        self.onPushState(state);  // Delegate state handling to the onPushState function
     });
 
     // Subscribe to other Volumio events as necessary (e.g., volume changes, playlist changes, etc.)
@@ -691,7 +712,7 @@ motorizedFaderControl.prototype.setSeek = function(seek) {
 
 //* VOLUME CONTROL ----------------------------------------------------
 
-motorizedFaderControl.prototype.registerVolumioVolumeChangeListener = function() {
+motorizedFaderControl.prototype.registerVolumioVolumeChangeListener = function() { //! still not sure if this is actually better han state usage
     var self = this;
 
     // Unregister any existing listener to avoid duplicates
@@ -701,16 +722,14 @@ motorizedFaderControl.prototype.registerVolumioVolumeChangeListener = function()
     self.logger.debug('[motorized_fader_control]: Registering Volumio volume change listener');
     self.commandRouter.addCallback('volumioupdatevolume', self.volumeChangeListener.bind(self));
 
-    self.socket.emit("unmute") //! trigger a one time response after registering
 };
 
 motorizedFaderControl.prototype.handleVolumeUpdate = async function(volume) {
-    var self = this;
-    self.logger.info('[motorized_fader_control]: handleVolumeUpdate: volume received: ' + JSON.stringify(volume));
+    const self = this;
+    self.logger.info('[motorized_fader_control]: handleVolumeUpdate: volume received:' + JSON.stringify(volume));
 
-    // Extract the volume value
     if (volume.vol !== undefined) {
-        if (volume.vol === "") {
+        if (volume.vol === "" || volume.vol === null) {
             self.logger.warn('[motorized_fader_control]: handleVolumeUpdate: Volume is empty');
             return;
         }
@@ -720,17 +739,12 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volume) {
         return;
     }
 
-    // Cache the volume for future reference
     self.cacheVolume(volume);
 
-    let faderBehavior, configuredFaders;
-
-    faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
-    configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
-
+    const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
+    const configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
     const faderMoves = [];
 
-    // Iterate through the configured faders and build FaderMove objects
     for (let i = 0; i < configuredFaders.length; i++) {
         const fader = faderBehavior[i];
         const faderIdx = configuredFaders[i];
@@ -740,17 +754,15 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volume) {
             self.logger.debug(`[motorized_fader_control]: handleVolumeUpdate: Processing fader ${faderIdx}`);
         }
 
-        // Only process faders with output config set to "volume"
         if (output === 'volume' && volume !== null && self.hasOutputVolumeChanged(faderIdx, volume)) {
             const speed = self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100);
             faderMoves.push(new FaderMove(faderIdx, volume, speed));
         }
     }
 
-    // Combine the fader moves into a single move using combineFaderMoves
     const combinedMove = self.faderController.combineMoves(faderMoves);
 
-    if (combinedMove !== null) {
+    if (combinedMove) {
         try {
             await self.faderController.moveFaders(combinedMove, true);
         } catch (error) {
@@ -760,7 +772,7 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volume) {
         self.logger.debug('[motorized_fader_control]: No valid fader moves to execute');
     }
 
-    self.logger.info('[motorized_fader_control]: handleVolumeUpdate completed');
+    self.logger.debug('[motorized_fader_control]: handleVolumeUpdate completed');
 };
 
 motorizedFaderControl.prototype.unregisterVolumioVolumeChangeListener = function() {
@@ -785,8 +797,12 @@ motorizedFaderControl.prototype.unregisterVolumioVolumeChangeListener = function
 
 motorizedFaderControl.prototype.volumeChangeListener = function(volumeData) {
     var self = this;
-    self.logger.info('[motorized_fader_control]: volumeChangeListener triggered');
-    self.handleVolumeUpdate(volumeData);
+    self.logger.debug('[motorized_fader_control]: volumeChangeListener triggered');
+    // we need to unpack the data to something the handleVolumeUpdate can handle, so
+    const vol = volumeData.vol
+    const mute = volumeData.mute
+    const disableVolumeControl = volumeData.disableVolumeControl
+    self.handleVolumeUpdate(vol, mute, disableVolumeControl);
 };
 
 motorizedFaderControl.prototype.setVolume = function(volume, source = 'websocket') {
@@ -806,53 +822,11 @@ motorizedFaderControl.prototype.setVolume = function(volume, source = 'websocket
     }
 };
 
-motorizedFaderControl.prototype.getVolume = function(source = 'websocket') { //! deprecated
-    var self = this;
-
-    self.logger.debug(`[motorized_fader_control]: Starting getVolume process. Source: ${source}`);
-
-    return new Promise((resolve, reject) => {
-        try {
-            if (source == 'websocket') {
-                self.logger.debug('[motorized_fader_control]: Requesting volume via WebSocket');
-
-                // Emit the request to get the volume via WebSocket
-                self.socket.emit('getState');
-
-                // Set a timeout to wait for the response, e.g., 1000ms
-                const timeout = setTimeout(() => {
-                    self.logger.error('[motorized_fader_control]: Timeout waiting for volume from WebSocket');
-                    reject(new Error('Timeout waiting for volume from WebSocket'));
-                }, 1000);
-
-                // Listen for the volume response from WebSocket
-                self.socket.once('pushState', (state) => {
-                    clearTimeout(timeout); // Clear the timeout once response is received
-                    self.logger.debug(`[motorized_fader_control]: Received volume from WebSocket: ${JSON.stringify((state.volume))}`);
-                    self.cacheVolume(state.volume); // Cache the received volume
-                    resolve(state.volume);         // Resolve the promise with the received volume
-                });
-            } else {
-                self.logger.debug('[motorized_fader_control]: Fetching volume directly from command router');
-
-                // Directly fetch the volume from the command router and cache it
-                //! deprecated
-                const volume = self.commandRouter.volumioretrievevolume();
-                self.logger.debug(`[motorized_fader_control]: Retrieved volume from command router: ${JSON.stringify(volume)}`);
-                self.cacheVolume(volume); // Cache the volume
-                resolve(volume);          // Resolve the promise with the fetched volume
-            }
-        } catch (error) {
-            self.logger.error(`[motorized_fader_control]: Error in getVolume: ${error.message}`);
-            reject(error); // Reject the promise with the error
-        }
-    });
-};
 //* HANDLE STATE ----------------------------------------------------
 
-motorizedFaderControl.prototype.handleStateUpdate = function(state) {
+motorizedFaderControl.prototype.onPushState = function(state) {
     var self = this;
-    self.logger.info('[motorized_fader_control]: handleStateUpdate');
+    self.logger.info('[motorized_fader_control]: handleStateUpdate: state recieved');
 
     //cache some stuff not sure where to do this
     self.cacheState(state);
@@ -862,7 +836,7 @@ motorizedFaderControl.prototype.handleStateUpdate = function(state) {
     self.stopContinuousSeekUpdate();
 
     self.handleFaderOnStateUpdate(state); // 
-    if (self.checkPlayingState(state)) {
+    if (self.checkPlayingState(state)) { //maybe differentiate between play/pause here, play is relevant for startContinuousSeekUpdate
         self.cacheTimeLastActiveStateUpdate(); // Cache the time when playback is active
         // Start continuous seek updates
         self.startContinuousSeekUpdate(state);
@@ -1043,94 +1017,55 @@ motorizedFaderControl.prototype.stopContinuousSeekUpdate = function() {
 };
 
 //* handleFaderBehaviour ----------------------------------------------------
-
 motorizedFaderControl.prototype.handleFaderOnStateUpdate = async function(state) {
     const self = this;
-    let faderBehavior, configuredFaders;
-
-    faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR'));
-    configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', false));
-
+    const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR'));
+    const configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', false));
     const faderMoves = [];
 
-    // Iterate through the configured faders and build FaderMove objects
     for (let i = 0; i < configuredFaders.length; i++) {
         const fader = faderBehavior[i];
         const faderIdx = configuredFaders[i];
         const output = fader.OUTPUT.toLowerCase();
 
         if (self.config.get('DEBUG_MODE', false)) {
-            self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate: Processing fader ${faderIdx} with output type ${output}`);
+            self.logger.info(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx} with output type ${output}`);
         }
 
         let progression = null;
         let volume = null;
 
-        //* OUTPUT SEEK
-        if (output === 'seek') {
-            progression = await self.getOutputSeek(state, fader.SEEK_TYPE.toLowerCase());
-        } else if (output === 'volume') {
-            //*OUTPUT VOLUME
-            // we are using the volume listener for this
-            //! however it seems this is not triggered by a state update. which keps the fader not up to date on start of the plugin
-            //triggering a volume response is hard and also always also triggers a state update anyway lol
-            volume = state.volume
+        switch (output) {
+            case 'seek':
+                progression = await self.getOutputSeek(state, fader.SEEK_TYPE.toLowerCase());
+                break;
+            case 'volume':
+                volume = state.volume;
+                if (self.config.get('DEBUG_MODE', false)) {
+                    self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx}: State Volume: ${volume}`);
+                }
+                break;
+            default:
+                self.logger.info(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx}: has no output assigned`);
+                break;
         }
 
-        if (self.config.get('DEBUG_MODE', false)) {
-        self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate: State Volume Setter set Volume to : ${volume}`);
-        }
-
-        if (progression !== null &&  self.hasCachedProgressionChanged(faderIdx, progression)) {
+        if (progression && self.hasCachedProgressionChanged(faderIdx, progression)) {
             const speed = self.config.get('FADER_CONTROLLER_SPEED_HIGH');
             faderMoves.push(new FaderMove(faderIdx, progression, speed));
-        } else if (volume !== "" && self.hasOutputVolumeChanged(faderIdx, volume)) {
-            const speed = self.config.get('FADER_CONTROLLER_SPEED_HIGH');
-            faderMoves.push(new FaderMove(faderIdx, volume, speed));
+        } else if (volume && output === 'volume') {
+            const volumeObject = {
+                vol: volume,
+                mute: state.mute || false,
+                disableVolumeControl: state.disableVolumeControl || false
+            };
+            await self.handleVolumeUpdate(volumeObject);
         }
     }
 
-    // Combine the fader moves into a single move using combineFaderMoves
     const combinedMove = self.faderController.combineMoves(faderMoves);
 
-    if (combinedMove !== null) {
-        try {
-            await self.faderController.moveFaders(combinedMove, true);
-        } catch (error) {
-            self.logger.error(`[motorized_fader_control]: Error executing fader moves: ${error.message}`);
-        }
-    } else {
-        self.logger.debug('[motorized_fader_control]: No valid fader moves to execute');
-    }
-};
-
-motorizedFaderControl.prototype.handleFaderVolumeUpdate = async function(volume) { //! deprecated
-    var self = this;
-    let faderBehavior, configuredFaders;
-    faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR'));
-    configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', false));
-
-    const faderMoves = [];
-    for (let i = 0; i < configuredFaders.length; i++) {
-        const fader = faderBehavior[i];
-        const faderIdx = configuredFaders[i];
-        const output = fader.OUTPUT.toLowerCase();
-        
-        if (self.config.get('DEBUG_MODE', false)) {
-        self.logger.info(`[motorized_fader_control]: handleFaderVolumeUpdate: Processing fader ${faderIdx} with output type ${output}`);
-        }
-
-        let progression = null;
-        if (output === 'volume') {
-            progression = volume;
-        }
-        if (progression !== null && self.hasOutputVolumeChanged(faderIdx, progression)) {
-            const speed = self.config.get('FADER_CONTROLLER_SPEED_MEDIUM');
-            faderMoves.push(new FaderMove(faderIdx, progression, speed));
-        }
-    }
-    const combinedMove = self.faderController.combineMoves(faderMoves);
-    if (combinedMove !== null) {
+    if (combinedMove) {
         try {
             await self.faderController.moveFaders(combinedMove, true);
         } catch (error) {
@@ -1167,7 +1102,7 @@ motorizedFaderControl.prototype.getOutputSeek = async function (state, seekType)
     }
 };
 
-motorizedFaderControl.prototype.hasCachedProgressionChanged = function (faderIdx, newProgression) {
+motorizedFaderControl.prototype.hasCachedProgressionChanged = function (faderIdx, newProgression) { //! ensure this works
     var self = this;
     // Ensure cachedSeekProgression is initialized
     if (!self.cachedSeekProgression) {
@@ -1247,6 +1182,9 @@ motorizedFaderControl.prototype.getAlbumProgression = async function (state) {
             //! log error
         } else {
             albumInfo = self.cachedAlbumInfo;
+            if (self.config.get('DEBUG_MODE', false)) {
+                self.logger.debug(`[motorized_fader_control]: Using cached album info: ${JSON.stringify(albumInfo)}`);
+            }
         }
 
         if (!albumInfo || !albumInfo.songs) {
@@ -1334,8 +1272,10 @@ motorizedFaderControl.prototype.getAlbumInfoPlayingGoTo = function (state) {
                         duration,
                         songs
                     };
-
-                    self.logger.debug('[motorized_fader_control]: Extracted album information: ' + JSON.stringify(albumInfo));
+                    
+                    if (self.config.get('DEBUG_MODE', false)) {
+                        self.logger.debug('[motorized_fader_control]: Extracted album information: ' + JSON.stringify(albumInfo));
+                    }
 
                     // Cache album info
                     self.cacheAlbumInfo(albumInfo);
@@ -1432,7 +1372,7 @@ motorizedFaderControl.prototype.getSeekInAlbum = function(albumInfo, state) {
 
     if (currentTrackIndex === -1) {
         self.logger.warn(`[motorized_fader_control]: Current track not found in album: ${JSON.stringify(state)}`);
-        //this gives false negatives
+        //this gives false negatives: 
     }
 
     self.logger.debug(`[motorized_fader_control]: Current track index: ${currentTrackIndex}`);
@@ -1994,13 +1934,12 @@ motorizedFaderControl.prototype.checkValidState = function(state) {
     return false; // Return false if state is invalid or status doesn't match
 };
 
-
 motorizedFaderControl.prototype.checkAlbumInfoValid = function(albumInfo, state) {
     var self = this;
 
     // Check if albumInfo is not null, undefined, or an empty object
     if (!albumInfo || typeof albumInfo !== 'object' || Object.keys(albumInfo).length === 0) {
-        self.logger.warn('[motorized_fader_control]: Invalid albumInfo object');
+        self.logger.warn('[motorized_fader_control]: Invalid albumInfo object: ' + JSON.stringify(albumInfo));
         return false;
     }
 
@@ -2027,15 +1966,18 @@ motorizedFaderControl.prototype.checkAlbumInfoValid = function(albumInfo, state)
     return isAlbumMatch && isTrackInAlbum;
 };
 
-motorizedFaderControl.prototype.isTrackInAlbum = function(albumInfo, state) {
+motorizedFaderControl.prototype.isTrackInAlbum = function(albumInfo, state) { //! we need to fix this, why is this being flagged as false:
+    //Checking song - Title: The Illest Villains, Artist: Madvillain, Duration: 115, Service: jellyfin against state - Title: The Illest Villains, Artist: Madvillain, Duration: 119, Service: mpd - Match: false
     var self = this;
+    const durationTolerance = 5; // Tolerance in seconds
 
     return albumInfo.songs.some(song => {
         const match = song.title === state.title &&
                       song.artist === state.artist &&
-                      albumInfo.service === state.service;
+                      albumInfo.service === state.service &&
+                      Math.abs(song.duration - state.duration) <= durationTolerance;
         if (self.config.get('DEBUG_MODE', false)) {
-            self.logger.debug(`[motorized_fader_control]: Checking song - Title: ${song.title}, Artist: ${song.artist}, Duration: ${song.duration}, Service: ${albumInfo.service} against state - Title: ${state.title}, Artist: ${state.artist}, Duration: ${state.duration}, Service: ${state.service} - Match: ${match}`);
+            self.logger.debug(`[motorized_fader_control]: Checking song - Title: ${song.title},Artist: ${song.artist},Duration: ${song.duration},Service: ${albumInfo.service} against state -Title: ${state.title},Artist: ${state.artist},Duration: ${state.duration},Service: ${state.service}-Match: ${match}`);
         }
         return match;
     });
@@ -2094,7 +2036,7 @@ motorizedFaderControl.prototype.checkStateChanged = function(state, key = undefi
 motorizedFaderControl.prototype.checkPlayingState = function(state) { //TODO FIX THIS
     // checkPlayingState gives false negatives
     if (state && state.hasOwnProperty("status")) {
-        const PlaybackStatus = state.status; // Use dot notation to access 'status'
+        const PlaybackStatus = state.status;
         if (PlaybackStatus === 'play') {
             this.cacheTimeLastActiveStateUpdate();
             return true;

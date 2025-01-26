@@ -84,6 +84,22 @@
           "value": 1000000
         },
         {
+          "id": "UPDATE_VOLUME_ON_MOVE",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.GENERAL.DOC_UPDATE_VOLUME_ON_MOVE",
+          "label": "TRANSLATE.GENERAL.LABEL_UPDATE_VOLUME_ON_MOVE",
+          "value": true
+        },
+        {
+          "id": "UPDATE_SEEK_ON_MOVE",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.GENERAL.DOC_UPDATE_SEEK_ON_MOVE",
+          "label": "TRANSLATE.GENERAL.LABEL_UPDATE_SEEK_ON_MOVE",
+          "value": true
+        },
+        {
           "id": "CALIBRATE_BUTTON",
           "type": "button",
           "element": "button",

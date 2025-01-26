@@ -29,7 +29,11 @@
     "LABEL_SERIAL_PORT": "Serial Port",
     "DOC_SERIAL_PORT": "Specify the serial port for communication.",
     "LABEL_BAUD_RATE": "Baud Rate",
-    "DOC_BAUD_RATE": "Specify the baud rate for serial communication."
+    "DOC_BAUD_RATE": "Specify the baud rate for serial communication.",
+    "LABEL_UPDATE_SEEK_ON_MOVE": "Update Seek on Move",
+    "DOC_UPDATE_SEEK_ON_MOVE": "Enable or disable seek updates while touching the fader.",
+    "LABEL_UPDATE_VOLUME_ON_MOVE": "Update Volume on Move",
+    "DOC_UPDATE_VOLUME_ON_MOVE": "Enable or disable volume updates while touching the fader."
   },
   "LOGGING": {
     "LABEL_MIDI_LOG": "Log Fader MIDI Data",
