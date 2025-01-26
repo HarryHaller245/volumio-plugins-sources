@@ -23,7 +23,9 @@
           "FADER_CONTROLLER_SPEED_MEDIUM",
           "FADER_CONTROLLER_SPEED_LOW",
           "SERIAL_PORT",
-          "BAUD_RATE"
+          "BAUD_RATE",
+          "UPDATE_VOLUME_ON_MOVE",
+          "UPDATE_SEEK_ON_MOVE"
         ]
       },
       "content": [
@@ -399,7 +401,7 @@
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/motorized_fader_control",
-        "method": "saveGeneralSettingsRestart"
+        "method": "saveFaderControllerSettingsRestart"
       },
       "saveButton": {
         "label": "TRANSLATE.BUTTON.SAVE",

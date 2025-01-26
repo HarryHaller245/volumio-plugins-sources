@@ -739,7 +739,8 @@ class FaderController {
                       this.logger.info(`[FaderController]: Retrying in ${delay}ms...`);
                       setTimeout(() => attemptSetup(attempt + 1), delay);
                   } else {
-                      this.logger.error(`[FaderController]: All retry attempts failed. Unable to setup serial port.`);
+                      this.logger.error(`[FaderController]: All retry attempts failed. Unable to setup serial port. Closing`);
+                      this.closeSerial();
                       reject(error);
                   }
               });
@@ -821,7 +822,7 @@ class FaderController {
         this.ser_port.close((err) => {
           if (err) {
             this.logger.error("[FaderController]: Error closing serial port: ", err);
-            reject(err);s
+            reject(err);
           } else {
             this.logger.info("[FaderController]: SerialPort closed succesfully");
             resolve();

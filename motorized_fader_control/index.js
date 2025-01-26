@@ -41,6 +41,8 @@ function motorizedFaderControl(context) {
 
     this.cachedFaderRealtimeSeekInterval = null;
 
+    this.isSeeking = false; // is seeking flag
+
 };
 
 //! TO DOs
@@ -139,11 +141,12 @@ motorizedFaderControl.prototype.stopMotorizedFaderControl = async function() {
         self.stopContinuousSeekUpdate();
         self.removeWebSocket();
         self.unregisterVolumioVolumeChangeListener();
-        self.stopFaderController();
+        await self.stopFaderController();
         
         if (config.get("DEBUG_MODE", false)) {
             self.config.set("FADER_REALTIME_SEEK_INTERVAL",  self.cachedFaderRealtimeSeekInterval)
         }
+
 
         self.setLogLevel("verbose");
         self.logger.info('[motorized_fader_control]: -------- Stopped --------');
@@ -228,7 +231,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                 const factor = factorConfig[index];
                 self.faderController.setFadersMovementSpeedFactor(index, factor);
             });
-            self.logger.info('[motorized_fader_control]: Fader speed factors set successfully.');
+            self.logger.debug('[motorized_fader_control]: Fader speed factors set successfully.');
         } catch (error) {
             self.logger.error(`[motorized_fader_control]: Failed to parse FADER_SPEED_FACTOR config: ${error.message}`);
         }
@@ -277,7 +280,7 @@ motorizedFaderControl.prototype.stopFaderController = async function() {
         }
 
         // Create a promise for stopping the controller
-        const stopPromise = await self.faderController.stop();
+        const stopPromise = self.faderController.stop(); // if this fails due to reset not being able to work
         
         // Create a timeout promise
         const timeoutPromise = new Promise((_, reject) => {
@@ -290,15 +293,14 @@ motorizedFaderControl.prototype.stopFaderController = async function() {
         await Promise.race([stopPromise, timeoutPromise]);
 
         // Proceed to close the serial connection
-        self.faderController.closeSerial();
+        await self.faderController.closeSerial();
         self.logger.info('[motorized_fader_control]: Fader Controller stopped successfully');
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error stopping Fader Controller: ' + error.message);
         // Ensure serial connection is closed if it exists
         if (self.faderController) {
             await self.faderController.closeSerial(); // Ensure this happens even if the stop fails
-            self.logger.warn('[motorized_fader_control]: An error occured trying to stop the FaderController. Forced closing serial connection.');
-            return;
+            self.logger.warn('[motorized_fader_control]: An error occurred trying to stop the FaderController. Forced closing serial connection.');
         }
         throw error; // Ensure the error is propagated
     }
@@ -312,6 +314,7 @@ motorizedFaderControl.prototype.restartFaderController = async function() {
         self.stopContinuousSeekUpdate();
         self.clearCachedFaderInfo();
         await self.stopFaderController();
+
         if (self.setupFaderController()) {
             await self.startFaderController();
             await self.getStateFrom('websocket');
@@ -320,7 +323,7 @@ motorizedFaderControl.prototype.restartFaderController = async function() {
         return libQ.resolve();
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error restarting Fader Controller: ' + error);
-        self.stopMotorizedFaderControl();
+        await self.stopMotorizedFaderControl();
         return libQ.reject(); // Ensure the error is propagated
     }
 };
@@ -377,14 +380,15 @@ motorizedFaderControl.prototype.setupFaderControllerTouchCallbacks = function() 
 
 motorizedFaderControl.prototype.setFaderCallbacks = function(faderIdx, type) {
     var self = this;
-    const UPDATE_VOLUME_ON_MOVE = self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100);
+    const UPDATE_VOLUME_ON_MOVE = self.config.get('UPDATE_VOLUME_ON_MOVE', false);
+    const UPDATE_SEEK_ON_MOVE = self.config.get('UPDATE_SEEK_ON_MOVE', false);
     try {
         // const updateOnMove = self.
         if (type === 'seek') {
-            self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchSeek());
+            self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchSeek(UPDATE_SEEK_ON_MOVE));
             self.faderController.setOnUntouchCallbacks(faderIdx, self.OnUntouchSeek());
         } else if (type === 'volume') {
-            self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchVolume(updateOnMove= UPDATE_VOLUME_ON_MOVE));
+            self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchVolume(UPDATE_VOLUME_ON_MOVE));
             self.faderController.setOnUntouchCallbacks(faderIdx, self.OnUntouchVolume());
         } else {
             self.logger.warn(`[motorized_fader_control]: Unknown callback type for fader ${faderIdx}: ${type}`);
@@ -396,112 +400,150 @@ motorizedFaderControl.prototype.setFaderCallbacks = function(faderIdx, type) {
     }
 };
 
-/**
- * Handles the touch event for seeking.
- * 
- * @returns {Function} An async function that takes a fader index and caches the fader info if it has changed.
- */
+motorizedFaderControl.prototype.handleInputSeek = async function(faderIdx, state) {
+    const self = this;
+    const faderInfo = self.getCachedFaderInfo(faderIdx);
+    const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
+    const faderConfig = faderBehavior.find(fader => fader.FADER_IDX === faderIdx);
+
+    if (!faderConfig) {
+        self.logger.warn(`[motorized_fader_control]: handleSeek: No configuration found for fader ${faderIdx}`);
+        return;
+    }
+
+    const seekType = faderConfig.SEEK_TYPE.toLowerCase();
+
+    try {
+
+        // Delegate to the correct seek handler based on the seek type
+        switch (seekType) {
+            case 'track':
+                self.handleSetTrackSeek(faderInfo, state);
+                break;
+            case 'album':
+                self.handleSetAlbumSeek(faderInfo, state);
+                break;
+            case 'queue':
+                self.handleSetQueueSeek(faderInfo, state);
+                break;
+            case 'playlist':
+                self.handleSetPlaylistSeek(faderInfo, state);
+                break;
+            default:
+                self.logger.warn(`[motorized_fader_control]: handleSeek: Unsupported seek type: ${seekType}`);
+        }
+
+    } catch (error) {
+        self.logger.error(`[motorized_fader_control]: handleSeek: Error: ${error.message}`);
+    }
+};
+
 motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
     var self = this;
+    self.touchIntervals = self.touchIntervals || {};
+
     return async (faderIdx) => {
         self.logger.info(`[motorized_fader_control]: OnTouchSeek: Handling touch event for fader ${faderIdx}`);
         
-        // Cache the current fader info if it has changed
-        if (self.checkFaderInfoChanged(faderIdx)) {
-            self.logger.info(`[motorized_fader_control]: OnTouchSeek: Fader info changed for fader ${faderIdx}, caching info`);
-            self.cacheFaderInfo(faderIdx);
+        self.isSeeking = true;
+        self.stopContinuousSeekUpdate();
+
+        // Clear any existing interval for this fader
+        if (self.touchIntervals[faderIdx]) {
+            clearInterval(self.touchIntervals[faderIdx]);
         }
 
-        self.logger.info(`[motorized_fader_control]: OnTouchSeek: Completed handling touch event for fader ${faderIdx}`);
+        // Activate echo mode for the fader to avoid an instant jump back to the setpoint
+        self.faderController.set_echoMode(faderIdx, true);
+
+        const state = await self.getExclusiveState();
+        if (!state || Object.keys(state).length === 0) {
+            self.logger.warn(`[motorized_fader_control]: handleSeek: Unable to fetch state or state is empty`);
+            return;
+        }
+        // Set an interval to continuously cache the fader info
+        self.touchIntervals[faderIdx] = setInterval(async () => {
+            if (self.checkFaderInfoChanged(faderIdx)) {
+                self.cacheFaderInfo(faderIdx);
+                self.logger.debug(`[motorized_fader_control]: OnTouchSeek: Fader info changed for fader ${faderIdx}, info cached ${JSON.stringify(self.getCachedFaderInfo(faderIdx))}`);
+
+                if (updateOnMove) {
+                    await self.handleInputSeek(faderIdx, state);
+                }
+            }
+        }, 100); // Adjust the interval time as needed
+
+        self.logger.debug(`[motorized_fader_control]: OnTouchSeek: Completed handling touch event for fader ${faderIdx}`);
     };
 };
 
-/**
- * Handles the untouch event for seeking.
- * 
- * @returns {Function} An async function that takes a fader index, checks if the touch state has changed, and clears the cache.
- */
 motorizedFaderControl.prototype.OnUntouchSeek = function() {
     var self = this;
+    self.touchIntervals = self.touchIntervals || {};
+
+    const clearTouchInterval = (faderIdx) => {
+        if (self.touchIntervals[faderIdx]) {
+            clearInterval(self.touchIntervals[faderIdx]);
+            delete self.touchIntervals[faderIdx];
+            self.logger.debug(`[motorized_fader_control]: OnUntouchSeek: Stopped caching fader info for fader ${faderIdx}`);
+        }
+    };
 
     return async (faderIdx) => {
         self.logger.info(`[motorized_fader_control]: OnUntouchSeek: Handling untouch event for fader ${faderIdx}`);
+        self.faderController.set_echoMode(faderIdx, false);
 
         // Check if this fader untouch state has changed
         if (self.checkFaderInfoChanged(faderIdx, "touch")) {
-            self.logger.info(`[motorized_fader_control]: OnUntouchSeek: Fader untouch state changed for fader ${faderIdx}`);
-
-            // Fetch cached fader info
-            const faderInfo = self.getCachedFaderInfo(faderIdx);
-            const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
-            const faderConfig = faderBehavior.find(fader => fader.FADER_IDX === faderIdx);
-
-            if (!faderConfig) {
-                self.logger.warn(`[motorized_fader_control]: OnUntouchSeek: No configuration found for fader ${faderIdx}`);
-                return;
-            }
-
-            const seekType = faderConfig.SEEK_TYPE.toLowerCase();
-
+            self.logger.debug(`[motorized_fader_control]: OnUntouchSeek: Fader untouch state changed for fader ${faderIdx}`);
             try {
-                // Fetch the current state asynchronously
-                const state = await self.getStateFrom('websocket');
-                if (!state) {
-                    self.logger.warn(`[motorized_fader_control]: OnUntouchSeek: Unable to fetch state`);
+                const state = await self.getExclusiveState();
+                if (!state || Object.keys(state).length === 0) {
+                    self.logger.warn(`[motorized_fader_control]: OnUntouchSeek: Unable to fetch state or state is empty`);
                     return;
                 }
-
-                // Delegate to the correct seek handler based on the seek type
-                switch (seekType) {
-                    case 'track':
-                        self.handleTrackSeek(faderInfo, state);
-                        break;
-                    case 'album':
-                        self.handleAlbumSeek(faderInfo, state);
-                        break;
-                    case 'queue':
-                        self.handleQueueSeek(faderInfo, state);
-                        break;
-                    case 'playlist':
-                        self.handlePlaylistSeek(faderInfo, state);
-                        break;
-                    default:
-                        self.logger.warn(`[motorized_fader_control]: OnUntouchSeek: Unsupported seek type: ${seekType}`);
-                }
+                await self.handleInputSeek(faderIdx, state);
+                self.isSeeking = false;
             } catch (error) {
                 self.logger.error(`[motorized_fader_control]: OnUntouchSeek: Error fetching state: ${error.message}`);
+                self.isSeeking = false;
+                return;
             }
         }
 
+        clearTouchInterval(faderIdx);
         // Clear the cache for the current fader index
-        self.logger.info(`[motorized_fader_control]: OnUntouchSeek: Clearing cache for fader ${faderIdx}`);
+        self.logger.debug(`[motorized_fader_control]: OnUntouchSeek: Clearing cache for fader ${faderIdx}`);
         self.clearCachedFaderInfo(faderIdx);
 
-        self.logger.info(`[motorized_fader_control]: OnUntouchSeek: Completed handling untouch event for fader ${faderIdx}`);
+        self.logger.debug(`[motorized_fader_control]: OnUntouchSeek: Completed handling untouch event for fader ${faderIdx}`);
     };
 };
 
-motorizedFaderControl.prototype.handleTrackSeek = function(faderInfo, state) {
+motorizedFaderControl.prototype.handleSetTrackSeek = function(faderInfo, state) {
     const duration = state.duration || 0;
     const seekPosition = (faderInfo.progression / 100) * duration;
     this.setSeek(seekPosition);
     this.logger.info(`[motorized_fader_control]: handleTrackSeek: Seek set to ${seekPosition} ms for track`);
 };
 
-motorizedFaderControl.prototype.handleAlbumSeek = function(faderInfo, state) {
+motorizedFaderControl.prototype.handleSetAlbumSeek = function(faderInfo, state) {
     // Implement album seek logic here
     this.logger.info(`[motorized_fader_control]: handleAlbumSeek: Handling album seek for fader progression ${faderInfo.progression}`);
+    this.logger.error(`[motorized_fader_control]: handleAlbumSeek: Album seek not implemented yet`);
 };
 
-motorizedFaderControl.prototype.handleQueueSeek = function(faderInfo, state) {
+motorizedFaderControl.prototype.handleSetQueueSeek = function(faderInfo, state) {
     // Implement queue seek logic here
     //! not sure this even works, since the queue will basically change when seeking
     this.logger.info(`[motorized_fader_control]: handleQueueSeek: Handling queue seek for fader progression ${faderInfo.progression}`);
+    this.logger.error(`[motorized_fader_control]: handleAlbumSeek: Queue seek not implemented yet`);
 };
 
-motorizedFaderControl.prototype.handlePlaylistSeek = function(faderInfo, state) {
+motorizedFaderControl.prototype.handleSetPlaylistSeek = function(faderInfo, state) {
     // Implement playlist seek logic here
     this.logger.info(`[motorized_fader_control]: handlePlaylistSeek: Handling playlist seek for fader progression ${faderInfo.progression}`);
+    this.logger.error(`[motorized_fader_control]: handleAlbumSeek: Playlist seek not implemented yet`);
 };
 
 /**
@@ -529,7 +571,7 @@ motorizedFaderControl.prototype.OnTouchVolume = function(updateOnMove = false) {
         self.touchIntervals[faderIdx] = setInterval(async () => {
             if (self.checkFaderInfoChanged(faderIdx, "progression")) {
                 self.cacheFaderInfo(faderIdx);
-                self.logger.info(`[motorized_fader_control]: OnTouchVolume: Fader info changed for fader ${faderIdx}, info cached ${JSON.stringify(self.getCachedFaderInfo(faderIdx))}`);
+                self.logger.debug(`[motorized_fader_control]: OnTouchVolume: Fader info changed for fader ${faderIdx}, info cached ${JSON.stringify(self.getCachedFaderInfo(faderIdx))}`);
 
                 if (updateOnMove) {
                     const faderInfo = self.getCachedFaderInfo(faderIdx);
@@ -604,7 +646,6 @@ motorizedFaderControl.prototype.setupWebSocket = function() {
 
     // Handle Volumio state updates
     self.socket.on('pushState', function(state) {
-        self.logger.info('[motorized_fader_control]: Received pushState update');
         self.onPushState(state);  // Delegate state handling to the onPushState function
     });
 
@@ -665,7 +706,7 @@ motorizedFaderControl.prototype.getStateFrom = function(source = 'websocket') {
 
     return new Promise((resolve, reject) => {
         try {
-            if (source == 'websocket') {
+            if (source === 'websocket') {
                 // Emit the request to get the state via WebSocket
                 self.socket.emit('getState');
 
@@ -673,39 +714,75 @@ motorizedFaderControl.prototype.getStateFrom = function(source = 'websocket') {
                 const timeout = setTimeout(() => {
                     // If no response, reject the promise with an error
                     reject(new Error('Timeout waiting for state from WebSocket'));
-                }, 500);
+                }, 50);
 
                 // Listen for the state response from WebSocket
                 self.socket.once('pushState', (state) => {
                     clearTimeout(timeout); // Clear the timeout
                     self.cacheState(state); // Cache the received state
-                    resolve(self.state);    // Resolve the promise with the updated state
+                    resolve(state);    // Resolve the promise with the updated state
                 });
             } else {
-                // Directly fetch state from the command router and cache it
-                self.cacheState(self.commandRouter.volumioGetState());
                 resolve(self.state);
             }
         } catch (error) {
-            self.logger.error('motorizedFaderControl: Error in getStateCommandRouter: ' + error.message);
+            self.logger.error('[motorized_fader_control]: Error in getStateFrom: ' + error.message);
             reject(error);
+        }
+    });
+};
+
+motorizedFaderControl.prototype.getExclusiveState = function() {
+    const self = this;
+
+    return new Promise((resolve, reject) => {
+        let originalPushStateListeners; // Track original listeners
+
+        try {
+            // 1. Capture and remove existing listeners to isolate this request
+            originalPushStateListeners = self.socket.listeners('pushState');
+            self.socket.removeAllListeners('pushState');
+
+            // 2. Set up timeout cleanup
+            const timeout = setTimeout(() => {
+                restoreListeners();
+                reject(new Error('Timeout waiting for state from WebSocket'));
+            }, 50); // Short timeout for responsiveness
+
+            // 3. Temporary state listener
+            self.socket.once('pushState', (state) => {
+                clearTimeout(timeout);
+                restoreListeners();
+                resolve(state); // Return state without caching
+            });
+
+            // 4. Request fresh state
+            self.socket.emit('getState');
+
+        } catch (error) {
+            // 5. Ensure cleanup on error
+            if (originalPushStateListeners) restoreListeners();
+            self.logger.error(`[motorized_fader_control]: getExclusiveState error: ${error.message}`);
+            reject(error);
+        }
+
+        function restoreListeners() {
+            if (originalPushStateListeners) {
+                originalPushStateListeners.forEach(listener => {
+                    self.socket.on('pushState', listener);
+                });
+            }
         }
     });
 };
 
 motorizedFaderControl.prototype.setSeek = function(seek) {
     var self = this;
-    self.logger.info('motorizedFaderControl: [motorized_fader_control]: Setting seek to ' + seek);
+    self.logger.info('[motorized_fader_control]: Setting seek to ' + seek);
     try {
-        if (source == 'websocket') {
-            self.socket.emit('seek', seek);
-            return true
-        } else {
-            self.cacheState(self.commandRouter.volumioSeek(seek));
-            return true
-        };
+        self.socket.emit('seek', seek);
     } catch (error) {
-        self.logger.error('motorizedFaderControl: Error in setSeek Commandrouter: ' + error.message);
+        self.logger.error('[motorized_fader_control]: Error in setSeek: ' + error.message);
         return false
     }
 };
@@ -744,6 +821,7 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volume) {
     const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
     const configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
     const faderMoves = [];
+    let combinedMove = false;
 
     for (let i = 0; i < configuredFaders.length; i++) {
         const fader = faderBehavior[i];
@@ -760,7 +838,9 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volume) {
         }
     }
 
-    const combinedMove = self.faderController.combineMoves(faderMoves);
+    if (faderMoves.length > 0) {
+        combinedMove = self.faderController.combineMoves(faderMoves);
+    }
 
     if (combinedMove) {
         try {
@@ -825,21 +905,34 @@ motorizedFaderControl.prototype.setVolume = function(volume, source = 'websocket
 //* HANDLE STATE ----------------------------------------------------
 
 motorizedFaderControl.prototype.onPushState = function(state) {
-    var self = this;
-    self.logger.info('[motorized_fader_control]: handleStateUpdate: state recieved');
+    const self = this;
+    self.logger.debug(`[motorized_fader_control]: onPushState: state received: ${JSON.stringify(state)}`);
+    // Validate state integrity first
+    if (!self.validateState(state)) {
+        self.logger.debug('[motorized_fader_control]: State invalid, skipping');
+        if (self.config.get('DEBUG_MODE', false)) {
+            self.logger.debug(`[motorized_fader_control]: Invalid state: ${JSON.stringify(state)}`);
+        }
+        return;
+    }
 
-    //cache some stuff not sure where to do this
-    self.cacheState(state);
-    //self.cacheVolume(self.getVolumeFromState(state));
-
-    //stop any ContiniousStateUpdater
+    // Skip processing if state hasn't meaningfully changed
+    if (!self.checkStateChanged(state)) {
+        self.logger.info('[motorized_fader_control]: State unchanged, skipping update');
+        return;
+    }
+    self.logger.info(`[motorized_fader_control]: onPushState: state received`);
+    self.logger.debug(`[motorized_fader_control]: onPushState: changed state received`);
+    // Stop any active seek updates
     self.stopContinuousSeekUpdate();
 
-    self.handleFaderOnStateUpdate(state); // 
-    if (self.checkPlayingState(state)) { //maybe differentiate between play/pause here, play is relevant for startContinuousSeekUpdate
-        self.cacheTimeLastActiveStateUpdate(); // Cache the time when playback is active
-        // Start continuous seek updates
-        self.startContinuousSeekUpdate(state);
+    // Only trigger fader updates if not in seek mode
+    if (!self.isSeeking) {
+        self.handleFaderOnStateUpdate(state);
+        if (self.checkPlayingState(state)) {
+            self.cacheTimeLastActiveStateUpdate();
+            self.startContinuousSeekUpdate(state);
+        }
     }
 };
 
@@ -853,6 +946,7 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
     const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
     const configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', "[0,1]"));
 
+    self.logger.info('[motorized_fader_control]: Started Realtime Seek Update');
     // Set up an interval to continuously update the fader based on elapsed time
     self.seekUpdateInterval = setInterval(async () => {
         try {
@@ -942,7 +1036,7 @@ motorizedFaderControl.prototype.getRealtimeOutputSeekTrack = function(state, ela
         // Calculate the new progression using state.seek as the starting point
         const newProgression = Math.min(100, ((state_seek + elapsedTime) / duration) * 100);
         if (self.config.get('DEBUG_MODE', false)) {
-            this.logger.debug(`[motorized_fader_control]: Calculating progression with state_seek: ${state_seek} ms, elapsedTime: ${elapsedTime} ms, and duration: ${duration} ms`);
+            this.logger.debug(`[motorized_fader_control]: Calculating Realtime Progression with state_seek: ${state_seek} ms, elapsedTime: ${elapsedTime} ms, and duration: ${duration} ms`);
         }
         return newProgression;
     } else {
@@ -1013,6 +1107,7 @@ motorizedFaderControl.prototype.stopContinuousSeekUpdate = function() {
         // Optionally clear the interval if a critical error occurs
         clearInterval(self.seekUpdateInterval);
         self.seekUpdateInterval = null; // Reset the interval reference
+        self.logger.info('[motorized_fader_control]: Stopped Realtime Seek Update');
     };
 };
 
@@ -1029,7 +1124,7 @@ motorizedFaderControl.prototype.handleFaderOnStateUpdate = async function(state)
         const output = fader.OUTPUT.toLowerCase();
 
         if (self.config.get('DEBUG_MODE', false)) {
-            self.logger.info(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx} with output type ${output}`);
+            self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx} with output type ${output}`);
         }
 
         let progression = null;
@@ -1550,7 +1645,6 @@ motorizedFaderControl.prototype.retrieveSelectValue = function(element) {
     return element.value;
 };
 
-
 motorizedFaderControl.prototype.unpackFaderConfig = function(content) {
     const self = this;
     try {
@@ -1688,25 +1782,18 @@ motorizedFaderControl.prototype.saveFaderControllerSettingsRestart = async funct
 motorizedFaderControl.prototype.saveGeneralSettingsRestart = async function(data) {
     var self = this;
     self.logger.info('[motorized_fader_control]: Saving general settings and restarting plugin...');
-    try {
-    // Update the configuration values based on user input
+
     for (const key in data) {
         if (data.hasOwnProperty(key)) {
             if (self.retrieveSelectValue(data[key])) {
                 self.config.set(key, data[key].value);
             } else {
-            self.config.set(key, data[key]);
+                self.config.set(key, data[key]);
             }
         }
     }
-    self.commandRouter.pushToastMessage('info', 'Restart Required', 'Restarting...');
-
+    self.commandRouter.pushToastMessage('info', 'Restart Required', 'The FaderController will reset to apply the new settings.');
     await self.restartMotorizedFaderControl();
-
-    self.logger.info('[motorized_fader_control]: General settings saved and plugin restarted successfully');
-    } catch (error) {
-        self.logger.error("[motorized_fader_control]: Error saving general settings and restarting plugin: " + error);
-    }
 };
 
 motorizedFaderControl.prototype.getConfigurationFiles = function() {
@@ -1921,13 +2008,27 @@ motorizedFaderControl.prototype.getTimeSinceLastActiveStateUpdate = function() {
 
 //* VALIDATE
 
-motorizedFaderControl.prototype.checkValidState = function(state) {
+motorizedFaderControl.prototype.validateState = function(state) {
     // Check if state is not null or undefined and has the key "status"
     if (state && typeof state === 'object' && state.hasOwnProperty("status")) {
         const PlaybackStatus = state.status; // Use dot notation to access 'status'
         
         // Check if the PlaybackStatus is one of the valid states
         if (PlaybackStatus === 'play' || PlaybackStatus === 'pause' || PlaybackStatus === 'stop') {
+            // Check if the seek value is valid
+            if (state.hasOwnProperty("seek") && state.hasOwnProperty("duration")) {
+                const seek = state.seek;
+                const duration = state.duration;
+
+                // Log the seek and duration values
+                this.logger.debug(`[motorized_fader_control]: validateState: Checking seek and duration: seek=${seek}, duration=${duration}`);
+
+                // Check if seek is larger than duration
+                if (seek > duration) {
+                    this.logger.warn(`[motorized_fader_control]: validateState: Invalid state: seek (${seek} ms) is larger than duration (${duration} ms)`);
+                    return false;
+                }
+            }
             return true;
         }
     }
@@ -1983,53 +2084,37 @@ motorizedFaderControl.prototype.isTrackInAlbum = function(albumInfo, state) { //
     });
 };
 
-/**
- * Checks if the given state or specific key within the state has changed compared to the cached state.
- * 
- * @param {Object} state - The current state to check.
- * @param {string} [key] - (Optional) Specific key within the state to check for changes.
- * @returns {boolean} True if the state or key has changed, false otherwise.
- */
-motorizedFaderControl.prototype.checkStateChanged = function(state, key = undefined) {
-    // Cache the current state if it doesn't exist
-    if (!this.cachedState) {
-        this.cachedState = {};
+motorizedFaderControl.prototype.checkStateChanged = function(state) {
+    const self = this;
+    if (!self.cachedState) {
+        self.cachedState = {}; // Initialize if missing
+        return true; // First run always triggers
     }
 
-    // If a specific key is provided, check if that key's value has changed
-    if (key) {
-        // Check if the key exists in both the current state and cached state
-        if (state.hasOwnProperty(key) && this.cachedState.hasOwnProperty(key)) {
-            const currentValue = state[key];
-            const cachedValue = this.cachedState[key];
+    // Define critical fields that affect fader behavior
+    const CRITICAL_FIELDS = [
+        'seek',       // Track position
+        'status',     // Play/pause
+        'duration',   // Track length
+        'uri'         // Track identifier
+    ];
 
-            // If the value for the key is different, update cache and return true
-            if (JSON.stringify(currentValue) !== JSON.stringify(cachedValue)) {
-                this.cachedState[key] = currentValue;
-                this.logger.debug(`[motorized_fader_control]: Key ${key} has changed: ${currentValue}`);
-                return true; // Key has changed
-            } else {
-                this.logger.debug(`[motorized_fader_control]: Key ${key} has not changed: ${currentValue}`);
-                return false; // No change in the specific key
-            }
-        } else if (state.hasOwnProperty(key)) {
-            // If the key exists only in the current state, it's a change
-            this.cachedState[key] = state[key];
-            return true; // Key is new, so it's considered changed
-        }
-    } else {
-        // Check if the entire state has changed
-        const stateChanged = JSON.stringify(state) !== JSON.stringify(this.cachedState);
+    // Check if any critical field has changed
+    const hasChanged = CRITICAL_FIELDS.some(field => {
+        const stateValue = JSON.stringify(state[field]);
+        const cachedValue = JSON.stringify(self.cachedState[field]);
+        const fieldChanged = stateValue !== cachedValue;
 
-        if (stateChanged) {
-            // Cache the new state
-            this.cachedState = { ...state };
-            return true;
-        } else {
-            return false;
-        }
+        // Log the comparison details
+        self.logger.debug(`[motorized_fader_control]: checkStateChanged: Comparing field '${field}': stateValue=${stateValue}, cachedValue=${cachedValue}, changed=${fieldChanged}`);
+
+        return fieldChanged;
+    });
+
+    if (hasChanged) {
+        self.cacheState(state);
+        return true;
     }
-
     return false;
 };
 
@@ -2046,7 +2131,6 @@ motorizedFaderControl.prototype.checkPlayingState = function(state) { //TODO FIX
     }
     return false;
 };
-
 
 //* logging:
 
