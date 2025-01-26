@@ -856,6 +856,7 @@ class FaderController {
         this.logger.info("[FaderController]: FaderController stopped");
         resolve();
       } catch (error) {
+        this.ser_port.removeAllListeners();
         this.logger.error("[FaderController]: An error occurred while stopping the [FaderController]: " + error);
         reject(error);
       }
