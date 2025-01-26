@@ -84,7 +84,6 @@
 //! TODO: develop fader range trim further, not functional at the moment, maybe it is easiest to map
 //! at the lowest level, right before a command goes out. However we need to make sure
 //! the positions and progressions are all mapped when acessed
-//TODO test new findFaderByIndex usage
 
 const SerialPort = require('serialport'); // import the SerialPort module 
 const MIDIParser = require('./MIDIParser'); // import the MIDIParser
@@ -707,32 +706,47 @@ class FaderController {
    * @returns {Promise} A promise that resolves when the serial port and parser are successfully set up.
    */
   setupSerial(ser_port_path, baud_rate, retries = 5, delay = 1000) {
-    return new Promise((resolve, reject) => {
-      const attemptSetup = (attempt) => {
-        try {
-          this.logger.info(`[FaderController]: Attempt ${attempt} to initialize SerialPort: ${ser_port_path} at baud rate: ${baud_rate}`);
-          this.ser_port = new SerialPort(ser_port_path, { baudRate: baud_rate });
-          this.parser = new MIDIParser();
-          this.ser_port.pipe(this.parser);
-          this.setupPortListeners();
-          this.logger.info(`[FaderController]: SerialPort initialized.`);
-          resolve();
-        } catch (error) {
-            this.logger.error(`[FaderController]: Error setting up serial port and parser on attempt ${attempt}: ${error.message}`);
-            this.parser = null;
-            this.ser_port = null;
-          if (attempt < retries) {
-            this.logger.info(`[FaderController]: Retrying in ${delay}ms...`);
-            setTimeout(() => attemptSetup(attempt + 1), delay);
-          } else {
-            this.logger.error(`[FaderController]: All retry attempts failed. Unable to setup serial port.`);
-            reject(error);
-          }
-        }
-      };
+      return new Promise((resolve, reject) => {
+          const attemptSetup = (attempt) => {
+              this.logger.info(`[FaderController]: Attempt ${attempt} to initialize SerialPort: ${ser_port_path} at baud rate: ${baud_rate}`);
+              
+              this.ser_port = new SerialPort(ser_port_path, { baudRate: baud_rate }, (error) => {
+                  if (error) {
+                      this.logger.error(`[FaderController]: Error setting up serial port on attempt ${attempt}: ${error.message}`);
+                      this.parser = null;
+                      this.ser_port = null;
+                      if (attempt < retries) {
+                          this.logger.info(`[FaderController]: Retrying in ${delay}ms...`);
+                          setTimeout(() => attemptSetup(attempt + 1), delay);
+                      } else {
+                          this.logger.error(`[FaderController]: All retry attempts failed. Unable to setup serial port.`);
+                          reject(error);
+                      }
+                  } else {
+                      this.parser = new MIDIParser();
+                      this.ser_port.pipe(this.parser);
+                      this.setupPortListeners();
+                      this.logger.info(`[FaderController]: SerialPort initialized.`);
+                      resolve();
+                  }
+              });
   
-      attemptSetup(1);
-    });
+              this.ser_port.on('error', (error) => {
+                  this.logger.error(`[FaderController]: SerialPort error: ${error.message}`);
+                  this.parser = null;
+                  this.ser_port = null;
+                  if (attempt < retries) {
+                      this.logger.info(`[FaderController]: Retrying in ${delay}ms...`);
+                      setTimeout(() => attemptSetup(attempt + 1), delay);
+                  } else {
+                      this.logger.error(`[FaderController]: All retry attempts failed. Unable to setup serial port.`);
+                      reject(error);
+                  }
+              });
+          };
+  
+          attemptSetup(1);
+      });
   }
 
 
@@ -917,6 +931,8 @@ class FaderController {
           const logMessage = this.parser.formatParsedLogMessageArr(midiDataArr);
           if (this.MIDILog == true) {
             this.logger.debug("[FaderController]: " + logMessage);
+            //lets also log the array form
+            this.logger.debug("[FaderController]: MIDI ARR: " + JSON.stringify(midiDataArr));
           }
           this.updateFaderInfo(midiDataArr);
           if (this.MIDIDeviceReady === false) {
@@ -959,6 +975,8 @@ class FaderController {
       }
     }).filter(progression => progression !== null);
   }
+
+
   
   /**
    * Returns a dictionary containing the information for the specified faders.
@@ -969,7 +987,7 @@ class FaderController {
    * @returns {Object[]} - An array of dictionaries containing the information for the specified faders.
    * If an invalid fader index is encountered, it will be skipped and not included in the result.
    */
-  getFadersInfo(indexes) { //! this is deprecated
+  getFadersInfo(indexes) { 
     indexes = this.normalizeAndFitIndexes(indexes); // Use IndexHandler to validate and filter indexes
   
     const dicts = indexes.map(index => {
@@ -1248,6 +1266,8 @@ class FaderController {
     midiDataArr[0] = midiDataArr[0] | midiDataArr[1];
     const message = [midiDataArr[0], midiDataArr[2], midiDataArr[3]];
     this.logger.debug(`[FaderController]: Echoing MIDI message: ${message}`);
+
+    // Send the MIDI message back to the faders
     this.sendMIDIMessages([message]);
   }
   
