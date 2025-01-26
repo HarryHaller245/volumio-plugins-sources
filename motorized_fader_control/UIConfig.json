@@ -11,7 +11,7 @@
       "icon": "fa-cog",
       "onSave": {
         "type": "controller",
-        "endpoint": "user_interface/motorized_fader_control",
+        "endpoint": "system_hardware/motorized_fader_control",
         "method": "saveFaderControllerSettingsRestart"
       },
       "saveButton": {
@@ -91,7 +91,7 @@
           "doc": "TRANSLATE.BUTTON.DOC_CALIBRATE",
           "onClick": {
             "type": "controller",
-            "endpoint": "user_interface/motorized_fader_control",
+            "endpoint": "system_hardware/motorized_fader_control",
             "method": "RunManualCalibration"
           }
         }
@@ -105,7 +105,7 @@
       "description": "TRANSLATE.SECTION.FADER_BEHAVIOR_DESCRIPTION",
       "onSave": {
         "type": "controller",
-        "endpoint": "user_interface/motorized_fader_control",
+        "endpoint": "system_hardware/motorized_fader_control",
         "method": "saveFaderElement"
       },
       "saveButton": {
@@ -322,7 +322,7 @@
       "icon": "fa-file-alt",
       "onSave": {
         "type": "controller",
-        "endpoint": "user_interface/motorized_fader_control",
+        "endpoint": "system_hardware/motorized_fader_control",
         "method": "saveGeneralSettingsRestart"
       },
       "saveButton": {
@@ -382,7 +382,7 @@
       "icon": "fa-tools",
       "onSave": {
         "type": "controller",
-        "endpoint": "user_interface/motorized_fader_control",
+        "endpoint": "system_hardware/motorized_fader_control",
         "method": "saveGeneralSettingsRestart"
       },
       "saveButton": {

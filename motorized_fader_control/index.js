@@ -936,12 +936,20 @@ motorizedFaderControl.prototype.getRealtimeOutputSeek = async function(state, el
             progression = self.getRealtimeOutputSeekTrack(state, elapsedTime, faderIdx);
             break;
         case 'album':
+            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
+            //! if state is on random AND repeat:false we can still run this normally
+            //! also check if the state is even registered as an album, if no fallback to self.getTrackProgression
             progression = await self.getRealtimeOutputSeekAlbum(state, elapsedTime, faderIdx);
             break;
         case 'queue':
             progression = self.getRealtimeOutputSeekQueue(state, elapsedTime, faderIdx);
+            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
+            //! if state is on random AND repeat:false we can still run this normally
             break;
         case 'playlist':
+            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
+            //! if state is on random AND repeat:false we can still run this normally
+            //! also check if the state is even registered as an album, if no fallback to
             progression = self.getRealtimeOutputSeekPlaylist(state, elapsedTime, faderIdx);
             break;
         default:
@@ -1141,8 +1149,17 @@ motorizedFaderControl.prototype.getOutputSeek = async function (state, seekType)
         case 'track':
             return self.getTrackProgression(state);
         case 'album':
+            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
+            //! if state is on random AND repeat:false we can still run this normally
+            //! also check if the state is even registered as an album, if no fallback to self.getTrackProgression
             return await self.getAlbumProgression(state);
+        case 'queue':
+            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
+            //! if state is on random AND repeat:false we can still run this normally
+            progression = self.getQueueProgression(state);
         case 'playlist':
+            //! check if state is on repeatSingle:true, log warning and return the self.getTrackProgression
+            //! if state is on random AND repeat:false we can still run this normally
             return self.getPlaylistProgression(state);
         default:
             self.logger.warn(`[motorized_fader_control]: Unknown seekType: ${seekType}`);
@@ -1249,6 +1266,15 @@ motorizedFaderControl.prototype.getAlbumProgression = async function (state) {
         return null;
     }
 };
+
+motorizedFaderControl.prototype.getQueueProgression = async function (state) {
+    //TODO implement this
+};
+
+motorizedFaderControl.prototype.getPlaylistProgression = async function (state) {
+    //TODO implement this
+};
+
 
 //* ALBUM INFO LOGIC
 
@@ -1733,7 +1759,8 @@ motorizedFaderControl.prototype.saveGeneralSettingsRestart = async function(data
             }
         }
     }
-    self.commandRouter.pushToastMessage('info', 'Restart Required', 'The plugin will restart to apply the new settings.');
+    self.commandRouter.pushToastMessage('info', 'Restart Required', 'Restarting...');
+
     await self.restartMotorizedFaderControl();
 
     self.logger.info('[motorized_fader_control]: General settings saved and plugin restarted successfully');
