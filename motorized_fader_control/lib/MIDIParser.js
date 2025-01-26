@@ -234,7 +234,7 @@ class MIDIParser extends Transform {
     formatParsedMidiDataArrToObject(midiDataArray) {
         const midiData = {
             type: midiDataArray[0],
-            channel: midiDataArray[1],
+            channel: this.getChannelMidiDataArr(midiDataArr),
             data1: midiDataArray[2],
             data2: midiDataArray[3]
         };
