@@ -945,7 +945,6 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
     self.stopContinuousSeekUpdate();
 
     // Retrieve FADER_BEHAVIOR configuration
-    const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
     const configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', "[0,1]"));
 
     self.logger.info('[motorized_fader_control]: Started Realtime Seek Update');
@@ -954,7 +953,7 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
         try {
             const elapsedTime = self.getTimeSinceLastActiveStateUpdate();
             const faderMoves = [];
-
+s
             // Update each fader's progression based on elapsed time
             for (const faderIdx of configuredFaders) {
                 try {
@@ -962,12 +961,11 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
                     const inputType = self.getFaderInputType(faderIdx);
 
                     // Check if fader is configured for seek
-                    if (s.toLowerCase() !== 'seek') {
+                    if (inputType.toLowerCase() !== 'seek') {
                         continue;
                     }
 
-                    const faderConfig = faderBehavior.find(fader => fader.FADER_IDX === faderIdx);
-                    const seekType = faderConfig ? faderConfig.SEEK_TYPE.toLowerCase() : 'track'; // Default to 'track' if no seek type is set
+                    const seekType = this.getFaderSeekType(faderIdx)
 
                     const newProgression = await self.getRealtimeOutputSeek(state, elapsedTime, faderIdx, seekType);
 
@@ -1140,7 +1138,8 @@ motorizedFaderControl.prototype.handleFaderOnStateUpdate = async function(state)
         switch (output) {
             case 'seek':
                 // Use the helper method to get the seek type for the fader
-                const seekType = self.getFaderInputType(faderIdx);
+                // const seekType = self.getFaderInputType(faderIdx);
+                const seekType = self.getFaderSeekType(faderIdx);
                 progression = await self.getOutputSeek(state, seekType);
                 break;
             case 'volume':
@@ -1570,6 +1569,8 @@ motorizedFaderControl.prototype.onRestart = function() {
 
 //* UI CONFIGURATION ------------------------------------------
 
+//* UI CONFIGURATION ------------------------------------------
+
 motorizedFaderControl.prototype.getUIConfig = function() {
     const defer = libQ.defer();
     const self = this;
@@ -1673,16 +1674,14 @@ motorizedFaderControl.prototype.unpackFaderConfig = function(content) {
                 
                 // Update configured status
                 self.updateFaderElement(content, `FADER_${i}_CONFIGURED`, true); // Set to true since it's configured
-                self.updateFaderElement(content, `FADER_${i}_OUTPUT`, fader.OUTPUT);
-                self.updateFaderElement(content, `FADER_${i}_INPUT`, fader.INPUT);
-                self.updateFaderElement(content, `FADER_${i}_SEEK_TYPE`, fader.SEEK_TYPE);
+
+                // Map OUTPUT/INPUT/SEEK_TYPE to BEHAVIOR
+                const behavior = fader.OUTPUT === "volume" ? "volume" : fader.SEEK_TYPE;
+                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, behavior);
             } else {
                 // If the fader is not configured, update its status accordingly
                 self.updateFaderElement(content, `FADER_${i}_CONFIGURED`, false);
-                //! propably not necessary since the UI is hidden
-                self.updateFaderElement(content, `FADER_${i}_OUTPUT`, ""); // Optional: Set output to empty for unconfigured 
-                self.updateFaderElement(content, `FADER_${i}_INPUT`, ""); // Optional: Set input to empty for unconfigured
-                self.updateFaderElement(content, `FADER_${i}_SEEK_TYPE`, ""); // Optional: Set seek type to empty for unconfigured
+                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, "volume"); // Default to volume
             }
         }
     } catch (error) {
@@ -1741,33 +1740,59 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
 
         // Iterate over the fader data and repack the information
         for (let i = 0; i < 4; i++) {  // Assuming a maximum of 4 faders
-            let faderConfigured = data[`FADER_${i}_CONFIGURED`];
-            let faderOutput = data[`FADER_${i}_OUTPUT`]?.value || "";
-            let faderSeekType = data[`FADER_${i}_SEEK_TYPE`]?.value || "";
+            self.logger.debug(`[motorized_fader_control]: Processing fader ${i}...`);
 
-            // Ensure input matches output
-            const faderInput = faderOutput;
+            // Log the raw data for this fader
+            self.logger.debug(`[motorized_fader_control]: Fader ${i} raw data: ${JSON.stringify({
+                configured: data[`FADER_${i}_CONFIGURED`],
+                behavior: data[`FADER_${i}_BEHAVIOR`]
+            })}`);
+
+            let faderConfigured = data[`FADER_${i}_CONFIGURED`];
+            let faderBehaviorValue = data[`FADER_${i}_BEHAVIOR`]?.value || "volume";
+
+            self.logger.debug(`[motorized_fader_control]: Fader ${i} behavior value: ${faderBehaviorValue}`);
+
+            // Map behavior to output/input/seek_type
+            const output = faderBehaviorValue === "volume" ? "volume" : "seek";
+            const input = output; // Input always matches output
+            const seekType = faderBehaviorValue === "volume" ? "" : faderBehaviorValue;
+
+            self.logger.debug(`[motorized_fader_control]: Fader ${i} mapped values: OUTPUT=${output}, INPUT=${input}, SEEK_TYPE=${seekType}`);
 
             faderBehavior.push({
                 FADER_IDX: i,
-                OUTPUT: faderOutput,
-                INPUT: faderInput, // Set input to match output
-                SEEK_TYPE: faderSeekType
+                OUTPUT: output,
+                INPUT: input,
+                SEEK_TYPE: seekType
             });
 
             if (faderConfigured) {
                 faderIdxs.push(i);
+                self.logger.debug(`[motorized_fader_control]: Fader ${i} is configured.`);
+            } else {
+                self.logger.debug(`[motorized_fader_control]: Fader ${i} is not configured.`);
             }
+
             if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`[motorized_fader_control]: Repacked Fader ${i} configuration: OUTPUT=${faderOutput}, INPUT=${faderInput}, SEEK_TYPE=${faderSeekType}`);
+                self.logger.debug(`[motorized_fader_control]: Repacked Fader ${i} configuration: OUTPUT=${output}, INPUT=${input}, SEEK_TYPE=${seekType}`);
             }
         }
+
+        // Log the final fader behavior array
+        self.logger.debug(`[motorized_fader_control]: Final fader behavior array: ${JSON.stringify(faderBehavior)}`);
+
+        // Log the final fader indexes array
+        self.logger.debug(`[motorized_fader_control]: Final fader indexes array: ${JSON.stringify(faderIdxs)}`);
 
         // Save the repacked configuration back to the config
         self.config.set('FADER_BEHAVIOR', JSON.stringify(faderBehavior));
         self.config.set('FADERS_IDXS', JSON.stringify(faderIdxs));
+
+        self.logger.debug('[motorized_fader_control]: Fader configuration saved successfully.');
     } catch (error) {
-        self.logger.error('Error repacking fader configuration: ' + error);
+        self.logger.error('[motorized_fader_control]: Error repacking fader configuration: ' + error.message);
+        self.logger.error('[motorized_fader_control]: Stack trace: ' + error.stack);
         throw error;
     }
 };
@@ -2314,3 +2339,23 @@ motorizedFaderControl.prototype.getFaderInputType = function(faderIdx) {
     // Always return the output type as input type
     return faderConfig.OUTPUT;
 };
+
+/**
+ * Helper method to get the correct SeekType type for a fader.
+ * 
+ * @param {number} faderIdx - The index of the fader.
+ * @returns {string} - The input type for the fader.
+ */
+motorizedFaderControl.prototype.getFaderSeekType = function(faderIdx) {
+    const self = this;
+    const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
+    const faderConfig = faderBehavior.find(fader => fader.FADER_IDX === faderIdx);
+
+    if (!faderConfig) {
+        self.logger.warn(`[motorized_fader_control]: No configuration found for fader ${faderIdx}`);
+        return 'track'; // Default to track if no config/seekTpye is found
+    }
+
+    return faderConfig.SEEK_TYPE;
+};
+

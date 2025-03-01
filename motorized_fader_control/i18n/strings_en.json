@@ -64,8 +64,8 @@
     "DOC_DEBUG_MODE": "Enable/Disable Logging in Debuggin mode. This will log more verbose and slow down timings"
   },
   "FADER_BEHAVIOR": {
-    "DOC_FADER_BEHAVIOR": "Configure how faders behave during playback",
-    "LABEL_FADER_BEHAVIOR": "Fader Behavior",
+    "DOC_FADER_BEHAVIOR": "Configure which functions the faders are assigned to",
+    "LABEL_FADER_BEHAVIOR": "     Function",
     "LABEL_FADER_0": "Fader 0",
     "DOC_FADER_0_CONFIGURED": "Enable or disable Fader 0 configuration.",
     "LABEL_FADER_0_OUTPUT": "Fader 0 Behavior",

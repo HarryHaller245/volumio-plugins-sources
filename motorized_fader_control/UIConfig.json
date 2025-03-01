@@ -130,21 +130,13 @@
         "label": "TRANSLATE.BUTTON.SAVE",
         "data": [
           "FADER_0_CONFIGURED",
-          "FADER_0_OUTPUT",
-          "FADER_0_INPUT",
-          "FADER_0_SEEK_TYPE",
+          "FADER_0_BEHAVIOR",
           "FADER_1_CONFIGURED",
-          "FADER_1_OUTPUT",
-          "FADER_1_INPUT",
-          "FADER_1_SEEK_TYPE",
+          "FADER_1_BEHAVIOR",
           "FADER_2_CONFIGURED",
-          "FADER_2_OUTPUT",
-          "FADER_2_INPUT",
-          "FADER_2_SEEK_TYPE",
+          "FADER_2_BEHAVIOR",
           "FADER_3_CONFIGURED",
-          "FADER_3_OUTPUT",
-          "FADER_3_INPUT",
-          "FADER_3_SEEK_TYPE"
+          "FADER_3_BEHAVIOR"
         ]
       },
       "content": [

@@ -112,6 +112,7 @@ index.js
   - Playlist support
   - Queue support
   - Advanced calibration UI
+  - german translation stringss
 
 - **Optimizations**:
   - WebSocket event throttling
