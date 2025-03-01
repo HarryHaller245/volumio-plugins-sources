@@ -157,37 +157,14 @@
           "value": false
         },
         {
-          "id": "FADER_0_OUTPUT",
+          "id": "FADER_0_BEHAVIOR",
           "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_0_OUTPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_0_OUTPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        {
-          "id": "FADER_0_INPUT",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_0_INPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_0_INPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        {
-          "id": "FADER_0_SEEK_TYPE",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_0_SEEK_TYPE",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_0_SEEK_TYPE",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_BEHAVIOR",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_BEHAVIOR",
           "value": "track",
           "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
           "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
@@ -203,41 +180,18 @@
           "value": false
         },
         {
-          "id": "FADER_1_OUTPUT",
+          "id": "FADER_1_BEHAVIOR",
           "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_1_OUTPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_1_OUTPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        {
-          "id": "FADER_1_INPUT",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_1_INPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_1_INPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        {
-          "id": "FADER_1_SEEK_TYPE",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_1_SEEK_TYPE",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_1_SEEK_TYPE",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_BEHAVIOR",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_BEHAVIOR",
           "value": "track",
           "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
           "options": [
-              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
-              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
-              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
-              { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
           ]
         },
         {
@@ -249,36 +203,14 @@
           "value": false
         },
         {
-          "id": "FADER_2_OUTPUT",
+          "id": "FADER_2_BEHAVIOR",
           "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_2_OUTPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_2_OUTPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_2_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        {
-          "id": "FADER_2_INPUT",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_2_INPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_2_INPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_2_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        { "id": "FADER_2_SEEK_TYPE",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_2_SEEK_TYPE",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_2_SEEK_TYPE",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_BEHAVIOR",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_BEHAVIOR",
           "value": "track",
           "visibleIf": { "field": "FADER_2_CONFIGURED", "value": true },
           "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
@@ -294,37 +226,14 @@
           "value": false
         },
         {
-          "id": "FADER_3_OUTPUT",
+          "id": "FADER_3_BEHAVIOR",
           "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_3_OUTPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_3_OUTPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_3_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        {
-          "id": "FADER_3_INPUT",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_3_INPUT",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_3_INPUT",
-          "value": "seek",
-          "visibleIf": { "field": "FADER_3_CONFIGURED", "value": true },
-          "options": [
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_SEEK", "value": "seek" },
-            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" }
-          ]
-        },
-        {
-          "id": "FADER_3_SEEK_TYPE",
-          "element": "select",
-          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_3_SEEK_TYPE",
-          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_3_SEEK_TYPE",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_BEHAVIOR",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_BEHAVIOR",
           "value": "track",
           "visibleIf": { "field": "FADER_3_CONFIGURED", "value": true },
           "options": [
+            { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_VOLUME", "value": "volume" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_TRACK", "value": "track" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_ALBUM", "value": "album" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },

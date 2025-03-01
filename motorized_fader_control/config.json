@@ -53,7 +53,7 @@
     },
     "FADER_BEHAVIOR": {
       "type": "string",
-      "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"track\"},{\"FADER_IDX\":1,\"OUTPUT\":\"volume\",\"INPUT\":\"volume\",\"SEEK_TYPE\":\"track\"}]"
+      "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"track\"},{\"FADER_IDX\":1,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"album\"}]"
     },
     "UPDATE_VOLUME_ON_MOVE": {
       "type": "boolean",
@@ -129,7 +129,7 @@
     },
     "FADER_REALTIME_SEEK_INTERVAL": {
       "type": "number",
-      "value": 1000
+      "value": 900
     }
   }
   
