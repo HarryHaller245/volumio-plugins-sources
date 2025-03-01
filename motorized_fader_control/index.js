@@ -2018,7 +2018,7 @@ motorizedFaderControl.prototype.validateState = function(state) {
             // Check if the seek value is valid
             if (state.hasOwnProperty("seek") && state.hasOwnProperty("duration")) {
                 const seek = state.seek;
-                const duration = state.duration;
+                const duration = state.duration * 1000; // convert to ms
 
                 // Log the seek and duration values
                 this.logger.debug(`[motorized_fader_control]: validateState: Checking seek and duration: seek=${seek}, duration=${duration}`);
