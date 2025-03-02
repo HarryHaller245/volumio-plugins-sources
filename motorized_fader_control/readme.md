@@ -103,6 +103,9 @@ index.js
 
 ### TODOs & Next Steps
 - **High Priority**:
+  - Plugin crashes to unresponse when no fadder is configured and saved, warning message works, but we gett an error during stop UnhandledPromiseRejectionWarning
+  - Integrate Fader Trim Settings
+      -fix display of set settings, saving works already, but it doesnt show in the UI
   - Remove Config for different Input/Output seek types. This is not needed.
   - Implement album/queue seek logic
   - Refactor state handling to reduce nesting

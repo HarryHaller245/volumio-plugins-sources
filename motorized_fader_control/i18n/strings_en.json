@@ -8,7 +8,7 @@
     "DEVELOPMENT_SETTINGS": "Development Settings",
     "DEVELOPMENT_SETTINGS_DESCRIPTION": "Configure the development settings for the fader controller.",
     "FADER_BEHAVIOR": "Fader Behavior",
-    "FADER_BEHAVIOR_DESCRIPTION": "Configure how faders behave during playback. Unequal INPUT/OUTPUT is not supported yet."
+    "FADER_BEHAVIOR_DESCRIPTION": "Configure what the faders control & show during playback."
   },
   "BUTTON": {
     "SAVE": "Save",
@@ -61,11 +61,13 @@
     "LABEL_FADER_REALTIME_SEEK_INTERVAL": "Realtime Seek Interval",
     "DOC_FADER_REALTIME_SEEK_INTERVAL": "Set the interval for realtime seek in milliseconds.1000ms matches the ui playback refreshrate",
     "LABEL_DEBUG_MODE": "Debug mode",
-    "DOC_DEBUG_MODE": "Enable/Disable Logging in Debuggin mode. This will log more verbose and slow down timings"
+    "DOC_DEBUG_MODE": "Enable/Disable Logging in debugging mode. This will log more verbose and slow down timings"
   },
   "FADER_BEHAVIOR": {
     "DOC_FADER_BEHAVIOR": "Configure which functions the faders are assigned to",
-    "LABEL_FADER_BEHAVIOR": "     Function",
+    "LABEL_FADER_BEHAVIOR": "control type",
+    "LABEL_FADER_TRIM": "Fader Trim",
+    "DOC_FADER_TRIM": "Set trim cutoffs for the fader.Use this to avoid overshoot and rattling at the end positions",
     "LABEL_FADER_0": "Fader 0",
     "DOC_FADER_0_CONFIGURED": "Enable or disable Fader 0 configuration.",
     "LABEL_FADER_0_OUTPUT": "Fader 0 Behavior",

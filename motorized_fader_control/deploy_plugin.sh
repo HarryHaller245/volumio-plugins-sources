@@ -24,8 +24,12 @@ cd ~/volumio-plugins-sources/motorized_fader_control || {
 echo "Refreshing plugin..."
 volumio plugin refresh
 #wait for 10 seconds
-sleep 10
+sleep 5
 
 #restart volumio
 echo "Restarting Volumio..."
 volumio vrestart
+
+sleep 2
+
+sudo journalctl -f | grep motorized_fader_control

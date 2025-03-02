@@ -218,7 +218,8 @@ motorizedFaderControl.prototype.setupFaderController = function() {
         self.logger.info('[motorized_fader_control]: FaderController initialized successfully.');
 
         if (Object.keys(trimMap).length !== 0) {
-            //! self.faderController.setFaderProgressionMapsTrimMap(trimMap);d
+            //!this expects a dictionary wiht idx as keys and the [0,100] range as value
+            self.faderController.setFaderProgressionMapsTrimMap(trimMap);
         }
 
         // Set the MovementSpeedFactors according to config
@@ -953,7 +954,6 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
         try {
             const elapsedTime = self.getTimeSinceLastActiveStateUpdate();
             const faderMoves = [];
-s
             // Update each fader's progression based on elapsed time
             for (const faderIdx of configuredFaders) {
                 try {
@@ -1663,6 +1663,7 @@ motorizedFaderControl.prototype.unpackFaderConfig = function(content) {
     try {
         const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR')) || [];
         const faderIdxs = JSON.parse(self.config.get('FADERS_IDXS')) || [];
+        const faderTrimMap = JSON.parse(self.config.get('FADER_TRIM_MAP')) || {}; // Parse the stringified JSON object
 
         // Loop through each configured fader index
         for (let i = 0; i < 4; i++) { // Assuming a maximum of 4 faders
@@ -1678,10 +1679,17 @@ motorizedFaderControl.prototype.unpackFaderConfig = function(content) {
                 // Map OUTPUT/INPUT/SEEK_TYPE to BEHAVIOR
                 const behavior = fader.OUTPUT === "volume" ? "volume" : fader.SEEK_TYPE;
                 self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, behavior);
+
+                // Update FADER TRIM using the parsed faderTrimMap
+                const faderTrim = faderTrimMap[i] || [0, 100]; // Access the trim map using the fader index as a key, this somehow results in a nested FADER_0_TRIM updated: [[0,56]]
+                self.updateFaderElement(content, `FADER_${i}_TRIM`, faderTrim);
+
             } else {
                 // If the fader is not configured, update its status accordingly
                 self.updateFaderElement(content, `FADER_${i}_CONFIGURED`, false);
-                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, "volume"); // Default to volume
+                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, ""); // Default to volume
+                // Update FADER TRIM, default to [0, 100]
+                self.updateFaderElement(content, `FADER_${i}_TRIM`, [0, 100]);
             }
         }
     } catch (error) {
@@ -1696,9 +1704,15 @@ motorizedFaderControl.prototype.updateFaderElement = function(content, elementId
     const element = content.find(elem => elem.id === elementId);
     
     if (element) {
-        element.value = (typeof value === 'string') 
-            ? { value: value, label: self.getLabelForSelect(element.options, value) }
-            : value; // Set configured status directly
+        if (elementId.includes("TRIM")) {
+            // For equalizer elements, set the value as a nested array (e.g., [[0, 100]])
+            element.config.bars[0].value = value; // Wrap the value in an array //! wrror: Error unpacking fader configuration: TypeError: Cannot set property 'value' of undefined
+        } else {
+            // For other elements, assign the value directly
+            element.value = (typeof value === 'string') 
+                ? { value: value, label: self.getLabelForSelect(element.options, value) }
+                : value;
+        }
         self.logger.debug(`[motorized_fader_control]: ${elementId} updated: ${JSON.stringify(element.value)}`);
     } else {
         self.logger.warn(`[motorized_fader_control]: ${elementId} not found.`);
@@ -1737,6 +1751,7 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
 
         let faderBehavior = [];
         let faderIdxs = [];
+        let faderTrimMap = {};
 
         // Iterate over the fader data and repack the information
         for (let i = 0; i < 4; i++) {  // Assuming a maximum of 4 faders
@@ -1745,13 +1760,18 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
             // Log the raw data for this fader
             self.logger.debug(`[motorized_fader_control]: Fader ${i} raw data: ${JSON.stringify({
                 configured: data[`FADER_${i}_CONFIGURED`],
-                behavior: data[`FADER_${i}_BEHAVIOR`]
+                behavior: data[`FADER_${i}_BEHAVIOR`],
+                trim: data[`FADER_${i}_TRIM`]
             })}`);
 
             let faderConfigured = data[`FADER_${i}_CONFIGURED`];
             let faderBehaviorValue = data[`FADER_${i}_BEHAVIOR`]?.value || "volume";
+            let faderTrimMapValue = data[`FADER_${i}_TRIM`];
 
-            self.logger.debug(`[motorized_fader_control]: Fader ${i} behavior value: ${faderBehaviorValue}`);
+            // Unnest the trim value if it's in the `bars` array format
+            let faderTrim = Array.isArray(faderTrimMapValue) && faderTrimMapValue.length > 0
+                ? faderTrimMapValue[0]  // Extract the nested array
+                : [0, 100];  // Default to [0, 100] if invalid
 
             // Map behavior to output/input/seek_type
             const output = faderBehaviorValue === "volume" ? "volume" : "seek";
@@ -1760,6 +1780,7 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
 
             self.logger.debug(`[motorized_fader_control]: Fader ${i} mapped values: OUTPUT=${output}, INPUT=${input}, SEEK_TYPE=${seekType}`);
 
+            // Add fader behavior to the array
             faderBehavior.push({
                 FADER_IDX: i,
                 OUTPUT: output,
@@ -1767,6 +1788,10 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
                 SEEK_TYPE: seekType
             });
 
+            // Add fader trim to the trim map
+            faderTrimMap[i] = faderTrim;
+
+            // Add fader index to configured list if configured
             if (faderConfigured) {
                 faderIdxs.push(i);
                 self.logger.debug(`[motorized_fader_control]: Fader ${i} is configured.`);
@@ -1775,7 +1800,7 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
             }
 
             if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`[motorized_fader_control]: Repacked Fader ${i} configuration: OUTPUT=${output}, INPUT=${input}, SEEK_TYPE=${seekType}`);
+                self.logger.debug(`[motorized_fader_control]: Repacked Fader ${i} configuration: OUTPUT=${output}, INPUT=${input}, SEEK_TYPE=${seekType}, CONFIGURED=${faderConfigured}, TRIM=${faderTrim}`);
             }
         }
 
@@ -1785,9 +1810,13 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
         // Log the final fader indexes array
         self.logger.debug(`[motorized_fader_control]: Final fader indexes array: ${JSON.stringify(faderIdxs)}`);
 
+        // Log the final fader trim map
+        self.logger.debug(`[motorized_fader_control]: Final fader trim map: ${JSON.stringify(faderTrimMap)}`);
+
         // Save the repacked configuration back to the config
         self.config.set('FADER_BEHAVIOR', JSON.stringify(faderBehavior));
         self.config.set('FADERS_IDXS', JSON.stringify(faderIdxs));
+        self.config.set('FADER_TRIM_MAP', JSON.stringify(faderTrimMap)); // Save as stringified JSON
 
         self.logger.debug('[motorized_fader_control]: Fader configuration saved successfully.');
     } catch (error) {

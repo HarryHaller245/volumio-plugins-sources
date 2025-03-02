@@ -131,12 +131,16 @@
         "data": [
           "FADER_0_CONFIGURED",
           "FADER_0_BEHAVIOR",
+          "FADER_0_TRIM",
           "FADER_1_CONFIGURED",
           "FADER_1_BEHAVIOR",
+          "FADER_1_TRIM",
           "FADER_2_CONFIGURED",
           "FADER_2_BEHAVIOR",
+          "FADER_2_TRIM",
           "FADER_3_CONFIGURED",
-          "FADER_3_BEHAVIOR"
+          "FADER_3_BEHAVIOR",
+          "FADER_3_TRIM"
         ]
       },
       "content": [
@@ -164,6 +168,27 @@
           ]
         },
         {
+          "id": "FADER_0_TRIM",
+          "element": "equalizer",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_TRIM",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_TRIM",
+          "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
+          "config": {
+            "orientation": "horizontal",
+            "bars": [ 
+              {
+                "min": 0,
+                "max": 100,
+                "step": 1,
+                "value": [0, 100],
+                "range": true,
+                "tooltip": "show",
+                "showValue": true
+              }
+            ]
+          }
+        },
+        {
           "id": "FADER_1_CONFIGURED",
           "type": "switch",
           "element": "switch",
@@ -185,6 +210,27 @@
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
           ]
+        },
+        {
+          "id": "FADER_1_TRIM",
+          "element": "equalizer",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_TRIM",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_TRIM",
+          "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
+          "config": {
+            "orientation": "horizontal",
+            "bars": [ 
+              {
+                "min": 0,
+                "max": 100,
+                "step": 1,
+                "value": [0, 100],
+                "range": true,
+                "tooltip": "show",
+                "showValue": true
+              }
+            ]
+          }
         },
         {
           "id": "FADER_2_CONFIGURED",
@@ -210,6 +256,27 @@
           ]
         },
         {
+          "id": "FADER_2_TRIM",
+          "element": "equalizer",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_TRIM",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_TRIM",
+          "visibleIf": { "field": "FADER_2_CONFIGURED", "value": true },
+          "config": {
+            "orientation": "horizontal",
+            "bars": [
+              {
+                "min": 0,
+                "max": 100,
+                "step": 1,
+                "value": [0, 100],
+                "range": true,
+                "tooltip": "show",
+                "showValue": true
+              }
+            ]
+          }
+        },
+        {
           "id": "FADER_3_CONFIGURED",
           "type": "switch",
           "element": "switch",
@@ -231,6 +298,27 @@
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_QUEUE", "value": "queue" },
             { "label": "TRANSLATE.FADER_BEHAVIOR.OPTION_PLAYLIST", "value": "playlist" }
           ]
+        },
+        {
+          "id": "FADER_3_TRIM",
+          "element": "equalizer",
+          "label": "TRANSLATE.FADER_BEHAVIOR.LABEL_FADER_TRIM",
+          "doc": "TRANSLATE.FADER_BEHAVIOR.DOC_FADER_TRIM",
+          "visibleIf": { "field": "FADER_3_CONFIGURED", "value": true },
+          "config": {
+            "orientation": "horizontal",
+            "bars": [
+              {
+                "min": 0,
+                "max": 100,
+                "step": 1,
+                "value": [0, 100],
+                "range": true,
+                "tooltip": "show",
+                "showValue": true
+              }
+            ]
+          }
         }
       ]
     },

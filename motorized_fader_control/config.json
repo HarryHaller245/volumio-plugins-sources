@@ -117,11 +117,11 @@
     },
     "LOG_LEVEL": {
       "type": "string",
-      "value": "info"
+      "value": "debug"
     },
     "DEBUG_MODE": {
       "type": "boolean",
-      "value": false
+      "value": true
     },
     "STATE_UPDATE_INTERVAL": {
       "type": "number",
