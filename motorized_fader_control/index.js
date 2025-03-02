@@ -219,7 +219,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
 
         if (Object.keys(trimMap).length !== 0) {
             //!this expects a dictionary wiht idx as keys and the [0,100] range as value
-            self.faderController.setFaderProgressionMapsTrimMap(trimMap);
+            self.faderController.setFadersTrimsDict(trimMap);
         }
 
         // Set the MovementSpeedFactors according to config
@@ -236,7 +236,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
         } catch (error) {
             self.logger.error(`[motorized_fader_control]: Failed to parse FADER_SPEED_FACTOR config: ${error.message}`);
         }
-
+        //! add check if it is setup correctly
         return true;
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error setting up FaderController: ' + error);

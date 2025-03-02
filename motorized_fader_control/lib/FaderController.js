@@ -13,6 +13,7 @@
  * - Movement control with speed and position management
  * - MIDI message handling and echo mode
  * - Logging and debugging support
+ * - Trim Maps for faders
  * 
  * Dependencies:
  * - events: Node.js EventEmitter for handling events
@@ -276,7 +277,7 @@ class Fader {
   mapPositionToTrimRange(position) {
     const lower = this.progressionToPosition(this.ProgressionMap[0]);
     const upper = this.progressionToPosition(this.ProgressionMap[1]);
-    return lower + ((position - lower) / (upper - lower)) * (upper - lower);
+    return Math.max(lower, Math.min(position, upper));
   }
 
   /**
@@ -285,8 +286,10 @@ class Fader {
    * @returns {number} The converted progression value.
    */
   positionToProgression(position) {
-    // Convert a 14-bit integer to a 0-100 float value
-    return (position / 16383) * 100;
+    const lower = this.progressionToPosition(this.ProgressionMap[0]);
+    const upper = this.progressionToPosition(this.ProgressionMap[1]);
+    const clampedPosition = Math.max(lower, Math.min(position, upper));
+    return ((clampedPosition - lower) / (upper - lower)) * 100;
   }
 
   /**
@@ -379,7 +382,7 @@ class Fader {
    * Returns the progression map of the fader.
    * @returns {Array<number>} The progression map.
    */
-  getProgressionMap() {
+  getProgressionMap() { //* use this at a key point, in the code to make the fader controller smoothly use the map for moves/reading, i.e. compress the full range input&output
     return this.ProgressionMap;
   }
 
@@ -653,7 +656,11 @@ class FaderController {
     })
   }
   
-  setFaderProgressionMapsTrimMap(trimMap) { //! deprecated
+  /**
+   * Sets the trim/progression maps for one or more faderrs using a dictionary key:value, idx:[x,xx]
+   */
+  setFadersTrimsDict(trimMap) { //TODO integrate this, prefereably t the lowest layer
+    //!this expects a dictionary wiht idx as keys and the [0,100] range as value
     for (const faderIdx in trimMap) {
       if (trimMap.hasOwnProperty(faderIdx)) {
         const trimValues = trimMap[faderIdx];
@@ -2003,6 +2010,7 @@ class FaderController {
       }
 
       // Stop if we reach the maximum of 4 faders
+      //! maximum is the configured faders objects length?
       if (idxArray.length >= 4) break;
     }
 
