@@ -229,7 +229,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
             faderSpeedFactors.forEach(factorConfig => {
                 const index = Object.keys(factorConfig)[0];
                 const factor = factorConfig[index];
-                self.faderController.setFadersMovementSpeedFactor(index, factor);
+                self.faderController.setFadersMovementSpeedFactor(parseInt(index), parseFloat(factor));
             });
             self.logger.debug('[motorized_fader_control]: Fader speed factors set successfully.');
         } catch (error) {
