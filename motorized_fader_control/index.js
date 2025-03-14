@@ -1530,6 +1530,7 @@ motorizedFaderControl.prototype.onStart = function() {
     var self = this;
     var defer = libQ.defer();
     
+    //cneeds a catch error for startMotorizedFaderControl
     self.startMotorizedFaderControl()  //! maybe move the setup into the start
         .then(() => {
             self.logger.info('[motorized_fader_control]: plugin started successfully.');
