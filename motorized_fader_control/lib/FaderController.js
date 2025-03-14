@@ -1501,12 +1501,12 @@ class FaderController {
       this.logger.info('[FaderController]: Fader calibration complete.');
       
       // Log the calibration report
-      this._logCalibrationReport(indexes, movementSpeedFactors, validationResult);
+      this._logCalibrationReport(indexes, movementSpeedFactors, validationResult, DurationGoalMaxSpeed);
       const result = {"indexes" : indexes,
                     "movementSpeedFactors": movementSpeedFactors,
                     "validationResult": validationResult}
 
-      return movementSpeedFactors;
+      return result;
     } catch (error) {
       this.logger.error(`[FaderController]: Fader calibration failed: ${error.message}`);
       throw new Error('[FaderController]: Fader calibration failed: ' + error.message);
@@ -1519,30 +1519,31 @@ class FaderController {
    * @param {Object} movementSpeedFactors - The movement speed factors for the faders.
    * @param {Object} validationResult - The validation results for the faders.
    */
-  _logCalibrationReport(indexes, movementSpeedFactors, validationResult) {
+  _logCalibrationReport(indexes, movementSpeedFactors, validationResult, DurationGoalMaxSpeed) {
     const midiMessageDelay = this.getMidiMessageDelay();
     const reportLines = [
-      '--- FADER CALIBRATION REPORT ---',
-      `System: ${os.type()} ${os.release()} (${os.arch()})`,
-      `Node.js: ${process.version}`,
-      `Initialized Faders: ${this.getFaderCount()}`,
-      `Fader Indexes: ${indexes.join(', ')}`,
-      `${this.getFaderInfoLog(indexes)}`,
-      `MIDI Device Ready: ${this.isMIDIDeviceReady()}`,
-      `MIDI Message Delay: ${midiMessageDelay}ms`,
-      '--------------------------------',
-      'Fader Index | Speed Factor | Validation Result',
-      '--------------------------------'
+      '[FaderController]: --- FADER CALIBRATION REPORT ---',
+      `[FaderController]: System: ${os.type()} ${os.release()} (${os.arch()})`,
+      `[FaderController]: Node.js: ${process.version}`,
+      `[FaderController]: Initialized Faders: ${this.getFaderCount()}`,
+      `[FaderController]: Fader Indexes: ${indexes.join(', ')}`,
+      `[FaderController]: ${this.getFaderInfoLog(indexes)}`,
+      `[FaderController]: MIDI Device Ready: ${this.isMIDIDeviceReady()}`,
+      `[FaderController]: MIDI Message Delay: ${midiMessageDelay}ms`,
+      `[FaderController]: Duration Goal (Max Speed): ${DurationGoalMaxSpeed}ms`,
+      '[FaderController]: --------------------------------',
+      '[FaderController]: Fader Index | Speed Factor | Validation Result',
+      '[FaderController]: --------------------------------'
     ];
   
     indexes.forEach(index => {
       const speedFactor = movementSpeedFactors[index] || 'N/A';
       const validation = validationResult[index] ? 'Passed' : 'Failed';
-      reportLines.push(`${index}           | ${speedFactor}       | ${validation}`);
+      reportLines.push(`[FaderController]: ${index}           | ${speedFactor}       | ${validation}`);
     });
   
-    reportLines.push('--------------------------------');
-    reportLines.push('--- END CALIBRATION REPORT. ---');
+    reportLines.push('[FaderController]: --------------------------------');
+    reportLines.push('[FaderController]: --- END CALIBRATION REPORT. ---');
     this.logger.info(reportLines.join('\n'));
   };
   
@@ -1777,15 +1778,12 @@ class FaderController {
     indexes.forEach(index => {
       const fader = this.findFaderByIndex(index);
       if (fader) {
-        const speed = 100;
-        const movementSpeedFactorGoal = DurationGoalMaxSpeed / duration;
-        const tolerance = movementSpeedFactorGoal * CalibrationTolerance;
-        const isValid = movementSpeedFactorGoal >= (movementSpeedFactorGoal - tolerance) && movementSpeedFactorGoal <= (movementSpeedFactorGoal + tolerance);
-  
-        results[index] = { speed, duration, speedScaleValue: movementSpeedFactorGoal, isValid };
-        this.logger.info(`[FaderController]: Speed Calibration Validation for fader ${index}: ${isValid}`);
-      } else {
-        this.logger.error(`[FaderController]: Fader at index ${index} is not initialized.`);
+        const tolerance = DurationGoalMaxSpeed * CalibrationTolerance;
+        const lowerBound = DurationGoalMaxSpeed - tolerance;
+        const upperBound = DurationGoalMaxSpeed + tolerance;
+        const isValid = duration >= lowerBound && duration <= upperBound;
+        results[index] = { duration, isValid };
+        this.logger.info(`Validation for fader ${index}: ${isValid} (Duration: ${duration}ms)`);
       }
     });
   }
@@ -2007,8 +2005,8 @@ class FaderController {
 
       const normalizedIndexes = indexes.map(index => {
         if (typeof index === 'string') {
-          this.logger.warn(`[FaderController]: IndexHandler: Converting string index "${index}" to number.`);
-          return Number(index);
+          this.logger.warn(`[FaderController]: IndexHandler: Converting string index "${index}" to number.: ${[Number(index)]}`);
+          return [Number(index)];
         }
         return index;
       });

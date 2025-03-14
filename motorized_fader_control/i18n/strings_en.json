@@ -8,7 +8,7 @@
     "DEVELOPMENT_SETTINGS": "Development Settings",
     "DEVELOPMENT_SETTINGS_DESCRIPTION": "Configure the development settings for the fader controller.",
     "FADER_BEHAVIOR": "Fader Behavior",
-    "FADER_BEHAVIOR_DESCRIPTION": "Configure what the faders control & show during playback."
+    "FADER_BEHAVIOR_DESCRIPTION": "Configure what the faders control & show during playback. Note: Album control does only work for certain services. Playlist, Queue are not implemented yet"
   },
   "BUTTON": {
     "SAVE": "Save",

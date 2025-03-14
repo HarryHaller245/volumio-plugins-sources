@@ -1880,11 +1880,11 @@ motorizedFaderControl.prototype.setUIConfig = async function(data) { //! depreca
 
 //* UI BUTTONS ACTIONS
 
-motorizedFaderControl.prototype.RunManualCalibration = async function() { //TODO TEST THIS
+motorizedFaderControl.prototype.RunManualCalibration = async function() {
     var self = this;
 
     // Run a full calibration
-    const calibrationIndexes = self.config.get("FADER_IDXS", undefined);
+    const calibrationIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
     const START_PROGRESSION = self.config.get("CALIBRATION_START_PROGRESSION");
     const END_PROGRESSION = self.config.get("CALIBRATION_END_PROGRESSION");
     const COUNT = self.config.get("CALIBRATION_COUNT");
@@ -1894,17 +1894,32 @@ motorizedFaderControl.prototype.RunManualCalibration = async function() { //TODO
     const TOLERANCE = self.config.get("CALIBRATION_TOLERANCE");
     const RUN_IN_PARALLEL = self.config.get("CALIBRATION_RUN_IN_PARALLEL");
 
-    self.commandRouter.pushToastMessage('info', 'Starting Calibration');
-    const results = await self.faderController.calibrate(calibrationIndexes, START_PROGRESSION, END_PROGRESSION, COUNT, START_SPEED, END_SPEED, TIME_GOAL, TOLERANCE, RUN_IN_PARALLEL);
+    if (!calibrationIndexes) {
+        self.commandRouter.pushToastMessage('error', 'No fader configured.');
+        return;
+    }
 
-    // Unpack results and get the index + the factor, pack this into the config
-    const { indexes, movementSpeedFactors } = results;
-    const speedFactorsConfig = indexes.map((index, i) => ({ [index]: movementSpeedFactors[i] }));
+    self.commandRouter.pushToastMessage('info', 'Starting Calibration');
+    const results = await self.faderController.calibrate(
+        calibrationIndexes, 
+        START_PROGRESSION, 
+        END_PROGRESSION, 
+        COUNT, 
+        START_SPEED, 
+        END_SPEED, 
+        TIME_GOAL, 
+        TOLERANCE, 
+        RUN_IN_PARALLEL
+    );
+
+    // Unpack results and update the configuration
+    const { indexes, movementSpeedFactors, validationResult} = results;
+    const speedFactorsConfig = indexes.map(index => ({ [index]: movementSpeedFactors[index] }));
     self.config.set("FADER_SPEED_FACTOR", JSON.stringify(speedFactorsConfig));
 
-    // Restart FaderController with new Settings
-    self.restartFaderController();
     self.commandRouter.pushToastMessage('info', 'Finished Calibration');
+    // Restart FaderController with new Settings
+    await self.restartFaderController();
 };
 
 //* CACHING ----------------------------------------------------

@@ -89,7 +89,7 @@
     },
     "CALIBRATION_TIME_GOAL": {
       "type": "number",
-      "value": 20
+      "value": 100
     },
     "CALIBRATION_TOLERANCE": {
       "type": "number",
@@ -97,7 +97,7 @@
     },
     "CALIBRATION_RUN_IN_PARALLEL": {
       "type": "boolean",
-      "value": true
+      "value": false
     },
     "TEST_JEST_TIMEOUT": {
       "type": "number",
