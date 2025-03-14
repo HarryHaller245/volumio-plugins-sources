@@ -79,23 +79,20 @@ function motorizedFaderControl(context) {
 motorizedFaderControl.prototype.setupPlugin = async function() {
     var self = this;
     self.logger.debug('[motorized_fader_control]: Setting up plugin...');
-    
+
     try {
         self.setupLogLevel();
-        //! dev checking for available objects
-        //self.logger.debug('CommandRouterObjects:' + Object.keys(self.commandRouter));
-        //self.logger.debug('CommandRouterPluginManager:' + Object.keys(self.commandRouter.pluginManager));
-        //self.logger.debug('CommandRouterStateMachineCurrentAlbum:' + (self.commandRouter.stateMachine.currentAlbum));
 
-        // handle debug mode
         if (self.config.get("DEBUG_MODE", false)) {
-            //* slow down timings
             self.cachedFaderRealtimeSeekInterval = self.config.get("FADER_REALTIME_SEEK_INTERVAL", 100);
             self.config.set("FADER_REALTIME_SEEK_INTERVAL", 5000);
         }
 
-        // Now we set the volumio log level according to our settings
-        const faderControllerSetup = await self.setupFaderController();
+        const faderControllerSetup = await self.setupFaderController().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error setting up FaderController: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
+
         if (faderControllerSetup !== null && faderControllerSetup !== false) {
             self.logger.debug('[motorized_fader_control]: FaderController setup completed successfully.');
             return libQ.resolve();
@@ -113,16 +110,17 @@ motorizedFaderControl.prototype.startMotorizedFaderControl = async function() {
     this.logger.info('[motorized_fader_control]: -------- Starting... --------');
 
     try {
-        // Start Plugin
         await self.setupPlugin();
+        await self.startFaderController().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error starting FaderController: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
 
-        await self.startFaderController();
-        
         const useWebSocket = self.config.get('VOLUMIO_USE_WEB_SOCKET');
         self.logger.info('Using WebSocket: ' + useWebSocket);
         self.setupWebSocket();
 
-        self.registerVolumioVolumeChangeListener()
+        self.registerVolumioVolumeChangeListener();
 
         this.logger.info('[motorized_fader_control]: -------- Started successfully. --------');
         return libQ.resolve();
@@ -136,25 +134,27 @@ motorizedFaderControl.prototype.startMotorizedFaderControl = async function() {
 motorizedFaderControl.prototype.stopMotorizedFaderControl = async function() {
     var self = this;
     self.logger.info('[motorized_fader_control]: -------- Stopping... --------');
-    // Stop Plugin
+
     try {
         self.stopContinuousSeekUpdate();
         self.removeWebSocket();
         self.unregisterVolumioVolumeChangeListener();
-        await self.stopFaderController();
-        
-        if (config.get("DEBUG_MODE", false)) {
-            self.config.set("FADER_REALTIME_SEEK_INTERVAL",  self.cachedFaderRealtimeSeekInterval)
-        }
+        await self.stopFaderController().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error stopping FaderController: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
 
+        if (config.get("DEBUG_MODE", false)) {
+            self.config.set("FADER_REALTIME_SEEK_INTERVAL", self.cachedFaderRealtimeSeekInterval);
+        }
 
         self.setLogLevel("verbose");
         self.logger.info('[motorized_fader_control]: -------- Stopped --------');
+        return libQ.resolve();
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error stopping plugin: ' + error);
         return libQ.reject(error);
     }
-    return libQ.resolve();
 };
 
 motorizedFaderControl.prototype.restartMotorizedFaderControl = async function() {
@@ -162,16 +162,21 @@ motorizedFaderControl.prototype.restartMotorizedFaderControl = async function() 
     self.logger.info('[motorized_fader_control]: Restarting...');
 
     try {
-        await self.stopMotorizedFaderControl();
-        await self.startMotorizedFaderControl();
+        await self.stopMotorizedFaderControl().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error stopping plugin: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
+        await self.startMotorizedFaderControl().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error starting plugin: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
         self.setupLogLevel();
         self.logger.info('[motorized_fader_control]: Restarted successfully.');
+        return libQ.resolve();
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error restarting plugin: ' + error);
         return libQ.reject(error);
     }
-
-    return libQ.resolve();
 };
 
 //* FADERCONTROLLER LIFECYCLE ----------------------------------------------------
@@ -194,9 +199,8 @@ motorizedFaderControl.prototype.setupFaderController = function() {
         const CalibrationOnStart = self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true);
 
         const faderIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
-        // If the faderIndexes are not set, it is probably on purpose
         if (faderIndexes === undefined || faderIndexes.length === 0) {
-            self.logger.warn('[motorized_fader_control]: Fader indexes not set. Please enable a atleast one Fader. FADER_IDXS: ' + JSON.stringify(faderIndexes));
+            self.logger.warn('[motorized_fader_control]: Fader indexes not set. Please enable at least one Fader.');
             self.commandRouter.pushToastMessage('warning', 'No fader configured!', 'Check your settings.');
             return false;
         }
@@ -211,13 +215,13 @@ motorizedFaderControl.prototype.setupFaderController = function() {
             CalibrationOnStart,
             faderIndexes
         );
+
         if (self.config.get('DEBUG_MODE', false)) {
             self.logFaderControllerConfig(self.config);
         }
         self.logger.info('[motorized_fader_control]: FaderController initialized successfully.');
 
         if (Object.keys(trimMap).length !== 0) {
-            //!this expects a dictionary wiht idx as keys and the [0,100] range as value
             self.faderController.setFadersTrimsDict(trimMap);
         }
 
@@ -235,7 +239,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
         } catch (error) {
             self.logger.error(`[motorized_fader_control]: Failed to parse FADER_SPEED_FACTOR config: ${error.message}`);
         }
-        //! add check if it is setup correctly
+
         return true;
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error setting up FaderController: ' + error);
@@ -245,27 +249,23 @@ motorizedFaderControl.prototype.setupFaderController = function() {
 
 motorizedFaderControl.prototype.startFaderController = async function() {
     var self = this;
-    try {
 
-        // Access the flattened serial port and baud rate settings
+    try {
         const serialPort = self.config.get("SERIAL_PORT");
         const baudRate = self.config.get("BAUD_RATE");
-
-        // Access the calibration setting
         const calibrationOnStart = self.config.get("FADER_CONTROLLER_CALIBRATION_ON_START", true);
 
-        // Setup the fader controller with the serial settings
-        //! this can throw a serial error Error Resource temporarily unavailable Cannot lock port
-        // we need to handle this, maybe retry
-        await self.faderController.setupSerial(serialPort, baudRate);
-
-        // Start the fader controller, passing the calibration setting
-        await self.faderController.start(calibrationOnStart);
+        await self.faderController.setupSerial(serialPort, baudRate).catch(error => {
+            self.logger.error('[motorized_fader_control]: Error setting up serial connection: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
+        await self.faderController.start(calibrationOnStart).catch(error => {
+            self.logger.error('[motorized_fader_control]: Error starting FaderController: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
 
         self.setupFaderControllerTouchCallbacks();
-
     } catch (error) {
-        // Log the error message and rethrow it
         self.logger.error('[motorized_fader_control]: Error starting Fader Controller: ' + error.message);
         throw error;
     }
@@ -273,36 +273,40 @@ motorizedFaderControl.prototype.startFaderController = async function() {
 
 motorizedFaderControl.prototype.stopFaderController = async function() {
     var self = this;
+
     try {
         if (!self.faderController) {
             self.logger.info('[motorized_fader_control]: Fader Controller not started, skipping stop');
             return;
         }
 
-        // Create a promise for stopping the controller
-        const stopPromise = self.faderController.stop(); // if this fails due to reset not being able to work
-        
-        // Create a timeout promise
+        const stopPromise = self.faderController.stop().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error stopping FaderController: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
+
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => {
                 reject(new Error('[motorized_fader_control]: Fader Controller stop timed out after 10 seconds.'));
-            }, 5000); // 5 seconds timeout
+            }, 5000);
         });
 
-        // Wait for either the stop or the timeout
         await Promise.race([stopPromise, timeoutPromise]);
+        await self.faderController.closeSerial().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error closing serial connection: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
 
-        // Proceed to close the serial connection
-        await self.faderController.closeSerial();
         self.logger.info('[motorized_fader_control]: Fader Controller stopped successfully');
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error stopping Fader Controller: ' + error.message);
-        // Ensure serial connection is closed if it exists
         if (self.faderController) {
-            await self.faderController.closeSerial(); // Ensure this happens even if the stop fails
+            await self.faderController.closeSerial().catch(error => {
+                self.logger.error('[motorized_fader_control]: Error closing serial connection: ' + error.message);
+            });
             self.logger.warn('[motorized_fader_control]: An error occurred trying to stop the FaderController. Forced closing serial connection.');
         }
-        throw error; // Ensure the error is propagated
+        throw error;
     }
 };
 
@@ -313,10 +317,16 @@ motorizedFaderControl.prototype.restartFaderController = async function() {
     try {
         self.stopContinuousSeekUpdate();
         self.clearCachedFaderInfo();
-        await self.stopFaderController();
+        await self.stopFaderController().catch(error => {
+            self.logger.error('[motorized_fader_control]: Error stopping FaderController: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
 
         if (self.setupFaderController()) {
-            await self.startFaderController();
+            await self.startFaderController().catch(error => {
+                self.logger.error('[motorized_fader_control]: Error starting FaderController: ' + error.message);
+                throw error; // Re-throw to propagate the error
+            });
             await self.getStateFrom('websocket');
         }
         self.setupFaderControllerTouchCallbacks();
@@ -324,7 +334,7 @@ motorizedFaderControl.prototype.restartFaderController = async function() {
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error restarting Fader Controller: ' + error);
         await self.stopMotorizedFaderControl();
-        return libQ.reject(); // Ensure the error is propagated
+        return libQ.reject(error);
     }
 };
 
@@ -335,7 +345,6 @@ motorizedFaderControl.prototype.setupFaderControllerTouchCallbacks = function() 
     self.logger.debug('[motorized_fader_control]: Setting up fader controller touch callbacks...');
 
     try {
-        // Retrieve and parse the fader behavior configuration
         const faderBehavior = JSON.parse(this.config.get('FADER_BEHAVIOR')) || [];
         const fadersIdxs = JSON.parse(this.config.get('FADERS_IDXS')) || [];
 
@@ -347,7 +356,6 @@ motorizedFaderControl.prototype.setupFaderControllerTouchCallbacks = function() 
             throw new Error('FADERS_IDXS configuration is not an array');
         }
 
-        // Assign callbacks to the faders depending on the configuration
         faderBehavior.forEach(fader => {
             if (!fader || typeof fader !== 'object') {
                 self.logger.warn('[motorized_fader_control]: Invalid fader configuration: ' + JSON.stringify(fader));
@@ -356,12 +364,10 @@ motorizedFaderControl.prototype.setupFaderControllerTouchCallbacks = function() 
 
             const faderIdx = fader.FADER_IDX;
 
-            // Check if the fader is enabled
             if (!fadersIdxs.includes(faderIdx)) {
                 return;
             }
 
-            // Use the helper method to determine the input type
             const input = self.getFaderInputType(faderIdx);
 
             if (input === 'seek') {
@@ -376,7 +382,7 @@ motorizedFaderControl.prototype.setupFaderControllerTouchCallbacks = function() 
         self.logger.debug('[motorized_fader_control]: Fader controller touch callbacks setup complete.');
     } catch (error) {
         self.logger.error('[motorized_fader_control]: Error setting up FaderController: ' + error.message);
-        throw error; // Re-throw the error after logging it
+        throw error;
     }
 };
 
@@ -384,8 +390,8 @@ motorizedFaderControl.prototype.setFaderCallbacks = function(faderIdx, type) {
     var self = this;
     const UPDATE_VOLUME_ON_MOVE = self.config.get('UPDATE_VOLUME_ON_MOVE', false);
     const UPDATE_SEEK_ON_MOVE = self.config.get('UPDATE_SEEK_ON_MOVE', false);
+
     try {
-        // const updateOnMove = self.
         if (type === 'seek') {
             self.faderController.setOnTouchCallbacks(faderIdx, self.OnTouchSeek(UPDATE_SEEK_ON_MOVE));
             self.faderController.setOnUntouchCallbacks(faderIdx, self.OnUntouchSeek());
@@ -398,7 +404,7 @@ motorizedFaderControl.prototype.setFaderCallbacks = function(faderIdx, type) {
         self.logger.info(`[motorized_fader_control]: Callbacks set successfully for fader ${faderIdx} of type ${type}`);
     } catch (error) {
         self.logger.error(`[motorized_fader_control]: Error setting callbacks for fader ${faderIdx}: ${error}`);
-        throw error; // Re-throw the error after logging it
+        throw error;
     }
 };
 
@@ -416,8 +422,6 @@ motorizedFaderControl.prototype.handleInputSeek = async function(faderIdx, state
     const seekType = faderConfig.SEEK_TYPE.toLowerCase();
 
     try {
-
-        // Delegate to the correct seek handler based on the seek type
         switch (seekType) {
             case 'track':
                 self.handleSetTrackSeek(faderInfo, state);
@@ -434,7 +438,6 @@ motorizedFaderControl.prototype.handleInputSeek = async function(faderIdx, state
             default:
                 self.logger.warn(`[motorized_fader_control]: handleSeek: Unsupported seek type: ${seekType}`);
         }
-
     } catch (error) {
         self.logger.error(`[motorized_fader_control]: handleSeek: Error: ${error.message}`);
     }
@@ -446,16 +449,14 @@ motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
 
     return async (faderIdx) => {
         self.logger.info(`[motorized_fader_control]: OnTouchSeek: Handling touch event for fader ${faderIdx}`);
-        
+
         self.isSeeking = true;
         self.stopContinuousSeekUpdate();
 
-        // Clear any existing interval for this fader
         if (self.touchIntervals[faderIdx]) {
             clearInterval(self.touchIntervals[faderIdx]);
         }
 
-        // Activate echo mode for the fader to avoid an instant jump back to the setpoint
         self.faderController.set_echoMode(faderIdx, true);
 
         const state = await self.getExclusiveState();
@@ -463,7 +464,7 @@ motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
             self.logger.warn(`[motorized_fader_control]: handleSeek: Unable to fetch state or state is empty`);
             return;
         }
-        // Set an interval to continuously cache the fader info
+
         self.touchIntervals[faderIdx] = setInterval(async () => {
             if (self.checkFaderInfoChanged(faderIdx)) {
                 self.cacheFaderInfo(faderIdx);
@@ -473,7 +474,7 @@ motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
                     await self.handleInputSeek(faderIdx, state);
                 }
             }
-        }, 100); // Adjust the interval time as needed
+        }, 100);
 
         self.logger.debug(`[motorized_fader_control]: OnTouchSeek: Completed handling touch event for fader ${faderIdx}`);
     };
@@ -495,7 +496,6 @@ motorizedFaderControl.prototype.OnUntouchSeek = function() {
         self.logger.info(`[motorized_fader_control]: OnUntouchSeek: Handling untouch event for fader ${faderIdx}`);
         self.faderController.set_echoMode(faderIdx, false);
 
-        // Check if this fader untouch state has changed
         if (self.checkFaderInfoChanged(faderIdx, "touch")) {
             self.logger.debug(`[motorized_fader_control]: OnUntouchSeek: Fader untouch state changed for fader ${faderIdx}`);
             try {
@@ -510,11 +510,10 @@ motorizedFaderControl.prototype.OnUntouchSeek = function() {
                 self.logger.error(`[motorized_fader_control]: OnUntouchSeek: Error fetching state: ${error.message}`);
                 self.isSeeking = false;
                 return;
-            }
+            }f
         }
 
         clearTouchInterval(faderIdx);
-        // Clear the cache for the current fader index
         self.logger.debug(`[motorized_fader_control]: OnUntouchSeek: Clearing cache for fader ${faderIdx}`);
         self.clearCachedFaderInfo(faderIdx);
 
@@ -1884,43 +1883,47 @@ motorizedFaderControl.prototype.setUIConfig = async function(data) { //! depreca
 motorizedFaderControl.prototype.RunManualCalibration = async function() {
     var self = this;
 
-    // Run a full calibration
-    const calibrationIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
-    const START_PROGRESSION = self.config.get("CALIBRATION_START_PROGRESSION");
-    const END_PROGRESSION = self.config.get("CALIBRATION_END_PROGRESSION");
-    const COUNT = self.config.get("CALIBRATION_COUNT");
-    const START_SPEED = self.config.get("CALIBRATION_START_SPEED");
-    const END_SPEED = self.config.get("CALIBRATION_END_SPEED");
-    const TIME_GOAL = self.config.get("CALIBRATION_TIME_GOAL");
-    const TOLERANCE = self.config.get("CALIBRATION_TOLERANCE");
-    const RUN_IN_PARALLEL = self.config.get("CALIBRATION_RUN_IN_PARALLEL");
+    try {
+        // Run a full calibration
+        const calibrationIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
+        const START_PROGRESSION = self.config.get("CALIBRATION_START_PROGRESSION");
+        const END_PROGRESSION = self.config.get("CALIBRATION_END_PROGRESSION");
+        const COUNT = self.config.get("CALIBRATION_COUNT");
+        const START_SPEED = self.config.get("CALIBRATION_START_SPEED");
+        const END_SPEED = self.config.get("CALIBRATION_END_SPEED");
+        const TIME_GOAL = self.config.get("CALIBRATION_TIME_GOAL");
+        const TOLERANCE = self.config.get("CALIBRATION_TOLERANCE");
+        const RUN_IN_PARALLEL = self.config.get("CALIBRATION_RUN_IN_PARALLEL");
 
-    if (!calibrationIndexes) {
-        self.commandRouter.pushToastMessage('error', 'No fader configured.');
-        return;
+        if (!calibrationIndexes) {
+            self.commandRouter.pushToastMessage('error', 'No fader configured.');
+            return;
+        }
+
+        self.commandRouter.pushToastMessage('info', 'Starting Calibration');
+        const results = await self.faderController.calibrate(
+            calibrationIndexes, 
+            START_PROGRESSION, 
+            END_PROGRESSION, 
+            COUNT, 
+            START_SPEED, 
+            END_SPEED, 
+            TIME_GOAL, 
+            TOLERANCE, 
+            RUN_IN_PARALLEL
+        );
+
+        // Unpack results and update the configuration
+        const { indexes, movementSpeedFactors, validationResult } = results;
+        const speedFactorsConfig = indexes.map(index => ({ [index]: movementSpeedFactors[index] }));
+        self.config.set("FADER_SPEED_FACTOR", JSON.stringify(speedFactorsConfig));
+
+        self.commandRouter.pushToastMessage('info', 'Finished Calibration');
+        await self.restartFaderController();
+    } catch (error) {
+        self.logger.error(`[motorized_fader_control]: Error during calibration: ${error.message}`);
+        self.commandRouter.pushToastMessage('error', 'Calibration Failed', 'Please check logs for details.');
     }
-
-    self.commandRouter.pushToastMessage('info', 'Starting Calibration');
-    const results = await self.faderController.calibrate(
-        calibrationIndexes, 
-        START_PROGRESSION, 
-        END_PROGRESSION, 
-        COUNT, 
-        START_SPEED, 
-        END_SPEED, 
-        TIME_GOAL, 
-        TOLERANCE, 
-        RUN_IN_PARALLEL
-    );
-
-    // Unpack results and update the configuration
-    const { indexes, movementSpeedFactors, validationResult} = results;
-    const speedFactorsConfig = indexes.map(index => ({ [index]: movementSpeedFactors[index] }));
-    self.config.set("FADER_SPEED_FACTOR", JSON.stringify(speedFactorsConfig));
-
-    self.commandRouter.pushToastMessage('info', 'Finished Calibration');
-    // Restart FaderController with new Settings
-    await self.restartFaderController();
 };
 
 //* CACHING ----------------------------------------------------
