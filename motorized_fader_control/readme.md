@@ -110,6 +110,7 @@ index.js
   - Implement album/queue seek logic
   - Refactor state handling to reduce nesting
   - Improve seek position accuracy
+  - restructure UI
 
 - **Enhancements**:
   - Playlist support

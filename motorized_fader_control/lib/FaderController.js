@@ -1,7 +1,7 @@
 /**
  * @module FaderController
  * 
- * This module provides functionality to control and manage motorized faders in a MIDI controller environment.
+ * This module provides functionality to control and manage motorized faders controlled by MIDI over serial.
  * 
  * The main class in this module is `FaderController`, which handles the initialization, state management,
  * and interaction with fader controls. It supports various operations such as calibration, movement, and
@@ -80,35 +80,9 @@
  * @fileoverview This file contains the implementation of the FaderController class and related helper functions.
  */
 
-
-
-//! TODO: develop fader range trim further, not functional at the moment, maybe it is easiest to map
-//! at the lowest level, right before a command goes out. However we need to make sure
-//! the positions and progressions are all mapped when acessed
-
 const SerialPort = require('serialport'); // import the SerialPort module 
 const MIDIParser = require('./MIDIParser'); // import the MIDIParser
 const os = require('os'); // import the os module
-
-//! temporary winston logger //will remove when volumio logger is implemented
-const winston = require('winston'); //logger needs to be the volumio logger instead.
-const { get } = require('http');
-const { move } = require('fs-extra');
-
-const dev_logger = winston.createLogger({
-  level: 'debug',
-  format: winston.format.json(),
-  transports: [
-    new winston.transports.File({ filename: 'error.log', level: 'error' }),
-    new winston.transports.File({ filename: 'combined.log' }),
-  ],
-});
-
-if (process.env.NODE_ENV !== 'production') {
-  dev_logger.add(new winston.transports.Console({
-    format: winston.format.simple(),
-  }));
-}
 
 
 /**
@@ -277,7 +251,9 @@ class Fader {
   mapPositionToTrimRange(position) {
     const lower = this.progressionToPosition(this.ProgressionMap[0]);
     const upper = this.progressionToPosition(this.ProgressionMap[1]);
-    return Math.max(lower, Math.min(position, upper));
+    const fullRange = 16383; // 14-bit range
+    const scaledPosition = lower + (position / fullRange) * (upper - lower);
+    return Math.round(scaledPosition);
   }
 
   /**
@@ -288,8 +264,8 @@ class Fader {
   positionToProgression(position) {
     const lower = this.progressionToPosition(this.ProgressionMap[0]);
     const upper = this.progressionToPosition(this.ProgressionMap[1]);
-    const clampedPosition = Math.max(lower, Math.min(position, upper));
-    return ((clampedPosition - lower) / (upper - lower)) * 100;
+    const scaledProgression = ((position - lower) / (upper - lower)) * 100;
+    return Math.max(0, Math.min(scaledProgression, 100)); // Clamp to 0-100
   }
 
   /**
@@ -329,14 +305,14 @@ class Fader {
   }
 
   /**
-   * Returns a dictionary of the fader information.
+   * Returns a dictionary of the fader information. Positions/Profressions are mapped by Fader Trim settings.
    * @returns {Object} The dictionary containing the fader information.
    */
   getInfoDict() {
     const dict = {
       index: this.index,
-      position: this.position,
-      progression: this.progression,
+      position: this.mapPositionToTrimRange(this.position),
+      progression: this.mapProgressionToTrimRange(this.progression),
       touch: this.touch,
       echo_mode: this.echo_mode,
       ProgressionMap: this.ProgressionMap,
@@ -382,7 +358,7 @@ class Fader {
    * Returns the progression map of the fader.
    * @returns {Array<number>} The progression map.
    */
-  getProgressionMap() { //* use this at a key point, in the code to make the fader controller smoothly use the map for moves/reading, i.e. compress the full range input&output
+  getProgressionMap() { 
     return this.ProgressionMap;
   }
 
@@ -394,7 +370,6 @@ class Fader {
     return this.MovementSpeedFactor;
   }
 }
-
 
 /**
  * Represents a fader move operation.
@@ -480,11 +455,8 @@ class FaderMove {
   }
 }
 
-//TODO: UPDATE MODULE TO CONSTRUCT FADER CLASS DEPENDING ON AN ARRAY OF INDEXES NOT A FADERCOUNT
 //TODO: Simplify and Optimize Module
-//TODO: add Module name to logs
-//TODO: create echo mode (low prio)
-//TODO: FIX double index setup, we somewhere access the fader object before it is being initialized
+//TODO: organize
 
 /**
  * Represents a fader controller.
@@ -536,8 +508,6 @@ class FaderMove {
  * });
  * ```
  */
-
-// TODO include better Movement Speed Factor usage, i.e. add a method to set this per index of the faders
 class FaderController {
   /**
    * Creates a new instance of the FaderController class.
@@ -657,10 +627,10 @@ class FaderController {
   }
   
   /**
-   * Sets the trim/progression maps for one or more faderrs using a dictionary key:value, idx:[x,xx]
+   * Sets the trim/progression maps for one or more faders.
+   * @param {dict} trimMap - The Trim Map as a dictionary, containing the indices as keys and the Trims as values
    */
-  setFadersTrimsDict(trimMap) { //TODO integrate this, prefereably t the lowest layer
-    //!this expects a dictionary wiht idx as keys and the [0,100] range as value
+  setFadersTrimsDict(trimMap) {
     for (const faderIdx in trimMap) {
       if (trimMap.hasOwnProperty(faderIdx)) {
         const trimValues = trimMap[faderIdx];
@@ -984,8 +954,6 @@ class FaderController {
       }
     }).filter(progression => progression !== null);
   }
-
-
   
   /**
    * Returns a dictionary containing the information for the specified faders.
@@ -1269,7 +1237,7 @@ class FaderController {
    * Echoes the MIDI messages back to the faders.
    * @param {Array} midiDataArr - The MIDI data array.
    */
-  echo_midi(midiDataArr) {   //! needs fixing not fully implemented
+  echo_midi(midiDataArr) {
     //method to echo the MIDI messages back to the faders
     //we need to reverse engineer the parsing. and then send it back
     midiDataArr[0] = midiDataArr[0] | midiDataArr[1];
@@ -1280,7 +1248,7 @@ class FaderController {
     this.sendMIDIMessages([message]);
   }
   
-  // MOVEMENT INTERMEDIATE MESSAGING LOGIC
+  // MOVEMENT INTERMEDIATE MESSAGING LOGIC ----------------------------------
   
   /**
    * Sends a progression value to one or more faders.
@@ -1406,27 +1374,7 @@ class FaderController {
     });
   }
   
-  /**
-   * Sets the echo mode for each fader according to the provided dictionary.
-   * @param {Object} faderdict - The dictionary containing the fader index as the key and the echo mode as the value.
-   */
-  set_echoMode_dict(faderdict) { //! deprecated
-    // Sets the echo mode according to the dictionary index:mode(bool)
-    const indexes = Object.keys(faderdict).map(Number); // Convert string keys to numbers
-    const validIndexes = this.normalizeAndFitIndexes(indexes); // Use IndexHandler to validate and filter indexes
-  
-    validIndexes.forEach(index => {
-      const fader = this.findFaderByIndex(index); // Use findFaderByIndex to get the fader object
-      if (fader) {
-        fader.setEchoMode(faderdict[index]);
-        this.logger.info(`[FaderController]: Set echo mode for fader ${index} to ${faderdict[index]}`);
-      } else {
-        this.logger.warn(`[FaderController]: Fader with index ${index} not found.`);
-      }
-    });
-  }
-  
-  // CALIBRATION -----------------------------------------------------------
+  // CALIBRATION -------------------------------------------------------------
   
   /**
    * Performs a standard calibration of all faders.
@@ -1676,7 +1624,6 @@ class FaderController {
     return results;
   };
   
-  // Update results for each fader
   _updateResults(results, indexes, speed, duration) {
     indexes.forEach(index => {
       results[index] = results[index] || {};
@@ -1685,7 +1632,6 @@ class FaderController {
     });
   }
 
-  // Helper function for delaying
   _delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
@@ -1844,7 +1790,7 @@ class FaderController {
     });
   }
 
-  // MOVEMENT BASICS #################################
+  // MOVEMENT BASICS ------------------------------------------------------
 
   /**
    * Resets the faders to 0.
@@ -2018,7 +1964,7 @@ class FaderController {
     return new FaderMove(idxArray.slice(0, 4), targetArray.slice(0, 4), speedArray.slice(0, 4));
   }
   
-  // HELPER METHODS #############
+  // HELPER METHODS -------------------------------------------------------
   
   /**
    * Ensures that the given array has the correct length.

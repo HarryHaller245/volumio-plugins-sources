@@ -96,7 +96,7 @@ motorizedFaderControl.prototype.setupPlugin = async function() {
 
         // Now we set the volumio log level according to our settings
         const faderControllerSetup = await self.setupFaderController();
-        if (faderControllerSetup !== null) {
+        if (faderControllerSetup !== null && faderControllerSetup !== false) {
             self.logger.debug('[motorized_fader_control]: FaderController setup completed successfully.');
             return libQ.resolve();
         } else {
@@ -183,7 +183,6 @@ motorizedFaderControl.prototype.setupFaderController = function() {
     self.logger.info('[motorized_fader_control]: Setting up FaderController...');
 
     try {
-        // Accessing settings using getConfigParam
         const messageDelay = self.config.get('FADER_CONTROLLER_MESSAGE_DELAY', 0.001);
         const MIDILog = self.config.get('FADER_CONTROLLER_MIDI_LOG', false);
         const ValueLog = self.config.get('FADER_CONTROLLER_VALUE_LOG', false);
