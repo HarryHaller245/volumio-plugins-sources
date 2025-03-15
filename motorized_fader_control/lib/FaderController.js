@@ -649,29 +649,47 @@ class FaderController {
     }
   }
 
+   /**
+   * Sets the touch callbacks for the specified faders.
+   * 
+   * @param {number[]} indexes - The indexes of the faders to set the touch callbacks for.
+   * @param {Function} callback - The callback function to be called when a fader is touched.
+   * The callback function should accept two parameters:
+   * 1. {number} index - The index of the fader that was touched.
+   * 2. {Object} fader_dict - The dictionary containing the fader information.
+   */
   setOnTouchCallbacks(indexes, callback) {
-    indexes = this.normalizeAndFitIndexes(indexes); // Use IndexHandler to validate and filter indexes
-    indexes.forEach(index => {
-      const fader = this.findFaderByIndex(index); // Use findFaderByIndex to get the fader object
-      if (fader) {
-        fader.setTouchCallback(callback);
-      } else {
-        this.logger.warn(`[FaderController]: Fader with index ${index} not found.`);
-      }
-    });
-  }
+      indexes = this.normalizeAndFitIndexes(indexes); // Use IndexHandler to validate and filter indexes
+      indexes.forEach(index => {
+        const fader = this.findFaderByIndex(index); // Use findFaderByIndex to get the fader object
+        if (fader) {
+          fader.setTouchCallback(callback);
+        } else {
+          this.logger.warn(`[FaderController]: Fader with index ${index} not found.`);
+        }
+      });
+    }
   
+  /**
+   * Sets the untouch callbacks for the specified faders.
+   * 
+   * @param {number[]} indexes - The indexes of the faders to set the untouch callbacks for.
+   * @param {Function} callback - The callback function to be called when a fader is untouched.
+   * The callback function should accept two parameters:
+   * 1. {number} index - The index of the fader that was untouched.
+   * 2. {Object} fader_dict - The dictionary containing the fader information.
+   */
   setOnUntouchCallbacks(indexes, callback) {
-    indexes = this.normalizeAndFitIndexes(indexes); // Use IndexHandler to validate and filter indexes
-    indexes.forEach(index => {
-      const fader = this.findFaderByIndex(index); // Use findFaderByIndex to get the fader object
-      if (fader) {
-        fader.setUntouchCallback(callback);
-      } else {
-        this.logger.warn(`[FaderController]: Fader with index ${index} not found.`);
-      }
-    });
-  }
+      indexes = this.normalizeAndFitIndexes(indexes); // Use IndexHandler to validate and filter indexes
+      indexes.forEach(index => {
+        const fader = this.findFaderByIndex(index); // Use findFaderByIndex to get the fader object
+        if (fader) {
+          fader.setUntouchCallback(callback);
+        } else {
+          this.logger.warn(`[FaderController]: Fader with index ${index} not found.`);
+        }
+      });
+    }
 
   /**
    * Sets up the serial port and parser with retry mechanism.

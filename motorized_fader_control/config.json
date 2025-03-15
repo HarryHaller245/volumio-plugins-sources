@@ -107,6 +107,14 @@
       "type": "boolean",
       "value": true
     },
+    "TOUCH_USE_CACHED_FADER_INFO": {
+      "type": "boolean",
+      "value": true
+    },
+    "TOUCH_CACHING_INTERVAL": {
+      "type": "number",
+      "value": 100
+    },
     "VOLUMIO_VOLUMIO_HOST": {
       "type": "string",
       "value": "localhost"

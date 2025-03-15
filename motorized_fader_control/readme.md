@@ -103,7 +103,6 @@ index.js
 
 ### TODOs & Next Steps
 - **High Priority**:
-  - Integrate the Trim Map Scaling into Echo Mode
   - Send a faderInfo dict with the untouch/ontouch for the fader... use the cache as fallback on untouch
   - Plugin crashes to unresponse when no fadder is configured and saved, warning message works, but we gett an error during stop UnhandledPromiseRejectionWarning
   - Integrate Fader Trim Settings

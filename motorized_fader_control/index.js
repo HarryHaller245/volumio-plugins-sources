@@ -408,9 +408,14 @@ motorizedFaderControl.prototype.setFaderCallbacks = function(faderIdx, type) {
     }
 };
 
-motorizedFaderControl.prototype.handleInputSeek = async function(faderIdx, state) {
+motorizedFaderControl.prototype.handleInputSeek = async function(faderIdx, state, fader_dict) {
     const self = this;
-    const faderInfo = self.getCachedFaderInfo(faderIdx);
+    let faderInfo
+    if (self.config.get(`TOUCH_USE_CACHED_FADER_INFO`, true)) {
+        faderInfo = self.getCachedFaderInfo(faderIdx);
+    } else {
+        faderInfo = fader_dict
+    }
     const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR', '[]'));
     const faderConfig = faderBehavior.find(fader => fader.FADER_IDX === faderIdx);
 
@@ -447,7 +452,7 @@ motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
     var self = this;
     self.touchIntervals = self.touchIntervals || {};
 
-    return async (faderIdx) => {
+    return async (faderIdx, fader_dict) => {
         self.logger.info(`[motorized_fader_control]: OnTouchSeek: Handling touch event for fader ${faderIdx}`);
 
         self.isSeeking = true;
@@ -458,7 +463,7 @@ motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
         }
 
         self.faderController.set_echoMode(faderIdx, true);
-
+        const cache_interval = self.config.get('FADER_INFO_CACHE_INTERVAL', 1000);
         const state = await self.getExclusiveState();
         if (!state || Object.keys(state).length === 0) {
             self.logger.warn(`[motorized_fader_control]: handleSeek: Unable to fetch state or state is empty`);
@@ -471,10 +476,10 @@ motorizedFaderControl.prototype.OnTouchSeek = function(updateOnMove = false) {
                 self.logger.debug(`[motorized_fader_control]: OnTouchSeek: Fader info changed for fader ${faderIdx}, info cached ${JSON.stringify(self.getCachedFaderInfo(faderIdx))}`);
 
                 if (updateOnMove) {
-                    await self.handleInputSeek(faderIdx, state);
+                    await self.handleInputSeek(faderIdx, state, fader_dict);
                 }
             }
-        }, 100);
+        }, cache_interval);
 
         self.logger.debug(`[motorized_fader_control]: OnTouchSeek: Completed handling touch event for fader ${faderIdx}`);
     };
@@ -492,7 +497,7 @@ motorizedFaderControl.prototype.OnUntouchSeek = function() {
         }
     };
 
-    return async (faderIdx) => {
+    return async (faderIdx, fader_dict) => {
         self.logger.info(`[motorized_fader_control]: OnUntouchSeek: Handling untouch event for fader ${faderIdx}`);
         self.faderController.set_echoMode(faderIdx, false);
 
@@ -504,7 +509,7 @@ motorizedFaderControl.prototype.OnUntouchSeek = function() {
                     self.logger.warn(`[motorized_fader_control]: OnUntouchSeek: Unable to fetch state or state is empty`);
                     return;
                 }
-                await self.handleInputSeek(faderIdx, state);
+                await self.handleInputSeek(faderIdx, state, fader_dict);
                 self.isSeeking = false;
             } catch (error) {
                 self.logger.error(`[motorized_fader_control]: OnUntouchSeek: Error fetching state: ${error.message}`);
@@ -557,7 +562,7 @@ motorizedFaderControl.prototype.OnTouchVolume = function(updateOnMove = false) {
     const self = this;
     self.touchIntervals = self.touchIntervals || {};
 
-    return async (faderIdx) => {
+    return async (faderIdx, fader_dict) => {
         self.logger.info(`[motorized_fader_control]: OnTouchVolume: Handling touch event for fader ${faderIdx}`);
 
         // Clear any existing interval for this fader
@@ -567,14 +572,14 @@ motorizedFaderControl.prototype.OnTouchVolume = function(updateOnMove = false) {
 
         // Activate echo mode for the fader to avoid an instant jump back to the setpoint
         self.faderController.set_echoMode(faderIdx, true);
-
+        const cache_interval = self.config.get('FADER_INFO_CACHE_INTERVAL', 1000);
         // Set an interval to continuously cache the fader info
         self.touchIntervals[faderIdx] = setInterval(async () => {
             if (self.checkFaderInfoChanged(faderIdx, "progression")) {
                 self.cacheFaderInfo(faderIdx);
                 self.logger.debug(`[motorized_fader_control]: OnTouchVolume: Fader info changed for fader ${faderIdx}, info cached ${JSON.stringify(self.getCachedFaderInfo(faderIdx))}`);
 
-                if (updateOnMove) {
+                if (updateOnMove) { //* directly update the fader
                     const faderInfo = self.getCachedFaderInfo(faderIdx);
                     const volume = parseInt(faderInfo.progression, 10); // Convert to integer
                     self.logger.info(`[motorized_fader_control]: OnTouchVolume: Setting volume to ${volume}`);
@@ -583,7 +588,7 @@ motorizedFaderControl.prototype.OnTouchVolume = function(updateOnMove = false) {
                     await self.faderController.moveFaders(move, true);
                 }
             }
-        }, 100); // Adjust the interval time as needed
+        }, cache_interval); // Adjust the interval time as needed //caching speed
 
         self.logger.info(`[motorized_fader_control]: OnTouchVolume: Completed handling touch event for fader ${faderIdx}`);
     };
@@ -606,18 +611,26 @@ motorizedFaderControl.prototype.OnUntouchVolume = function() {
         }
     };
 
-    return async (faderIdx) => {
+    return async (faderIdx, fader_dict) => {
         self.logger.debug(`[motorized_fader_control]: OnUntouchVolume: Handling untouch event for fader ${faderIdx}`);
         
         // Check if this fader untouch state was changed
         if (self.checkFaderInfoChanged(faderIdx, "touch")) {
             self.logger.debug(`[motorized_fader_control]: OnUntouchVolume: Fader untouch state changed for fader ${faderIdx}`);
             
-            const faderInfo = self.getCachedFaderInfo(faderIdx);
-            const volume = parseInt(faderInfo.progression, 10); // Convert to integer
+            let volume;
+            if (self.config.get('TOUCH_USE_CACHED_FADER_INFO', true)) {
+                // Use the cache for the fader info
+                const faderInfo = self.getCachedFaderInfo(faderIdx);
+                volume = parseInt(faderInfo.progression, 10); // Convert to integer
+            } else {
+                // Use the fader_dict for the progression
+                volume = parseInt(fader_dict.progression, 10); // Convert to integer
+            }
             self.logger.info(`[motorized_fader_control]: OnUntouchVolume: Setting volume to ${volume}`);
 
             self.faderController.set_echoMode(faderIdx, false);
+            self.setVolume(volume);
             self.setVolume(volume);
             const move = new FaderMove(faderIdx, volume, 100);
             await self.faderController.moveFaders(move, true);
