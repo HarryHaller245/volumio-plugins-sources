@@ -29,4 +29,4 @@ class EventBus {
     }
   }
 
-  module.exports = EventBus;
+module.exports = EventBus;

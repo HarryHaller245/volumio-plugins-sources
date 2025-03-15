@@ -1,4 +1,5 @@
 // services/BaseService.js
+
 class BaseService {
   constructor(faderIdx, eventBus, stateCache, config) {
     this.faderIdx = faderIdx;
@@ -29,10 +30,12 @@ class BaseService {
   }
 
   // To be overridden by child classes
+  handleStateUpdate(state) {}
   calculateDynamicProgression() {}
   handlePlay(state) {}
   handlePause() {}
   handleStop() {}
+  handleMove(position) {}
   
   // Common hardware update method
   updateHardware(position) {
@@ -44,4 +47,5 @@ class BaseService {
     this.eventBus.emit('hardware/command', move);
   }
 }
+
 module.exports = BaseService;

@@ -1,4 +1,6 @@
 // services/AlbumService.js
+const BaseService = require('./BaseService');
+
 class AlbumService extends BaseService {
     constructor(...args) {
       super(...args);

@@ -1,4 +1,6 @@
 // services/VolumeService.js
+const BaseService = require('./BaseService');
+
 class VolumeService extends BaseService {
   constructor(faderIdx, eventBus, stateCache, config) {
       super(faderIdx, eventBus, stateCache, config);
@@ -27,3 +29,5 @@ class VolumeService extends BaseService {
       });
   }
 }
+
+module.exports = VolumeService;

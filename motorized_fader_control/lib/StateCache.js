@@ -55,7 +55,7 @@ class StateCache {
     namespace.data.clear();
     namespace.ttl.clear();
   }
-  
+
   // Specialized playback state methods
   cachePlaybackState(state) {
     const validState = this.validatePlaybackState(state);
@@ -110,7 +110,6 @@ class StateCache {
     return this.get('seek', `fader_${faderIdx}`) || 0;
   }
 }
-
 
 module.exports = StateCache;
 

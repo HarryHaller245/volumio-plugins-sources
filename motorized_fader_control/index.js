@@ -6,11 +6,15 @@ var config = new (require('v-conf'))();
 var exec = require('child_process').exec;
 var execSync = require('child_process').execSync;
 var { FaderController, FaderMove } = require('./lib/FaderController');
-var { VolumeService, TrackService, AlbumService } = require('./lib/Services');
-var { StateCache } = require('./lib/FaderStateCache');
-var { EventBus } = require('./lib/EventBus');
+var { 
+    BaseService,
+    VolumeService,
+    TrackService,
+    AlbumService 
+  } = require('./lib/services');
 
-const { setFlagsFromString } = require('v8');
+var StateCache = require('./lib/StateCache');
+var EventBus = require('./lib/EventBus');
 
 const io = require('socket.io-client');
 const { stat } = require('fs');
@@ -566,9 +570,9 @@ motorizedFaderControl.prototype.initializeLogs = function() {
 
 motorizedFaderControl.prototype.setupServiceRouter = function() {
     const self = this;
-    const config = JSON.parse(this.config.get('FADER_BEHAVIOR'));
+    const fader_config = JSON.parse(this.config.get('FADER_BEHAVIOR'));
 
-    config.forEach(({FADER_IDX, CONTROL_TYPE}) => {
+    fader_config.forEach(({FADER_IDX, CONTROL_TYPE}) => {
         const ServiceClass = this.getServiceClass(CONTROL_TYPE);
         if (!ServiceClass) {
             self.logger.warn(`No service found for fader ${FADER_IDX} (control type: ${CONTROL_TYPE})`);
@@ -828,6 +832,7 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
         fader: faderInfo,
         timestamp: Date.now()
         });
+        //fader is touch changed to touched
     });
 
     this.faderController.on('untouch', (faderIdx, faderInfo) => {
@@ -835,8 +840,15 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
         fader: faderInfo,
         timestamp: Date.now()
         });
+        // indicates a finished move when touch & move was emitted before
     });
 
+    this.faderController.on('move', (faderIdx, faderInfo) => {
+        this.eventBus.emit(`fader/${faderIdx}/move`, {
+        fader: faderInfo,
+        timestamp: Date.now()
+        });
+    });
 };
 
 motorizedFaderControl.prototype.setupErrorHandling = function() {
