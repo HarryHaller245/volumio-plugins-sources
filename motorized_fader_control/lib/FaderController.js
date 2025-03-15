@@ -185,9 +185,9 @@ class Fader {
     if (this.touch !== touch) {
       this.touch = touch;
       if (touch && this.onTouch) {
-        this.onTouch(this.index);
+        this.onTouch(this.index, this.getInfoDict());
       } else if (!touch && this.onUntouch) {
-        this.onUntouch(this.index);
+        this.onUntouch(this.index, this.getInfoDict());
       }
     }
   }
