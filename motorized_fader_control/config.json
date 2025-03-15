@@ -138,6 +138,10 @@
     "FADER_REALTIME_SEEK_INTERVAL": {
       "type": "number",
       "value": 900
+    },
+    "EXPERIMENTAL_ARCHITEXTURE": {
+      "type": "boolean",
+      "value": false
     }
-  }
+}
   

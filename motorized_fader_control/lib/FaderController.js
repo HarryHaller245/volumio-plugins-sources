@@ -83,6 +83,7 @@
 const SerialPort = require('serialport'); // import the SerialPort module 
 const MIDIParser = require('./MIDIParser'); // import the MIDIParser
 const os = require('os'); // import the os module
+const EventEmitter = require('events');
 
 //TODO: Simplify and Optimize Module
 //TODO: organize
@@ -119,12 +120,9 @@ const os = require('os'); // import the os module
  * @class
  * @param {number} index - The index of the fader.
  */
-class Fader {
-  /**
-   * Creates a new instance of the Fader class.
-   * @param {number} index - The index of the fader.
-   */
+class Fader extends EventEmitter {
   constructor(index) {
+    super();
     this.index = index;
     this.position = 0; // 14-bit integer
     this.progression = 0; // Progression of the fader
@@ -176,18 +174,21 @@ class Fader {
     this.MovementSpeedFactor = MovementSpeedFactor;
   }
 
-  /**
-   * Sets the touch state of the fader.
-   * If the touch state changes, calls the onTouch or onUntouch callback.
-   * @param {boolean} touch - The touch state to be set.
-   */
   setTouch(touch) {
     if (this.touch !== touch) {
       this.touch = touch;
-      if (touch && this.onTouch) {
-        this.onTouch(this.index, this.getInfoDict());
-      } else if (!touch && this.onUntouch) {
-        this.onUntouch(this.index, this.getInfoDict());
+      if (touch) {
+        // Emit 'touch' event with fader index and info
+        this.emit('touch', this.index, this.getInfoDict());
+        if (this.onTouch) {
+          this.onTouch(this.index, this.getInfoDict());
+        }
+      } else {
+        // Emit 'untouch' event with fader index and info
+        this.emit('untouch', this.index, this.getInfoDict());
+        if (this.onUntouch) {
+          this.onUntouch(this.index, this.getInfoDict());
+        }
       }
     }
   }
@@ -583,7 +584,20 @@ class FaderController {
       if (this.faderIndexes.length > 4) {
         throw new Error('[FaderController]: Invalid fader count. The maximum number of faders is 4. The provided faderIndexes are: ' + this.faderIndexes);
       }
-      this.faders = this.faderIndexes.map(index => new Fader(index));
+
+      // Initialize faders and set up event forwarding
+      this.faders = this.faderIndexes.map(index => {
+        const fader = new Fader(index);
+        // Forward fader events to the plugin's event bus
+        fader.on('touch', (faderIdx, faderInfo) => {
+          this.emit('touch', faderIdx, faderInfo);
+        });
+        fader.on('untouch', (faderIdx, faderInfo) => {
+          this.emit('untouch', faderIdx, faderInfo);
+        });
+        return fader;
+      });
+
       this.logger.debug('[FaderController]: Fader: ' + this.faderIndexes + ' configured.');
     } catch (error) {
       this.logger.error('[FaderController]: Error configuring fader object: ' + error);
