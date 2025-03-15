@@ -1053,7 +1053,7 @@ class FaderController {
         if (fader) {
           fader.setPosition(midiDataArr[2] | (midiDataArr[3] << 7));
           if (fader.echo_mode) {
-            this.echo_midi(midiDataArr);
+            this.echo_midi(midiDataArr, fader); //! pass faderindex to use trim map scaling
           }
         } else {
           this.logger.warn(`[FaderController]: Fader with index ${faderIndex} not found.`);
@@ -1236,12 +1236,18 @@ class FaderController {
   /**
    * Echoes the MIDI messages back to the faders.
    * @param {Array} midiDataArr - The MIDI data array.
+   * @param {number} faderindex - The fader index.
    */
-  echo_midi(midiDataArr) {
+  echo_midi(midiDataArr, fader) {
     //method to echo the MIDI messages back to the faders
     //we need to reverse engineer the parsing. and then send it back
+    const trimmedPosition = fader.mapPositionToTrimRange(midiDataArr[2] | (midiDataArr[3] << 7)); //get the mapped position
+    const message = [
+      midiDataArr[0],
+      trimmedPosition & 0x7F,
+      (trimmedPosition >> 7) & 0x7F
+    ];
     midiDataArr[0] = midiDataArr[0] | midiDataArr[1];
-    const message = [midiDataArr[0], midiDataArr[2], midiDataArr[3]];
     this.logger.debug(`[FaderController]: Echoing MIDI message: ${message}`);
 
     // Send the MIDI message back to the faders

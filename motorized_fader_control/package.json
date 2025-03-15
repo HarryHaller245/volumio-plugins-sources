@@ -1,6 +1,6 @@
 {
 	"name": "motorized_fader_control",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"description": "A volumio plugin enabling the use of a motorized fader as a playback controller.",
 	"main": "index.js",
 	"scripts": {
@@ -22,7 +22,7 @@
 			"buster"
 		],
 		"details": "A volumio plugin enabling the use of a motorized fader as a playback controller.",
-		"changelog": "Added support for Spotify Seek Type: Album"
+		"changelog": "Fixed calibration"
 	},
 	"engines": {
 		"node": ">=v14.15.4",
