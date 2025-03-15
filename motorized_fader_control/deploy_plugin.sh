@@ -30,6 +30,6 @@ sleep 5
 echo "Restarting Volumio..."
 volumio vrestart
 
-sleep 2
+sleep 1
 
 sudo journalctl -f | grep motorized_fader_control

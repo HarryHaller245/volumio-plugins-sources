@@ -24,6 +24,9 @@ function motorizedFaderControl(context) {
 	this.configManager = this.context.configManager;
     this.config = config;
 
+    this.logs = null;
+    this.PLUGINSTR = '[motorized_fader_control]'
+
     this.faderController = null;
 
     //caches
@@ -76,13 +79,25 @@ function motorizedFaderControl(context) {
 
 //* PLUGIN LIFECYCLE ----------------------------------------------------
 
+motorizedFaderControl.prototype.initializeLogs = function() {
+    var self = this;
+
+    // Set up log level (if needed)
+    self.setupLogLevel();
+
+    // Load log-specific i18n file (logs_en.json)
+    try {
+        self.logs = require(__dirname + '/i18n/logs_en.json');
+        self.logger.info(`${self.PLUGINSTR}: Log messages initialized successfully.`);
+    } catch (error) {
+        self.logger.error(`${self.PLUGINSTR}: Failed to load log messages: ${error.message}`);
+        throw error; // Stop plugin if logs cannot be loaded
+    }
+};
+
 motorizedFaderControl.prototype.setupPlugin = async function() {
     var self = this;
-    self.logger.debug('[motorized_fader_control]: Setting up plugin...');
-
     try {
-        self.setupLogLevel();
-
         if (self.config.get("DEBUG_MODE", false)) {
             self.cachedFaderRealtimeSeekInterval = self.config.get("FADER_REALTIME_SEEK_INTERVAL", 100);
             self.config.set("FADER_REALTIME_SEEK_INTERVAL", 5000);
@@ -107,25 +122,47 @@ motorizedFaderControl.prototype.setupPlugin = async function() {
 
 motorizedFaderControl.prototype.startMotorizedFaderControl = async function() {
     var self = this;
-    this.logger.info('[motorized_fader_control]: -------- Starting... --------');
+
+    // Log plugin start with a separator
+    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.HEADER}`);
+    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
 
     try {
-        await self.setupPlugin();
-        await self.startFaderController().catch(error => {
-            self.logger.error('[motorized_fader_control]: Error starting FaderController: ' + error.message);
+        // Log setup phase
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SETUP}`);
+        await self.setupPlugin().catch(error => {
+            self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.ERRORS.SETUP_FAILED.replace('{message}', error.message)}`);
             throw error; // Re-throw to propagate the error
         });
 
+        // Log FaderController start
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.FADER_CONTROLLER}`);
+        await self.startFaderController().catch(error => {
+            self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.ERRORS.FADER_CONTROLLER_FAILED.replace('{message}', error.message)}`);
+            throw error; // Re-throw to propagate the error
+        });
+
+        // Log WebSocket configuration
         const useWebSocket = self.config.get('VOLUMIO_USE_WEB_SOCKET');
-        self.logger.info('Using WebSocket: ' + useWebSocket);
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.WEBSOCKET.replace('{value}', useWebSocket)}`);
         self.setupWebSocket();
 
+        // Log Volume Change Listener setup
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.VOLUME_LISTENER}`);
         self.registerVolumioVolumeChangeListener();
 
-        this.logger.info('[motorized_fader_control]: -------- Started successfully. --------');
+        // Log successful start
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SUCCESS}`);
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+
         return libQ.resolve();
     } catch (error) {
-        this.logger.error('[motorized_fader_control]: Error starting plugin: ' + error);
+        // Log error and notify user
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+        self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.START.ERROR.replace('{message}', error.message)}`);
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
         self.commandRouter.pushToastMessage('error', 'Error starting plugin', 'Please check plugin settings');
         return libQ.reject(error);
     }
@@ -187,64 +224,68 @@ motorizedFaderControl.prototype.setupFaderController = function() {
     var self = this;
     self.logger.info('[motorized_fader_control]: Setting up FaderController...');
 
-    try {
-        const messageDelay = self.config.get('FADER_CONTROLLER_MESSAGE_DELAY', 0.001);
-        const MIDILog = self.config.get('FADER_CONTROLLER_MIDI_LOG', false);
-        const ValueLog = self.config.get('FADER_CONTROLLER_VALUE_LOG', false);
-        const MoveLog = self.config.get('FADER_CONTROLLER_MOVE_LOG', false);
-        const trimMap = JSON.parse(self.config.get('FADER_TRIM_MAP', '{}'));
-        const speedHigh = self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100);
-        const speedMedium = self.config.get('FADER_CONTROLLER_SPEED_MEDIUM', 50);
-        const speedLow = self.config.get('FADER_CONTROLLER_SPEED_LOW', 20);
-        const CalibrationOnStart = self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true);
-
-        const faderIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
-        if (faderIndexes === undefined || faderIndexes.length === 0) {
-            self.logger.warn('[motorized_fader_control]: Fader indexes not set. Please enable at least one Fader.');
-            self.commandRouter.pushToastMessage('warning', 'No fader configured!', 'Check your settings.');
-            return false;
-        }
-
-        self.faderController = new FaderController(
-            self.logger,
-            messageDelay,
-            MIDILog,
-            [speedHigh, speedMedium, speedLow],
-            ValueLog,
-            MoveLog,
-            CalibrationOnStart,
-            faderIndexes
-        );
-
-        if (self.config.get('DEBUG_MODE', false)) {
-            self.logFaderControllerConfig(self.config);
-        }
-        self.logger.info('[motorized_fader_control]: FaderController initialized successfully.');
-
-        if (Object.keys(trimMap).length !== 0) {
-            self.faderController.setFadersTrimsDict(trimMap);
-        }
-
-        // Set the MovementSpeedFactors according to config
-        const faderSpeedFactorConfig = self.config.get('FADER_SPEED_FACTOR', '[]');
-        let faderSpeedFactors;
+    return new Promise(async (resolve, reject) => {
         try {
-            faderSpeedFactors = JSON.parse(faderSpeedFactorConfig);
-            faderSpeedFactors.forEach(factorConfig => {
-                const index = Object.keys(factorConfig)[0];
-                const factor = factorConfig[index];
-                self.faderController.setFadersMovementSpeedFactor(parseInt(index), parseFloat(factor));
-            });
-            self.logger.debug('[motorized_fader_control]: Fader speed factors set successfully.');
-        } catch (error) {
-            self.logger.error(`[motorized_fader_control]: Failed to parse FADER_SPEED_FACTOR config: ${error.message}`);
-        }
+            const messageDelay = self.config.get('FADER_CONTROLLER_MESSAGE_DELAY', 0.001);
+            const MIDILog = self.config.get('FADER_CONTROLLER_MIDI_LOG', false);
+            const ValueLog = self.config.get('FADER_CONTROLLER_VALUE_LOG', false);
+            const MoveLog = self.config.get('FADER_CONTROLLER_MOVE_LOG', false);
+            const trimMap = JSON.parse(self.config.get('FADER_TRIM_MAP', '{}'));
+            const speedHigh = self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100);
+            const speedMedium = self.config.get('FADER_CONTROLLER_SPEED_MEDIUM', 50);
+            const speedLow = self.config.get('FADER_CONTROLLER_SPEED_LOW', 20);
+            const CalibrationOnStart = self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true);
 
-        return true;
-    } catch (error) {
-        self.logger.error('[motorized_fader_control]: Error setting up FaderController: ' + error);
-        return false;
-    }
+            const faderIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
+            if (faderIndexes === undefined || faderIndexes.length === 0) {
+                self.logger.warn('[motorized_fader_control]: Fader indexes not set. Please enable at least one Fader.');
+                self.commandRouter.pushToastMessage('warning', 'No fader configured!', 'Check your settings.');
+                reject(new Error('No fader indexes configured.'));
+                return;
+            }
+
+            self.faderController = new FaderController(
+                self.logger,
+                messageDelay,
+                MIDILog,
+                [speedHigh, speedMedium, speedLow],
+                ValueLog,
+                MoveLog,
+                CalibrationOnStart,
+                faderIndexes
+            );
+
+            if (self.config.get('DEBUG_MODE', false)) {
+                self.logFaderControllerConfig(self.config);
+            }
+            self.logger.info('[motorized_fader_control]: FaderController initialized successfully.');
+
+            if (Object.keys(trimMap).length !== 0) {
+                self.faderController.setFadersTrimsDict(trimMap);
+            }
+
+            // Set the MovementSpeedFactors according to config
+            const faderSpeedFactorConfig = self.config.get('FADER_SPEED_FACTOR', '[]');
+            let faderSpeedFactors;
+            try {
+                faderSpeedFactors = JSON.parse(faderSpeedFactorConfig);
+                faderSpeedFactors.forEach(factorConfig => {
+                    const index = Object.keys(factorConfig)[0];
+                    const factor = factorConfig[index];
+                    self.faderController.setFadersMovementSpeedFactor(parseInt(index), parseFloat(factor));
+                });
+                self.logger.debug('[motorized_fader_control]: Fader speed factors set successfully.');
+            } catch (error) {
+                self.logger.error(`[motorized_fader_control]: Failed to parse FADER_SPEED_FACTOR config: ${error.message}`);
+                // This is a non-critical error, so we don't reject the promise here.
+            }
+
+            resolve(true); // Resolve the promise on successful setup
+        } catch (error) {
+            self.logger.error('[motorized_fader_control]: Error setting up FaderController: ' + error.message);
+            reject(error); // Reject the promise on failure
+        }
+    });
 };
 
 motorizedFaderControl.prototype.startFaderController = async function() {
@@ -275,7 +316,7 @@ motorizedFaderControl.prototype.stopFaderController = async function() {
     var self = this;
 
     try {
-        if (!self.faderController) {
+        if (self.faderController == null || self.faderController == false) {
             self.logger.info('[motorized_fader_control]: Fader Controller not started, skipping stop');
             return;
         }
@@ -1542,14 +1583,14 @@ motorizedFaderControl.prototype.onStart = function() {
     var self = this;
     var defer = libQ.defer();
     
+    // Initialize logs
+    self.initializeLogs();
     //cneeds a catch error for startMotorizedFaderControl
     self.startMotorizedFaderControl()  //! maybe move the setup into the start
         .then(() => {
-            self.logger.info('[motorized_fader_control]: plugin started successfully.');
             defer.resolve();
         })
         .catch((error) => {
-            self.logger.error('Error starting motorized_fader_control plugin: ' + error);
             self.stopMotorizedFaderControl();
             defer.reject(error);
         });
@@ -2363,18 +2404,26 @@ motorizedFaderControl.prototype.getCachedLogLevel = function() {
 
 motorizedFaderControl.prototype.logFaderControllerConfig = function(config) {
     var self = this;
-    self.logger.debug('[motorized_fader_control]: -------------- Fader Controller Configuration STA --------------');
-    self.logger.debug('[motorized_fader_control]: Fader Count: ' + config.get('FADER_CONTROLLER_FADER_COUNT'));
-    self.logger.debug('[motorized_fader_control]: Message Delay: ' + config.get('FADER_CONTROLLER_MESSAGE_DELAY'));
-    self.logger.debug('[motorized_fader_control]: MIDI Log: ' + config.get('FADER_CONTROLLER_MIDI_LOG'));
-    self.logger.debug('[motorized_fader_control]: Value Log: ' + config.get('FADER_CONTROLLER_VALUE_LOG'));
-    self.logger.debug('[motorized_fader_control]: Move Log: ' + config.get('FADER_CONTROLLER_MOVE_LOG'));
-    self.logger.debug('[motorized_fader_control]: Fader Trim Map: ' + config.get('FADER_TRIM_MAP'));
-    self.logger.debug('[motorized_fader_control]: Speed High: ' + config.get('FADER_CONTROLLER_SPEED_HIGH'));
-    self.logger.debug('[motorized_fader_control]: Speed Medium: ' + config.get('FADER_CONTROLLER_SPEED_MEDIUM'));
-    self.logger.debug('[motorized_fader_control]: Speed Low: ' + config.get('FADER_CONTROLLER_SPEED_LOW'));
-    self.logger.debug('[motorized_fader_control]: Calibration on Start: ' + config.get('FADER_CONTROLLER_CALIBRATION_ON_START'));
-    self.logger.debug('[motorized_fader_control]: -------------- Fader Controller Configuration END --------------');
+
+    // Log the start of the Fader Controller configuration
+    self.logger.debug(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+    self.logger.debug(`${self.PLUGINSTR}: Fader Controller Configuration:`);
+    self.logger.debug(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+
+    // Log individual configuration settings
+    self.logger.debug(`${self.PLUGINSTR}: Fader Count: ${config.get('FADER_CONTROLLER_FADER_COUNT')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Message Delay: ${config.get('FADER_CONTROLLER_MESSAGE_DELAY')}`);
+    self.logger.debug(`${self.PLUGINSTR}: MIDI Log: ${config.get('FADER_CONTROLLER_MIDI_LOG')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Value Log: ${config.get('FADER_CONTROLLER_VALUE_LOG')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Move Log: ${config.get('FADER_CONTROLLER_MOVE_LOG')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Fader Trim Map: ${config.get('FADER_TRIM_MAP')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Speed High: ${config.get('FADER_CONTROLLER_SPEED_HIGH')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Speed Medium: ${config.get('FADER_CONTROLLER_SPEED_MEDIUM')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Speed Low: ${config.get('FADER_CONTROLLER_SPEED_LOW')}`);
+    self.logger.debug(`${self.PLUGINSTR}: Calibration on Start: ${config.get('FADER_CONTROLLER_CALIBRATION_ON_START')}`);
+
+    // Log the end of the Fader Controller configuration
+    self.logger.debug(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
 };
 
 //* HELPERS ----------------------------------------------------

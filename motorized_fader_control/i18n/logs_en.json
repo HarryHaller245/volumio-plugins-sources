@@ -1,0 +1,38 @@
+{
+    "LOGS": {
+      "SEPARATOR": "--------------------------------------------------------------------",
+      "START": {
+        "HEADER": "Starting motorized fader control plugin...",
+        "SETUP": "Setting up plugin...",
+        "FADER_CONTROLLER": "Starting FaderController...",
+        "WEBSOCKET": "WebSocket enabled: {value}",
+        "VOLUME_LISTENER": "Registering Volumio volume change listener...",
+        "SUCCESS": "Plugin started successfully!",
+        "ERROR": "Error starting plugin: {message}"
+      },
+      "SETUP": {
+        "FADER_CONTROLLER": {
+          "INITIALIZING": "Initializing FaderController...",
+          "CONFIGURING": "Configuring FaderController with settings...",
+          "SPEED_FACTORS": "Setting fader speed factors...",
+          "TRIMMING": "Applying fader trim settings...",
+          "SUCCESS": "FaderController initialized successfully.",
+          "ERROR": "Error initializing FaderController: {message}"
+        },
+        "WEBSOCKET": {
+          "INITIALIZING": "Initializing WebSocket connection...",
+          "SUCCESS": "WebSocket connection established.",
+          "ERROR": "Error initializing WebSocket: {message}"
+        }
+      },
+      "WARNINGS": {
+        "NO_FADER_INDEXES": "Fader indexes not set. Please enable at least one Fader.",
+        "CONFIG_ISSUE": "Configuration issue detected: {message}"
+      },
+      "ERRORS": {
+        "SETUP_FAILED": "Error during plugin setup: {message}",
+        "FADER_CONTROLLER_FAILED": "Error starting FaderController: {message}",
+        "GENERIC_ERROR": "An error occurred: {message}"
+      }
+    }
+  }

@@ -125,7 +125,7 @@
     },
     "LOG_LEVEL": {
       "type": "string",
-      "value": "debug"
+      "value": "info"
     },
     "DEBUG_MODE": {
       "type": "boolean",

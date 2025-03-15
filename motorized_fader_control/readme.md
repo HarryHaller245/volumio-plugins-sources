@@ -57,11 +57,11 @@ supporting real-time feedback and multiple seek modes.
 | **Advanced** | `FADER_REALTIME_SEEK_INTERVAL` | Update frequency for seek faders (ms) |
 |             | `FADER_CONTROLLER_SPEED_HIGH` | Maximum fader movement speed |
 
-## Usage
+## Usages
 
 ### Basic Operations
 1. **Volume Control**:
-   - Touch fader → Immediate volume adjustment
+   - Touch fader → volume adjustment
    - Configurable update-on-move behavior
 
 2. **Seek Control**:
@@ -71,8 +71,8 @@ supporting real-time feedback and multiple seek modes.
    - Playlist Mode: Playback Playlists progression *(Planned)*
 
 ### Advanced Features
-- **Calibration**: Run Calibration through UI *(Planned)* **propably not needed**
-- **Speed Profiles**: Configure different movement speeds for precision/rapid adjustments
+- **Calibration**: Run Calibration through UI *(Partial)* **propably not needed**
+- **Speed Profiles**: Configure different movement speeds for precision/rapid adjustments **propably not needed**
 
 ## Development Notes
 
@@ -103,9 +103,8 @@ index.js
 
 ### TODOs & Next Steps
 - **High Priority**:
-  - Send a faderInfo dict with the untouch/ontouch for the fader... use the cache as fallback on untouch
   - Plugin crashes to unresponse when no fadder is configured and saved, warning message works, but we gett an error during stop UnhandledPromiseRejectionWarning
-  - Integrate Fader Trim Settings
+  - Test Fader Trim Settings
   - Implement album/queue seek logic
   - Improve seek position accuracy
   - restructure UI
