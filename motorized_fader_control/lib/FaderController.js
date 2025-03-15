@@ -129,9 +129,9 @@ class Fader extends EventEmitter {
     this.touch = false; // Whether the fader is currently being touched
     this.onTouch = null; // Callback for touch event
     this.onUntouch = null; // Callback for untouch event
-    this.echo_mode = false; // Echo mode for a fader, means it will immediately mirror any adjustment made to it by hand
-    this.ProgressionMap = [0, 100]; // Mapping range values for the fader, [0, 100] means no trim and is the max range
-    this.MovementSpeedFactor = 1; // The speed factor for the fader movement. Standard is one
+    this.echo_mode = false; // Echo mode for a fader
+    this.ProgressionMap = [0, 100]; // Mapping range values for the fader
+    this.MovementSpeedFactor = 1; // The speed factor for the fader movement
   }
 
   /**
@@ -193,16 +193,22 @@ class Fader extends EventEmitter {
     }
   }
 
+
   /**
    * Sets the progression of the fader.
    * Also updates the position accordingly.
    * @param {number} progression - The progression value to be set.
    */
   setProgression(progression) {
+    const previousProgression = this.progression;
     this.setProgressionOnly(progression);
-    // Also update position accordingly
     const position = this.progressionToPosition(progression);
     this.setPositionOnly(position);
+
+    // Emit 'move' event only if the fader is being touched and the progression has changed
+    if (this.touch && previousProgression !== progression) {
+      this.emit('move', this.index, this.getInfoDict());
+    }
   }
 
   /**
@@ -219,11 +225,15 @@ class Fader extends EventEmitter {
    * @param {number} position - The position value to be set.
    */
   setPosition(position) {
-    // Map the position to the trim range
+    const previousPosition = this.position;
     this.setPositionOnly(position);
-    // Also update progression accordingly
     const progression = this.positionToProgression(position);
     this.setProgressionOnly(progression);
+
+    // Emit 'move' event only if the fader is being touched and the position has changed
+    if (this.touch && previousPosition !== position) {
+      this.emit('move', this.index, this.getInfoDict());
+    }
   }
 
   /**
@@ -508,7 +518,7 @@ class FaderMove {
  * });
  * ```
  */
-class FaderController {
+class FaderController extends EventEmitter {
   /**
    * Creates a new instance of the FaderController class.
    * @param {Object} logger - The logger object for logging messages.
@@ -522,6 +532,7 @@ class FaderController {
    * 
    */
   constructor(logger = dev_logger, messageDelay = 0.0001, MIDILog = false, speeds = [80, 50, 10], ValueLog = false, MoveLog = false, CalibrationOnStart = true, faderIndexes = [0, 1, 2, 3]) {
+    super();
     this.logger = logger;
     this.messageDelay = messageDelay;
     this.MIDILog = MIDILog;
@@ -591,6 +602,9 @@ class FaderController {
         // Forward fader events to the plugin's event bus
         fader.on('touch', (faderIdx, faderInfo) => {
           this.emit('touch', faderIdx, faderInfo);
+        });
+        fader.on('move', (faderIdx, faderInfo) => {
+          this.emit('move', faderIdx, faderInfo);
         });
         fader.on('untouch', (faderIdx, faderInfo) => {
           this.emit('untouch', faderIdx, faderInfo);
