@@ -84,6 +84,8 @@ const SerialPort = require('serialport'); // import the SerialPort module
 const MIDIParser = require('./MIDIParser'); // import the MIDIParser
 const os = require('os'); // import the os module
 
+//TODO: Simplify and Optimize Module
+//TODO: organize
 
 /**
  * Represents a fader object. Holds the information of a motorized fader.
@@ -454,9 +456,6 @@ class FaderMove {
     this.speed = Array.isArray(speed) ? speed : Array(this.idx.length).fill(speed);
   }
 }
-
-//TODO: Simplify and Optimize Module
-//TODO: organize
 
 /**
  * Represents a fader controller.
@@ -1053,7 +1052,7 @@ class FaderController {
         if (fader) {
           fader.setPosition(midiDataArr[2] | (midiDataArr[3] << 7));
           if (fader.echo_mode) {
-            this.echo_midi(midiDataArr, fader); //! pass faderindex to use trim map scaling
+            this.echo_midi(midiDataArr, fader);
           }
         } else {
           this.logger.warn(`[FaderController]: Fader with index ${faderIndex} not found.`);
