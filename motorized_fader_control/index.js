@@ -6,7 +6,9 @@ var config = new (require('v-conf'))();
 var exec = require('child_process').exec;
 var execSync = require('child_process').execSync;
 var { FaderController, FaderMove } = require('./lib/FaderController');
-
+var { VolumeService, TrackService, AlbumService } = require('./lib/Services');
+var { StateCache } = require('./lib/FaderStateCache');
+var { EventBus } = require('./lib/EventBus');
 
 const { setFlagsFromString } = require('v8');
 
@@ -30,6 +32,9 @@ function motorizedFaderControl(context) {
     this.PLUGINSTR = '[motorized_fader_control]'
 
     this.faderController = null;
+    this.eventBus = null;
+    this.stateCache = null;
+    this.services = null;
 
     //caches
     this.state = {};
@@ -50,6 +55,7 @@ function motorizedFaderControl(context) {
 
 };
 
+
 //* START-------------------------------------------------------
 
 motorizedFaderControl.prototype.onVolumioStart = function() {
@@ -64,17 +70,52 @@ motorizedFaderControl.prototype.onVolumioStart = function() {
 };
 
 motorizedFaderControl.prototype.onStart = function() {
-    var self = this;
-    var defer = libQ.defer();
-    
-    // Initialize logs
-    self.initializeLogs();
-    // Existing initialization
-    this.initializeFaderController();
+    const self = this;
+    const defer = libQ.defer();
 
-    // New initialization
-    this.setupVolumioBridge();
-    this.setupServiceRouter();
+    try {
+        // Initialize logs first
+        self.initializeLogs();
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.HEADER}`);
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+
+        // Initialize core components
+        self.logger.info(`${self.PLUGINSTR}: Initializing core components...`);
+        self.eventBus = new EventBus();
+        self.stateCache = new StateCache();
+        self.services = new Map();
+
+        // Sequential startup procedure
+        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SETUP}`);
+        
+        self.setupFaderController()
+            .then(() => {
+                self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.FADER_CONTROLLER}`);
+                return self.startFaderController();
+            })
+            .then(() => {
+                self.logger.info(`${self.PLUGINSTR}: Starting service connections...`);
+                self.setupVolumioBridge();
+                self.setupServiceRouter();
+                self.setupStateValidation();
+                
+                self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SUCCESS}`);
+                defer.resolve();
+            })
+            .catch(error => {
+                self.logger.error(error.stack);
+                defer.reject(new Error(`${self.logs.LOGS.START.ERROR}: ${error.message}}`));
+            })
+            .finally(() => {
+                self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+            });
+    } catch (criticalError) {
+        self.logger.error(`${self.PLUGINSTR}: Critical initialization error: ${criticalError.message}`);
+        self.logger.error(criticalError.stack);
+        defer.reject(new Error(`${self.logs.LOGS.ERRORS.CRITICAL_ERROR}: ${criticalError.message}`));
+    }
+
     return defer.promise;
 };
 
@@ -186,39 +227,38 @@ motorizedFaderControl.prototype.unpackFaderConfig = function(content) {
     try {
         const faderBehavior = JSON.parse(self.config.get('FADER_BEHAVIOR')) || [];
         const faderIdxs = JSON.parse(self.config.get('FADERS_IDXS')) || [];
-        const faderTrimMap = JSON.parse(self.config.get('FADER_TRIM_MAP')) || {}; // Parse the stringified JSON object
+        const faderTrimMap = JSON.parse(self.config.get('FADER_TRIM_MAP')) || {};
 
         // Loop through each configured fader index
         for (let i = 0; i < 4; i++) { // Assuming a maximum of 4 faders
             // Check if the current fader index is configured
             if (faderIdxs.includes(i)) {
-                const fader = faderBehavior.find(f => f.FADER_IDX === i) || { OUTPUT: "", INPUT: "", SEEK_TYPE: "" };
+                const fader = faderBehavior.find(f => f.FADER_IDX === i) || { CONTROL_TYPE: "volume" };
                 
                 self.logger.debug(`[motorized_fader_control]: Fader ${i} configuration: ${JSON.stringify(fader)}`);
                 
                 // Update configured status
-                self.updateFaderElement(content, `FADER_${i}_CONFIGURED`, true); // Set to true since it's configured
+                self.updateFaderElement(content, `FADER_${i}_CONFIGURED`, true);
 
-                // Map OUTPUT/INPUT/SEEK_TYPE to BEHAVIOR
-                const behavior = fader.OUTPUT === "volume" ? "volume" : fader.SEEK_TYPE;
-                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, behavior);
+                // Map CONTROL_TYPE to BEHAVIOR
+                const controlType = fader.CONTROL_TYPE || "volume";
+                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, controlType);
 
                 // Update FADER TRIM using the parsed faderTrimMap
-                const faderTrim = faderTrimMap[i] || [0, 100]; // Access the trim map using the fader index as a key, this somehow results in a nested FADER_0_TRIM updated: [[0,56]]
+                const faderTrim = faderTrimMap[i] || [0, 100];
                 self.updateFaderElement(content, `FADER_${i}_TRIM`, faderTrim);
 
             } else {
                 // If the fader is not configured, update its status accordingly
                 self.updateFaderElement(content, `FADER_${i}_CONFIGURED`, false);
-                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, ""); // Default to volume
-                // Update FADER TRIM, default to [0, 100]
-                self.updateFaderElement(content, `FADER_${i}_TRIM`, [0, 100]);
+                self.updateFaderElement(content, `FADER_${i}_BEHAVIOR`, "volume"); // Default to volume
+                self.updateFaderElement(content, `FADER_${i}_TRIM`, [0, 100]); // Default trim
             }
         }
     } catch (error) {
         const errorMsg = '[motorized_fader_control]: Error unpacking fader configuration: ' + error;
         self.logger.error(errorMsg);
-        throw new Error(errorMsg); // Re-throw the error after logging it
+        throw new Error(errorMsg);
     }
 };
 
@@ -228,10 +268,8 @@ motorizedFaderControl.prototype.updateFaderElement = function(content, elementId
     
     if (element) {
         if (elementId.includes("TRIM")) {
-            // For equalizer elements, set the value as a nested array (e.g., [[0, 100]])
-            element.config.bars[0].value = value; // Wrap the value in an array //! wrror: Error unpacking fader configuration: TypeError: Cannot set property 'value' of undefined
+            element.config.bars[0].value = value; 
         } else {
-            // For other elements, assign the value directly
             element.value = (typeof value === 'string') 
                 ? { value: value, label: self.getLabelForSelect(element.options, value) }
                 : value;
@@ -296,19 +334,10 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
                 ? faderTrimMapValue[0]  // Extract the nested array
                 : [0, 100];  // Default to [0, 100] if invalid
 
-            // Map behavior to output/input/seek_type
-            const output = faderBehaviorValue === "volume" ? "volume" : "seek";
-            const input = output; // Input always matches output
-            const seekType = faderBehaviorValue === "volume" ? "" : faderBehaviorValue;
-
-            self.logger.debug(`[motorized_fader_control]: Fader ${i} mapped values: OUTPUT=${output}, INPUT=${input}, SEEK_TYPE=${seekType}`);
-
             // Add fader behavior to the array
             faderBehavior.push({
                 FADER_IDX: i,
-                OUTPUT: output,
-                INPUT: input,
-                SEEK_TYPE: seekType
+                CONTROL_TYPE: faderBehaviorValue
             });
 
             // Add fader trim to the trim map
@@ -323,7 +352,7 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
             }
 
             if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`[motorized_fader_control]: Repacked Fader ${i} configuration: OUTPUT=${output}, INPUT=${input}, SEEK_TYPE=${seekType}, CONFIGURED=${faderConfigured}, TRIM=${faderTrim}`);
+                self.logger.debug(`[motorized_fader_control]: Repacked Fader ${i} configuration: CONTROL_TYPE=${faderBehaviorValue}, CONFIGURED=${faderConfigured}, TRIM=${faderTrim}`);
             }
         }
 
@@ -339,7 +368,7 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
         // Save the repacked configuration back to the config
         self.config.set('FADER_BEHAVIOR', JSON.stringify(faderBehavior));
         self.config.set('FADERS_IDXS', JSON.stringify(faderIdxs));
-        self.config.set('FADER_TRIM_MAP', JSON.stringify(faderTrimMap)); // Save as stringified JSON
+        self.config.set('FADER_TRIM_MAP', JSON.stringify(faderTrimMap));
 
         self.logger.debug('[motorized_fader_control]: Fader configuration saved successfully.');
     } catch (error) {
@@ -536,31 +565,45 @@ motorizedFaderControl.prototype.initializeLogs = function() {
 //* ADAPTER LAYER #####################################################################
 
 motorizedFaderControl.prototype.setupServiceRouter = function() {
-    var self = this;
-
+    const self = this;
     const config = JSON.parse(this.config.get('FADER_BEHAVIOR'));
-    
-    config.forEach(({FADER_IDX, SEEK_TYPE}) => {
-      const ServiceClass = this.getServiceClass(SEEK_TYPE);
-      this.services.set(FADER_IDX, new ServiceClass(
-        FADER_IDX,
-        this.eventBus,
-        this.stateCache
-      ));
-      
-      this.eventBus.on(`fader/${FADER_IDX}/move`, position => {
-        this.services.get(FADER_IDX).handleMove(position);
-      });
-    });
-};   
 
-motorizedFaderControl.prototype.getServiceClass = function(SEEK_TYPE) {
+    config.forEach(({FADER_IDX, CONTROL_TYPE}) => {
+        const ServiceClass = this.getServiceClass(CONTROL_TYPE);
+        if (!ServiceClass) {
+            self.logger.warn(`No service found for fader ${FADER_IDX} (control type: ${CONTROL_TYPE})`);
+            return;
+        }
+
+        const service = new ServiceClass(
+            FADER_IDX,
+            this.eventBus,
+            this.stateCache,
+            this.config
+        );
+
+        this.services.set(FADER_IDX, service);
+
+        // Connect to fader events
+        this.eventBus.on(`fader/${FADER_IDX}/move`, position => {
+            if (this.isSeeking) return;
+            service.handleMove(position);
+        });
+
+        // Connect to state updates
+        this.eventBus.on('validated/state', state => {
+            service.handleStateUpdate(state);
+        });
+    });
+};
+
+motorizedFaderControl.prototype.getServiceClass = function(controlType) {
     return {
         volume: VolumeService,
         track: TrackService,
-        album: AlbumService
-
-    }[SEEK_TYPE];
+        album: AlbumService,
+        queue: QueueService // Add if needed
+    }[controlType];
 };
 
 // In index.js - Enhanced Volumio Bridge
@@ -575,8 +618,8 @@ motorizedFaderControl.prototype.setupVolumioBridge = function() {
   
     // Unified State Handler
     const handleStateUpdate = (state) => {  
-      // New cache integration
-      self.stateCache.set('playback', 'state', state);
+        
+      this.stateCache.cachePlaybackState(rawState);
   
       // Existing playback state checks
       if (self.checkPlayingState(state)) {
@@ -608,17 +651,50 @@ motorizedFaderControl.prototype.setupVolumioBridge = function() {
     });
 };
 
-// State Validation Middleware
+// State Validation Middleware 
+//* avoid unnecesary state updates
 motorizedFaderControl.prototype.setupStateValidation = function() {
+    const self = this;
+
     this.eventBus.on('playback/update', state => {
         if (!this.validateState(state)) {
-        this.logger.warn('Invalid state update received:', state);
-        return;
+            self.logger.info('Invalid state update received:', state);
+            return;
         }
 
-        // New service-based handling
-        this.eventBus.emit('validated/state', state);
+        // Cache the validated state
+        self.stateCache.set('playback', 'state', state);
+
+        // Emit validated state
+        self.eventBus.emit('validated/state', state);
     });
+};
+
+motorizedFaderControl.prototype.validateState = function(state) {
+    // Check if state is not null or undefined and has the key "status"
+    if (state && typeof state === 'object' && state.hasOwnProperty("status")) {
+        const PlaybackStatus = state.status; // Use dot notation to access 'status'
+        
+        // Check if the PlaybackStatus is one of the valid states
+        if (PlaybackStatus === 'play' || PlaybackStatus === 'pause' || PlaybackStatus === 'stop') {
+            // Check if the seek value is valid
+            if (state.hasOwnProperty("seek") && state.hasOwnProperty("duration")) {
+                const seek = state.seek;
+                const duration = state.duration * 1000; // convert to ms
+
+                // Log the seek and duration values
+                this.logger.debug(`[motorized_fader_control]: validateState: Checking seek and duration: seek=${seek}, duration=${duration}`);
+
+                // Check if seek is larger than duration
+                if (seek > duration) {
+                    this.logger.warn(`[motorized_fader_control]: validateState: Invalid state: seek (${seek} ms) is larger than duration (${duration} ms)`);
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+    return false; // Return false if state is invalid or status doesn't match
 };
 
 // Progressive Migration: Seek Progression
@@ -645,19 +721,9 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volumeData) 
 
 //* FADER LAYER ########################################################################
 
-motorizedFaderControl.prototype.initializeFaderController = function() {
-    const self = this;
-    
-    // Existing initialization logic
-    self.setupFaderController()
-  
-    // New adapter connection
-    this.setupFaderAdapter();
-    this.setupFaderFeedback();
-};
 
 motorizedFaderControl.prototype.setupFaderFeedback = function() {
-    this.eventBus.on('Fader/update', ({idxs, targets, speeds}) => {
+    this.eventBus.on('fader/update', ({idxs, targets, speeds}) => {
       if(this.faderController) {
         //construct Fader Move here and pass it to the controller
         move = new FaderMove(idxs, targets, speeds)
@@ -719,6 +785,10 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                 self.logger.error(`[motorized_fader_control]: Failed to parse FADER_SPEED_FACTOR config: ${error.message}`);
             }
 
+            // New adapter connection
+            this.setupFaderAdapter();
+            this.setupFaderFeedback();
+
             resolve(true); // Resolve the promise on successful setup
         } catch (error) {
             self.logger.error('[motorized_fader_control]: Error setting up FaderController: ' + error.message);
@@ -727,6 +797,29 @@ motorizedFaderControl.prototype.setupFaderController = function() {
     });
 };
 
+motorizedFaderControl.prototype.startFaderController = async function() {
+    var self = this;
+
+    try {
+        const serialPort = self.config.get("SERIAL_PORT");
+        const baudRate = self.config.get("BAUD_RATE");
+        const calibrationOnStart = self.config.get("FADER_CONTROLLER_CALIBRATION_ON_START", true);
+
+        await self.faderController.setupSerial(serialPort, baudRate).catch(error => {
+            self.logger.error('[motorized_fader_control]: Error setting up serial connection: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
+        await self.faderController.start(calibrationOnStart).catch(error => {
+            self.logger.error('[motorized_fader_control]: Error starting FaderController: ' + error.message);
+            throw error; // Re-throw to propagate the error
+        });
+
+        // old: self.setupFaderControllerTouchCallbacks();
+    } catch (error) {
+        self.logger.error('[motorized_fader_control]: Error starting Fader Controller: ' + error.message);
+        throw error;
+    }
+};
 // Modified adapter setup
 motorizedFaderControl.prototype.setupFaderAdapter = function() {
     // Assuming FaderController emits 'move' events
@@ -745,3 +838,27 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
     });
 
 };
+
+motorizedFaderControl.prototype.setupErrorHandling = function() {
+    const self = this;
+
+    // Global error handler
+    process.on('unhandledRejection', (error) => {
+        self.logger.error('Unhandled rejection:', error);
+    });
+
+    // Event bus error handling
+    this.eventBus.on('error', (error) => {
+        self.logger.error('Event bus error:', error);
+    });
+
+    // Service error handling
+    this.services.forEach(service => {
+        if (typeof service.onError === 'function') {
+            service.onError(error => {
+                self.logger.error(`Service ${service.constructor.name} error:`, error);
+            });
+        }
+    });
+};
+
