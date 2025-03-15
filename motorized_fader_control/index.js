@@ -145,11 +145,9 @@ motorizedFaderControl.prototype.startMotorizedFaderControl = async function() {
 
         // Log WebSocket configuration
         const useWebSocket = self.config.get('VOLUMIO_USE_WEB_SOCKET');
-        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.WEBSOCKET.replace('{value}', useWebSocket)}`);
         self.setupWebSocket();
 
         // Log Volume Change Listener setup
-        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.VOLUME_LISTENER}`);
         self.registerVolumioVolumeChangeListener();
 
         // Log successful start
@@ -694,7 +692,7 @@ motorizedFaderControl.prototype.setupWebSocket = function() {
     self.socket = io.connect(`http://${volumioHost}:${volumioPort}`);
 
     self.socket.on('connect', function() {
-        self.logger.info('[motorized_fader_control]: WebSocket connected');
+        self.logger.debug('[motorized_fader_control]: WebSocket connected');
 
         self.socket.emit('getState');
     });
@@ -851,7 +849,7 @@ motorizedFaderControl.prototype.registerVolumioVolumeChangeListener = function()
     self.unregisterVolumioVolumeChangeListener();
 
     // Register the new listener
-    self.logger.debug('[motorized_fader_control]: Registering Volumio volume change listener');
+    self.logger.debug(`${self.PLUGINSTR}: ${self.logs.LOGS.START.VOLUME_LISTENER}`);
     self.commandRouter.addCallback('volumioupdatevolume', self.volumeChangeListener.bind(self));
 
 };
@@ -976,7 +974,6 @@ motorizedFaderControl.prototype.onPushState = function(state) {
         self.logger.info('[motorized_fader_control]: State unchanged, skipping update');
         return;
     }
-    self.logger.info(`[motorized_fader_control]: onPushState: state received`);
     self.logger.debug(`[motorized_fader_control]: onPushState: changed state received`);
     // Stop any active seek updates
     self.stopContinuousSeekUpdate();
@@ -1000,7 +997,7 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
     // Retrieve FADER_BEHAVIOR configuration
     const configuredFaders = JSON.parse(self.config.get('FADERS_IDXS', "[0,1]"));
 
-    self.logger.info('[motorized_fader_control]: Started Realtime Seek Update');
+    self.logger.info(`${self.PLUGINSTR}: Started Realtime Seek Update`);
     // Set up an interval to continuously update the fader based on elapsed time
     self.seekUpdateInterval = setInterval(async () => {
         try {
@@ -1017,16 +1014,25 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
                         continue;
                     }
 
-                    const seekType = this.getFaderSeekType(faderIdx)
+                    const seekType = self.getFaderSeekType(faderIdx);
 
+                    // Get the new progression for the fader
                     const newProgression = await self.getRealtimeOutputSeek(state, elapsedTime, faderIdx, seekType);
 
-                    if (newProgression !== null && self.hasCachedProgressionChanged(faderIdx, newProgression)) {
+                    // Handle null progression (e.g., due to a failed WebSocket call or unsupported state)
+                    if (newProgression === null) {
+                        self.logger.warn(`${self.PLUGINSTR}: Fader ${faderIdx} - Unable to calculate ${seekType} progression. Check service support and configuration.`);
+                        self.commandRouter.pushToastMessage('warning', 'Fader Configuration', `Fader ${faderIdx + 1} may need to be reconfigured to track since the service/album is not supported.`);
+                        continue; // Skip this fader and move to the next one
+                    }
+
+                    // Check if the progression has changed
+                    if (self.hasCachedProgressionChanged(faderIdx, newProgression)) {
                         const speed = self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100);
                         faderMoves.push(new FaderMove(faderIdx, newProgression, speed));
                     }
                 } catch (error) {
-                    self.logger.error(`[motorized_fader_control]: Error updating fader ${faderIdx}: ${error.message}`);
+                    self.logger.error(`${self.PLUGINSTR}: Error updating fader ${faderIdx}: ${error.message}`);
                 }
             }
 
@@ -1044,7 +1050,7 @@ motorizedFaderControl.prototype.startContinuousSeekUpdate = function(state) {
             }
 
         } catch (error) {
-            self.logger.error(`[motorized_fader_control]: Error in continuous seek update: ${error.message}`);
+            self.logger.error(`${self.PLUGINSTR}: Error in continuous seek update: ${error.message}`);
             self.stopContinuousSeekUpdate();
         }
     }, interval); // Update every 100ms or adjust as needed
@@ -1056,29 +1062,55 @@ motorizedFaderControl.prototype.getRealtimeOutputSeek = async function(state, el
     const self = this;
     let progression = null;
 
+    // Helper function to check if we should skip album/queue/playlist progression
+    const shouldSkipProgression = () => {
+        if (self.checkPlayingStateRepeatSingle()) {
+            self.logger.warn(`${self.PLUGINSTR}: repeatSingle is enabled. Skipping ${seekType} progression.`);
+            return true;
+        }
+        if (self.checkPlayingStateRandom() && !self.checkPlayingStateRepeat()) {
+            self.logger.warn(`${self.PLUGINSTR}: random is enabled and repeat is disabled. Skipping ${seekType} progression.`);
+            return true;
+        }
+        return false;
+    };
+
     switch (seekType.toLowerCase()) {
         case 'track':
             progression = self.getRealtimeOutputSeekTrack(state, elapsedTime, faderIdx);
             break;
         case 'album':
-            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
-            //! if state is on random AND repeat:false we can still run this normally
-            //! also check if the state is even registered as an album, if no fallback to self.getTrackProgression
+            // Skip album progression if repeatSingle or random (without repeat) is enabled
+            if (shouldSkipProgression()) {
+                return null;
+            }
+
+            // Check if the state is registered as an album
+            if (!self.isStateAnAlbum(state)) {
+                self.logger.warn(`${self.PLUGINSTR}: State is not registered as an album.`);
+                return null;
+            }
+
             progression = await self.getRealtimeOutputSeekAlbum(state, elapsedTime, faderIdx);
             break;
         case 'queue':
+            // Skip queue progression if repeatSingle or random (without repeat) is enabled
+            if (shouldSkipProgression()) {
+                return null;
+            }
+
             progression = self.getRealtimeOutputSeekQueue(state, elapsedTime, faderIdx);
-            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
-            //! if state is on random AND repeat:false we can still run this normally
             break;
         case 'playlist':
-            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
-            //! if state is on random AND repeat:false we can still run this normally
-            //! also check if the state is even registered as an album, if no fallback to
+            // Skip playlist progression if repeatSingle or random (without repeat) is enabled
+            if (shouldSkipProgression()) {
+                return null;
+            }
+
             progression = self.getRealtimeOutputSeekPlaylist(state, elapsedTime, faderIdx);
             break;
         default:
-            self.logger.warn(`[motorized_fader_control]: Unknown seek type "${seekType}" for fader ${faderIdx}`);
+            self.logger.warn(`${self.PLUGINSTR}: Unknown seek type "${seekType}" for fader ${faderIdx}`);
     }
 
     return progression;
@@ -1107,33 +1139,76 @@ motorizedFaderControl.prototype.getRealtimeOutputSeekAlbum = async function(stat
 
     try {
         let albumInfo;
-        if (!self.checkAlbumInfoValid(this.cachedAlbumInfo, state)) {
-            albumInfo = await self.getAlbumInfoPlayingGoTo(state);
-            self.cachedAlbumInfo = albumInfo; // Cache the new album info
-            //! we need to check here if it is still invalid, if yes skip or revert to track
-            //! log error
 
+        // Check if cached album info is valid
+        if (!self.checkAlbumInfoValid(this.cachedAlbumInfo, state)) {
+            try {
+                // Try to fetch album info using the primary method (goTo)
+                albumInfo = await self.getAlbumInfoPlayingGoTo(state);
+                self.cachedAlbumInfo = albumInfo; // Cache the new album info
+
+                // Check if the fetched album info is valid
+                if (!self.checkAlbumInfoValid(albumInfo, state)) {
+                    self.logger.warn(`${self.PLUGINSTR}: Album info is invalid after fetching. Falling back to alternative method.`);
+
+                    // Fallback to the alternative method (browse)
+                    albumInfo = await self.getAlbumInfoPlayingBrowse(state);
+                    self.cachedAlbumInfo = albumInfo; // Cache the new album info
+
+                    // Check if the fallback album info is valid
+                    if (!self.checkAlbumInfoValid(albumInfo, state)) {
+                        self.logger.error(`${self.PLUGINSTR}: Unable to retrieve valid album info. Skipping album progression calculation.`);
+                        self.commandRouter.pushToastMessage('warning', 'Album Seek Failed', 'Unable to retrieve album info. Check service support and configuration.');
+                        return null;
+                    }
+                }
+            } catch (error) {
+                // Handle timeout or other errors from getAlbumInfoPlayingGoTo
+                if (error.message.includes('Timeout')) {
+                    self.logger.warn(`${self.PLUGINSTR}: Timeout while fetching album info. Falling back to alternative method.`);
+                    self.commandRouter.pushToastMessage('warning', 'Album Seek Failed', 'Timeout while fetching album info. Trying alternative method.');
+
+                    // Fallback to the alternative method (browse)
+                    albumInfo = await self.getAlbumInfoPlayingBrowse(state);
+                    self.cachedAlbumInfo = albumInfo; // Cache the new album info
+
+                    // Check if the fallback album info is valid
+                    if (!self.checkAlbumInfoValid(albumInfo, state)) {
+                        self.logger.error(`${self.PLUGINSTR}: Unable to retrieve valid album info. Skipping album progression calculation.`);
+                        self.commandRouter.pushToastMessage('warning', 'Album Seek Failed', 'Unable to retrieve album info. Check service support and configuration.');
+                        return null;
+                    }
+                } else {
+                    // Log and rethrow other errors
+                    self.logger.error(`${self.PLUGINSTR}: Error fetching album info: ${error.message}`);
+                    throw error;
+                }
+            }
         } else {
+            // Use cached album info
             albumInfo = self.cachedAlbumInfo;
+            if (self.config.get('DEBUG_MODE', false)) {
+                self.logger.debug(`${self.PLUGINSTR}: Using cached album info: ${JSON.stringify(albumInfo)}`);
+            }
         }
 
+        // Validate album info and songs
         if (!albumInfo || !albumInfo.songs) {
-            self.logger.error('[motorized_fader_control]: Album info or songs are undefined');
+            self.logger.error(`${self.PLUGINSTR}: Album info or songs are undefined`);
             return null;
         }
 
-        const seekInAlbum = self.getSeekInAlbum(albumInfo, state); //! this is static since our state seek is not really updating
-        //! this is the seekInAlbum by state, not by lastState and elapsed time. 
-        //! this works, but is confusing in naming and handling
-        //! this works because we use the elapsed time if used in realtime, and we use a up to datte seekInAlbum if not.
+        // Calculate seek position in the album
+        const seekInAlbum = self.getSeekInAlbum(albumInfo, state);
         if (seekInAlbum === null) {
             return null;
         }
 
+        // Calculate album progression
         const duration = (albumInfo.duration || 0) * 1000; // Convert duration to ms
         return self.calculateAlbumProgression(seekInAlbum, duration, elapsedTime);
     } catch (error) {
-        self.logger.error(`[motorized_fader_control]: Error calculating album progression: ${error.message}`);
+        self.logger.error(`${self.PLUGINSTR}: Error calculating album progression: ${error.message}`);
         return null;
     }
 };
@@ -1181,7 +1256,7 @@ motorizedFaderControl.prototype.handleFaderOnStateUpdate = async function(state)
         const output = fader.OUTPUT.toLowerCase();
 
         if (self.config.get('DEBUG_MODE', false)) {
-            self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx} with output type ${output}`);
+            self.logger.debug(`${self.PLUGINSTR}: handleFaderOnStateUpdate Fader: ${faderIdx} with output type ${output}`);
         }
 
         let progression = null;
@@ -1190,18 +1265,26 @@ motorizedFaderControl.prototype.handleFaderOnStateUpdate = async function(state)
         switch (output) {
             case 'seek':
                 // Use the helper method to get the seek type for the fader
-                // const seekType = self.getFaderInputType(faderIdx);
                 const seekType = self.getFaderSeekType(faderIdx);
                 progression = await self.getOutputSeek(state, seekType);
+
+                // Handle null progression (fallback to track progression)
+                if (progression === null) {
+                    self.logger.warn(`${self.PLUGINSTR}: Fader ${faderIdx} - Unable to calculate ${seekType} progression. Falling back to track progression.`);
+                    self.commandRouter.pushToastMessage('warning', 'Fader Configuration', `Fader ${faderIdx} may need to be reconfigured to track since the service/album is not supported.`);
+                    // progression = self.getTrackProgression(state);
+                    // skip this fader
+                    continue
+                }
                 break;
             case 'volume':
                 volume = state.volume;
                 if (self.config.get('DEBUG_MODE', false)) {
-                    self.logger.debug(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx}: State Volume: ${volume}`);
+                    self.logger.debug(`${self.PLUGINSTR}: handleFaderOnStateUpdate Fader: ${faderIdx}: State Volume: ${volume}`);
                 }
                 break;
             default:
-                self.logger.info(`[motorized_fader_control]: handleFaderOnStateUpdate Fader: ${faderIdx}: has no output assigned`);
+                self.logger.info(`${self.PLUGINSTR}: handleFaderOnStateUpdate Fader: ${faderIdx}: has no output assigned`);
                 break;
         }
 
@@ -1224,38 +1307,66 @@ motorizedFaderControl.prototype.handleFaderOnStateUpdate = async function(state)
         try {
             await self.faderController.moveFaders(combinedMove, true);
         } catch (error) {
-            self.logger.error(`[motorized_fader_control]: Error executing fader moves: ${error.message}`);
+            self.logger.error(`${self.PLUGINSTR}: Error executing fader moves: ${error.message}`);
         }
     } else {
-        self.logger.debug('[motorized_fader_control]: No valid fader moves to execute');
+        self.logger.debug(`${self.PLUGINSTR}: No valid fader moves to execute`);
     }
 };
 
 motorizedFaderControl.prototype.getOutputSeek = async function (state, seekType) {
     const self = this;
-    self.logger.debug(`[motorized_fader_control]: Getting seek progression for ${seekType}`);
+    self.logger.debug(`${self.PLUGINSTR}: Getting seek progression for ${seekType}`);
+
+    // Helper function to check if we should skip album/queue/playlist progression
+    const shouldSkipProgression = () => {
+        if (self.checkPlayingStateRepeatSingle()) {
+            self.logger.warn(`${self.PLUGINSTR}: repeatSingle is enabled. Skipping ${seekType} progression.`);
+            return true;
+        }
+        if (self.checkPlayingStateRandom() && !self.checkPlayingStateRepeat()) {
+            self.logger.warn(`${self.PLUGINSTR}: random is enabled and repeat is disabled. Skipping ${seekType} progression.`);
+            return true;
+        }
+        return false;
+    };
 
     switch (seekType.toLowerCase()) {
         case 'track':
             return self.getTrackProgression(state);
+
         case 'album':
-            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
-            this.checkPlayingStateRandom()
-            this.checkPlayingStateRepeat()
-            this.checkPlayingStateRepeatSingle()
-            //! if state is on random AND repeat:false we can still run this normally
-            //! also check if the state is even registered as an album, if no fallback to self.getTrackProgression
+            // Skip album progression if repeatSingle or random (without repeat) is enabled
+            if (shouldSkipProgression()) {
+                return null;
+            }
+
+            // Check if the state is registered as an album
+            if (!self.isStateAnAlbum(state)) {
+                self.logger.warn(`${self.PLUGINSTR}: State is not registered as an album.`);
+                return null;
+            }
+
             return await self.getAlbumProgression(state);
+
         case 'queue':
-            //! check if state is on repeatSingle:true or random:true, if yes, log warning and return the self.getTrackProgression
-            //! if state is on random AND repeat:false we can still run this normally
+            // Skip queue progression if repeatSingle or random (without repeat) is enabled
+            if (shouldSkipProgression()) {
+                return null;
+            }
+
             return self.getQueueProgression(state);
+
         case 'playlist':
-            //! check if state is on repeatSingle:true, log warning and return the self.getTrackProgression
-            //! if state is on random AND repeat:false we can still run this normally
+            // Skip playlist progression if repeatSingle or random (without repeat) is enabled
+            if (shouldSkipProgression()) {
+                return null;
+            }
+
             return self.getPlaylistProgression(state);
+
         default:
-            self.logger.warn(`[motorized_fader_control]: Unknown seekType: ${seekType}`);
+            self.logger.warn(`${self.PLUGINSTR}: Unknown seekType: ${seekType}`);
             return null;
     }
 };
@@ -1332,33 +1443,76 @@ motorizedFaderControl.prototype.getAlbumProgression = async function (state) {
 
     try {
         let albumInfo;
+
+        // Check if cached album info is valid
         if (!self.checkAlbumInfoValid(this.cachedAlbumInfo, state)) {
-            albumInfo = await self.getAlbumInfoPlayingGoTo(state);
-            self.cachedAlbumInfo = albumInfo; // Cache the new album info
-            //! we need to check here if it is still invalid, if yes skip or switch to track seek
-            //! and use a fallback method of retrieving the data, i.e. getAlbumInfoPlayingBrowse(state)
-            //! log error
+            try {
+                // Try to fetch album info using the primary method (goTo)
+                albumInfo = await self.getAlbumInfoPlayingGoTo(state);
+                self.cachedAlbumInfo = albumInfo; // Cache the new album info
+
+                // Check if the fetched album info is valid
+                if (!self.checkAlbumInfoValid(albumInfo, state)) {
+                    self.logger.warn(`${self.PLUGINSTR}: Album info is invalid after fetching. Falling back to alternative method.`);
+
+                    // Fallback to the alternative method (browse)
+                    albumInfo = await self.getAlbumInfoPlayingBrowse(state);
+                    self.cachedAlbumInfo = albumInfo; // Cache the new album info
+
+                    // Check if the fallback album info is valid
+                    if (!self.checkAlbumInfoValid(albumInfo, state)) {
+                        self.logger.error(`${self.PLUGINSTR}: Unable to retrieve valid album info. Skipping album progression calculation.`);
+                        self.commandRouter.pushToastMessage('warning', 'Album Seek Failed', 'Unable to retrieve album info. Check service support and configuration.');
+                        return null;
+                    }
+                }
+            } catch (error) {
+                // Handle timeout or other errors from getAlbumInfoPlayingGoTo
+                if (error.message.includes('Timeout')) {
+                    self.logger.warn(`${self.PLUGINSTR}: Timeout while fetching album info. Falling back to alternative method.`);
+                    self.commandRouter.pushToastMessage('warning', 'Album Seek Failed', 'Timeout while fetching album info. Trying alternative method.');
+
+                    // Fallback to the alternative method (browse)
+                    albumInfo = await self.getAlbumInfoPlayingBrowse(state);
+                    self.cachedAlbumInfo = albumInfo; // Cache the new album info
+
+                    // Check if the fallback album info is valid
+                    if (!self.checkAlbumInfoValid(albumInfo, state)) {
+                        self.logger.error(`${self.PLUGINSTR}: Unable to retrieve valid album info. Skipping album progression calculation.`);
+                        self.commandRouter.pushToastMessage('warning', 'Album Seek Failed', 'Unable to retrieve album info. Check service support and configuration.');
+                        return null;
+                    }
+                } else {
+                    // Log and rethrow other errors
+                    self.logger.error(`${self.PLUGINSTR}: Error fetching album info: ${error.message}`);
+                    throw error;
+                }
+            }
         } else {
+            // Use cached album info
             albumInfo = self.cachedAlbumInfo;
             if (self.config.get('DEBUG_MODE', false)) {
-                self.logger.debug(`[motorized_fader_control]: Using cached album info: ${JSON.stringify(albumInfo)}`);
+                self.logger.debug(`${self.PLUGINSTR}: Using cached album info: ${JSON.stringify(albumInfo)}`);
             }
         }
 
+        // Validate album info and songs
         if (!albumInfo || !albumInfo.songs) {
-            self.logger.error('[motorized_fader_control]: Album info or songs are undefined');
+            self.logger.error(`${self.PLUGINSTR}: Album info or songs are undefined`);
             return null;
         }
 
+        // Calculate seek position in the album
         const seekInAlbum = self.getSeekInAlbum(albumInfo, state);
         if (seekInAlbum === null) {
             return null;
         }
 
+        // Calculate album progression
         const duration = (albumInfo.duration || 0) * 1000; // Convert duration to ms
         return self.calculateAlbumProgression(seekInAlbum, duration);
     } catch (error) {
-        self.logger.error(`[motorized_fader_control]: Error calculating album progression: ${error.message}`);
+        self.logger.error(`${self.PLUGINSTR}: Error calculating album progression: ${error.message}`);
         return null;
     }
 };
@@ -1440,7 +1594,6 @@ motorizedFaderControl.prototype.getAlbumInfoPlayingGoTo = function (state) {
 
                     resolve(albumInfo); // Resolve the promise with the album information
                 } else {
-                    self.logger.error('[motorized_fader_control]: Invalid response structure from WebSocket: goTo');
                     reject(new Error('[motorized_fader_control]: Invalid response structure from WebSocket: goTo'));
                 }
             });
@@ -1456,7 +1609,7 @@ motorizedFaderControl.prototype.getAlbumInfoPlayingBrowse = function (state) {
     //! refer to TestVolumioWebSocket.test.js
     var self = this;
 
-    //! const args = // refer to test
+    const args = {}
 
     return new Promise((resolve, reject) => {
         try {
@@ -1503,11 +1656,11 @@ motorizedFaderControl.prototype.getAlbumInfoPlayingBrowse = function (state) {
 
                     resolve(albumInfo); // Resolve the promise with the album information
                 } else {
-                    reject(new Error('[motorized_fader_control]: Invalid response structure from WebSocket: goTo'));
+                    reject(new Error('[motorized_fader_control]: Invalid response structure from WebSocket: pushBrowseLibrary: ' + JSON.stringify(response)));
                 }
             });
         } catch (error) {
-            self.logger.error('[motorized_fader_control]: Error in getAlbumInfoPlaying: ' + error.message);
+            self.logger.error('[motorized_fader_control]: Error in getAlbumInfoPlayingBrowse: ' + error.message);
             reject(error);
         }
     });
@@ -2190,7 +2343,7 @@ motorizedFaderControl.prototype.checkAlbumInfoValid = function(albumInfo, state)
 
     // Check if songs array contains valid song objects
     if (albumInfo.songs.length === 0 || !albumInfo.songs.every(song => song.title && song.artist && song.duration)) {
-        self.logger.warn('[motorized_fader_control]: albumInfo.songs array is invalid');
+        self.logger.warn('[motorized_fader_control]: albumInfo.songs array is invalid: '+ JSON.stringify(albumInfo.songs));
         return false;
     }
 
@@ -2220,6 +2373,12 @@ motorizedFaderControl.prototype.isTrackInAlbum = function(albumInfo, state) { //
         }
         return match;
     });
+};
+
+motorizedFaderControl.prototype.isStateAnAlbum = function(state) {
+    const self = this;
+    // Check if the state represents an album (e.g., state.album is defined)
+    return !!state.album; // Replace with actual implementation
 };
 
 motorizedFaderControl.prototype.checkStateChanged = function(state) {
