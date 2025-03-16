@@ -2,8 +2,8 @@
 const BaseService = require('./BaseService');
 
 class TrackService extends BaseService {
-  constructor(...args) {
-    super(...args);
+  constructor(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr) {
+    super(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr);
     this.lastValidState = null;
   }
 
@@ -15,6 +15,7 @@ class TrackService extends BaseService {
         timestamp: Date.now()
       });
       this.startUpdateInterval();
+      this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
     }
   }
 
@@ -45,8 +46,8 @@ class TrackService extends BaseService {
     const progression = (state.currentPosition / state.originalDuration) * 100;
     this.updateHardware(progression);
     this.stateCache.cacheSeekProgression(this.faderIdx, progression);
+    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
   }
-
 
   handleMove(position) {
     if (this.config.get('UPDATE_SEEK_ON_MOVE')) {
@@ -55,6 +56,7 @@ class TrackService extends BaseService {
       this.eventBus.emit('command/seek', seekPosition);
     }
     this.stateCache.set('userInput', this.faderIdx, true, 1000); // 1s lockout
+    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
   }
 }
 
