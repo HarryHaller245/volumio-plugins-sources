@@ -53,7 +53,7 @@
     },
     "FADER_BEHAVIOR": {
       "type": "string",
-      "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"track\",\"CONTROL_TYPE\":\"track\"},{\"FADER_IDX\":1,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"album\":\"CONTROL_TYPE\":\"album\"}]"
+      "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"track\",\"CONTROL_TYPE\":\"track\"},{\"FADER_IDX\":1,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"album\",\"CONTROL_TYPE\":\"album\"}]"
     },
     "UPDATE_VOLUME_ON_MOVE": {
       "type": "boolean",

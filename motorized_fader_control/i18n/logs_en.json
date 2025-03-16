@@ -20,9 +20,14 @@
           "ERROR": "Error initializing FaderController: "
         },
         "SERVICES": {
-          "INITIALIZING": "Initializing SERVICES connection...",
-          "SUCCESS": "SERVICES connection established.",
-          "ERROR": "Error initializing SERVICES: "
+          "INITIALIZING": "Initializing services connection...",
+          "SUCCESS": "services connection established.",
+          "ERROR": "Error initializing services: "
+        },
+        "SERIAL_PORT": {
+          "CONNECTING": "Connecting to serial port...",
+          "SUCCESS": "Connected",
+          "ERROR": "Error connecting to serial port: "
         }
       },
       "WARNINGS": {

@@ -5,16 +5,16 @@ var fs=require('fs-extra');
 var config = new (require('v-conf'))();
 var exec = require('child_process').exec;
 var execSync = require('child_process').execSync;
-var { FaderController, FaderMove } = require('./lib/FaderController');
-var { 
+var {
     BaseService,
     VolumeService,
     TrackService,
-    AlbumService 
-  } = require('./lib/services');
-
-var StateCache = require('./lib/StateCache');
-var EventBus = require('./lib/EventBus');
+    AlbumService,
+    EventBus,
+    StateCache,
+    FaderController,
+    FaderMove
+} = require('./lib');
 
 const io = require('socket.io-client');
 const { stat } = require('fs');
@@ -59,6 +59,8 @@ function motorizedFaderControl(context) {
 
 };
 
+//TODO: Implement and Use i18n logs_en.json: EXAMPLE: self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.HEADER}
+//TODO: Add Logging to services and eventbus
 
 //* START-------------------------------------------------------
 
@@ -570,43 +572,48 @@ motorizedFaderControl.prototype.initializeLogs = function() {
 
 motorizedFaderControl.prototype.setupServiceRouter = function() {
     const self = this;
-    const fader_config = JSON.parse(this.config.get('FADER_BEHAVIOR'));
+  
 
-    fader_config.forEach(({FADER_IDX, CONTROL_TYPE}) => {
-        const ServiceClass = this.getServiceClass(CONTROL_TYPE);
-        if (!ServiceClass) {
-            self.logger.warn(`No service found for fader ${FADER_IDX} (control type: ${CONTROL_TYPE})`);
-            return;
-        }
+    try { 
+        const faderBehavior = JSON.parse(this.config.get('FADER_BEHAVIOR')) || [];
+        faderBehavior.forEach(({FADER_IDX, CONTROL_TYPE}) => {
+            const ServiceClass = this.getServiceClass(CONTROL_TYPE);
+            if (!ServiceClass) {
+                self.logger.warn(`No service found for fader ${FADER_IDX} (control type: ${CONTROL_TYPE})`);
+                return;
+            }
 
-        const service = new ServiceClass(
-            FADER_IDX,
-            this.eventBus,
-            this.stateCache,
-            this.config
-        );
+            const service = new ServiceClass(
+                FADER_IDX,
+                this.eventBus,
+                this.stateCache,
+                this.config
+            );
 
-        this.services.set(FADER_IDX, service);
+            this.services.set(FADER_IDX, service);
 
-        // Connect to fader events
-        this.eventBus.on(`fader/${FADER_IDX}/move`, position => {
-            if (this.isSeeking) return;
-            service.handleMove(position);
+            // Connect to fader events
+            this.eventBus.on(`fader/${FADER_IDX}/move`, position => {
+                if (this.isSeeking) return;
+                service.handleMove(position);
+            });
+
+            // Connect to state updates
+            this.eventBus.on('validated/state', state => {
+                service.handleStateUpdate(state);
+            });
         });
-
-        // Connect to state updates
-        this.eventBus.on('validated/state', state => {
-            service.handleStateUpdate(state);
-        });
-    });
+    } catch (error) {
+        self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.SETUP.SERVICES.ERROR}: ${error.message}`);
+        throw error; // Rethrow the error
+    }
 };
 
 motorizedFaderControl.prototype.getServiceClass = function(controlType) {
     return {
         volume: VolumeService,
         track: TrackService,
-        album: AlbumService,
-        queue: QueueService // Add if needed
+        album: AlbumService
     }[controlType];
 };
 
