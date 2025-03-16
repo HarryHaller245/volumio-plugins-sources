@@ -10,9 +10,9 @@ class AlbumService extends BaseService {
     
     this.eventBus.on('playback/update', (state) => {
       if(this.shouldUpdateHardware(state)) {
-        const position = this.calculatePosition(state);
-        this.updateHardware(position);
-        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
+        const progression = this.calculatePosition(state);
+        this.updateHardware(progression);
+        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
       }
     });
   }
@@ -37,7 +37,7 @@ class AlbumService extends BaseService {
 
   handleMove(faderInfo) {
     const position = faderInfo.progression;
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
   }
 
 }

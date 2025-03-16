@@ -737,47 +737,48 @@ motorizedFaderControl.prototype.getServiceClass = function(controlType) {
 };
 
 //* Volumio Bridge #####################################################################
-motorizedFaderControl.prototype.setupVolumioBridge = function() {
+motorizedFaderControl.prototype.setupVolumioBridge = function() { //! add error handling, if volumio websocket doesnt connect its a critical fail
     const self = this;
     
-    this.socket = io.connect(`http://${this.config.get('VOLUMIO_HOST')}:3000`, {
+    self.socket = io.connect(`http://${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`, {
       reconnection: true,
       reconnectionAttempts: Infinity,
       reconnectionDelay: 1000
     });
+    //log this
+    self.logger.debug(`${self.PLUGINSTR}: Connecting to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
   
     // Unified State Handler
     const handleStateUpdate = (state) => {  
-        
-      this.stateCache.cachePlaybackState(state);
-      this.stateCache.set('playback', 'state', state);
-  
-      // Existing playback state checks
-      if (self.checkPlayingState(state)) {
-        self.cacheTimeLastActiveStateUpdate();
-        self.eventBus.emit('playback/playing', state);
-      }
+        self.stateCache.cachePlaybackState(state);
+        self.stateCache.set('playback', 'state', state);
+
+        // Existing playback state checks
+        if (self.validatePlayingState(state)) {
+            // self.cacheTimeLastActiveStateUpdate(); !deprecated
+            self.eventBus.emit('playback/playing', state);
+        }
     };
   
     // WebSocket Event Handling
-    this.socket.on('pushState', handleStateUpdate);
-    this.socket.on('pushQueue', queue => {
+    self.socket.on('pushState', handleStateUpdate);
+    self.socket.on('pushQueue', queue => {
       self.cachedQueue = queue;
       self.stateCache.set('queue', 'current', queue);
     });
   
     // Automatic Reconnect Handling
-    this.socket.on('reconnect', () => {
+    self.socket.on('reconnect', () => {
       self.logger.info('WebSocket reconnected, resyncing state...');
-      this.socket.emit('getState');
-      this.socket.emit('getQueue');
+      self.socket.emit('getState');
+      self.socket.emit('getQueue');
     });
   
-    // Command Proxy //! does this work with volume
-    this.eventBus.on('command/*', (command, ...args) => {
+    // Command Proxy
+    self.eventBus.on('command/*', (command, ...args) => {
       const method = command.split('/')[1];
-      if (typeof this.socket.emit[method] === 'function') {
-        this.socket.emit(method, ...args);
+      if (typeof self.socket.emit[method] === 'function') {
+        self.socket.emit(method, ...args);
       }
     });
 
@@ -852,6 +853,19 @@ motorizedFaderControl.prototype.validateState = function(state) {
         }
     }
     return false; // Return false if state is invalid or status doesn't match
+};
+
+motorizedFaderControl.prototype.validatePlayingState = function(state) { //TODO integrate into the actual stateCache ? or services ?
+    // checkPlayingState gives false negatives
+    if (state && state.hasOwnProperty("status")) {
+        const PlaybackStatus = state.status;
+        if (PlaybackStatus === 'play') {
+            return true;
+        } else if (PlaybackStatus === 'pause' || PlaybackStatus === 'stop') {
+            return false;
+        }
+    }
+    return false;
 };
   
 // Unified Volume Handling

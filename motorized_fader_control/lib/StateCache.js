@@ -24,7 +24,7 @@
 class StateCache {
   constructor(logger, logs, pluginStr) {
     this.namespaces = new Map();
-    this.defaultTTL = 300000; // 300 seconds
+    this.defaultTTL = 3000000000;
     this.logger = logger;
     this.logs = logs;
     this.PLUGINSTR = pluginStr;
@@ -46,7 +46,6 @@ class StateCache {
     namespace.data.set(key, value);
     namespace.ttl.set(key, Date.now() + ttl);
     namespace.subscriptions.forEach(cb => cb({ ns, key, value }));
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.SET} ns: ${ns}, key: ${key}, value: ${JSON.stringify(value)}`);
   }
 
   get(ns, key) {
@@ -54,7 +53,6 @@ class StateCache {
     if (namespace.ttl.get(key) < Date.now()) {
       namespace.data.delete(key);
       namespace.ttl.delete(key);
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.EXPIRED} ns: ${ns}, key: ${key}`);
       return null;
     }
     return namespace.data.get(key);
@@ -65,7 +63,7 @@ class StateCache {
     if (namespace.ttl.get(key) < Date.now()) {
       namespace.data.delete(key);
       namespace.ttl.delete(key);
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.EXPIRED} ns: ${ns}, key: ${key}`);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.EXPIRED} ns: ${ns}, key: ${key}`);
       return null;
     }
     return namespace.ttl.get(key);
@@ -74,10 +72,10 @@ class StateCache {
   subscribe(ns, callback) {
     const namespace = this.namespace(ns);
     namespace.subscriptions.add(callback);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.SUBSCRIBED.replace('${ns}', ns)}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.SUBSCRIBED.replace('${ns}', ns)}`);
     return () => {
       namespace.subscriptions.delete(callback);
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.UNSUBSCRIBED.replace('${ns}', ns)}`);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.UNSUBSCRIBED.replace('${ns}', ns)}`);
     };
   }
 
@@ -91,12 +89,12 @@ class StateCache {
       const namespace = this.namespace(ns);
       namespace.data.clear();
       namespace.ttl.clear();
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CLEAR.replace('${ns}', ns)}`);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CLEAR.replace('${ns}', ns)}`);
     } else {
       this.namespaces.forEach((namespace, nsKey) => {
         namespace.data.clear();
         namespace.ttl.clear();
-        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CLEAR.replace('${ns}', nsKey)}`);
+        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CLEAR.replace('${ns}', nsKey)}`);
       });
     }
   }
@@ -118,9 +116,8 @@ class StateCache {
       timestamp: Date.now(),
       originalDuration: validState.duration * 1000 // Convert to ms
     };
-    
-    this.set('playback', 'current', stateWithTiming, 60000); // 1 minute TTL
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CACHE_PLAYBACK_STATE.replace('${state}', JSON.stringify(stateWithTiming))}`);
+    this.set('playback', 'current', stateWithTiming, 60000000); // 1 minute TTL
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_PLAYBACK_STATE} ${JSON.stringify(stateWithTiming)}`);
     return stateWithTiming;
   }
 
@@ -152,9 +149,9 @@ class StateCache {
   }
 
   // User input management
-  setUserInputLock(faderIdx, timeout = 30000) {
+  setUserInputLock(faderIdx, timeout = 10) {
     this.set('locks', `userInput_${faderIdx}`, true, timeout);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.SET_USER_INPUT_LOCK.replace('${faderIdx}', faderIdx)}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.SET_USER_INPUT_LOCK.replace('${faderIdx}', faderIdx)}`);
   }
 
   hasActiveUserInput(faderIdx) {
@@ -163,8 +160,8 @@ class StateCache {
 
   // Seek progression tracking
   cacheSeekProgression(faderIdx, progression) {
-    this.set('seek', `fader_${faderIdx}`, progression, 300000); // 5 minutes
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CACHE_SEEK_PROGRESSION.replace('${faderIdx}', faderIdx).replace('${progression}', progression)}`);
+    this.set('seek', `fader_${faderIdx}`, progression, 300000); 
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_SEEK_PROGRESSION.replace('${faderIdx}', faderIdx).replace('${progression}', progression)}`);
   }
 
   getSeekProgression(faderIdx) {
@@ -172,8 +169,8 @@ class StateCache {
   }
 
   cacheFaderInfo(faderInfo) {
-    this.set('fader', `fader_${faderInfo.index}`, faderInfo, 300000); // 5 minutes
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CACHE_FADER_INFO.replace('${faderInfo}', JSON.stringify(faderInfo))}`);
+    this.set('fader', `fader_${faderInfo.index}`, faderInfo, 300000);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_FADER_INFO.replace('${faderInfo}', JSON.stringify(faderInfo))}`);
   }
 }
 

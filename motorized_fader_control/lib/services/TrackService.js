@@ -15,7 +15,7 @@ class TrackService extends BaseService {
         timestamp: Date.now()
       });
       this.startUpdateInterval();
-      this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
+      this.logger.info(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
     }
   }
 
@@ -38,15 +38,15 @@ class TrackService extends BaseService {
   }
 
   updatePosition() {
-    if (this.stateCache.hasActiveUserInput(this.faderIdx)) return;
-
+    // maybe if (this.stateCache.hasActiveUserInput(this.faderIdx)) return;
+    this.logger.debug(`${this.PLUGINSTR}: TRYING: ${this.logs.LOGS.SERVICES.UPDATE_POSITION} ${this.faderIdx} to ${progression}`);
     const state = this.stateCache.getPlaybackState();
     if (!state || state.status !== 'play') return;
 
     const progression = (state.currentPosition / state.originalDuration) * 100;
     this.updateHardware(progression);
-    this.stateCache.cacheSeekProgression(this.faderIdx, progression);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
+    this.stateCache.cacheSeekProgression(this.faderIdx, progression); //seems unnecesarry
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_POSITION} ${this.faderIdx} to ${progression}`);
   }
 
   handleMove(faderInfo) { //! touch/untouch logic this just updates directly as soon as move
@@ -57,7 +57,7 @@ class TrackService extends BaseService {
       this.eventBus.emit('command/seek', seekPosition);
     }
     this.stateCache.set('userInput', this.faderIdx, true, 1000); // 1s lockout
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
   }
 }
 
