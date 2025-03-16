@@ -10,6 +10,20 @@
         "SUCCESS": "Plugin started successfully!",
         "ERROR": "Error starting plugin: "
       },
+      "STOP": {
+        "HEADER": "Stopping motorized fader control plugin...",
+        "FADER_CONTROLLER": "Stopping FaderController...",
+        "SERVICES": "Stopping services...",
+        "SUCCESS": "Plugin stopped successfully!",
+        "ERROR": "Error stopping plugin: "
+      },
+      "RESTART": {
+        "HEADER": "Restarting motorized fader control plugin...",
+        "FADER_CONTROLLER": "Restarting FaderController...",
+        "SERVICES": "Restarting services...",
+        "SUCCESS": "Plugin restarted successfully!",
+        "ERROR": "Error restarting plugin: "
+      },
       "SETUP": {
         "FADER_CONTROLLER": {
           "INITIALIZING": "Initializing FaderController...",
@@ -67,6 +81,6 @@
         "UPDATE_HARDWARE": "Updating hardware for fader: ",
         "HANDLE_UPDATE": "Handling update for fader: "
       }
-      }
-    }
   }
+}
+  

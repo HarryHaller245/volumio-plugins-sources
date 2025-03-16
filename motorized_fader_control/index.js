@@ -124,19 +124,131 @@ motorizedFaderControl.prototype.onStart = function() {
 
     return defer.promise;
 };
+
 motorizedFaderControl.prototype.onStop = function() {
-    var self = this; // Maintain reference to `this`
+    var self = this;
     var defer = libQ.defer();
 
+    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.HEADER}`);
+
+    self._stopFaderController()
+        .then(() => {
+            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.FADER_CONTROLLER}`);
+            return self._stopServices();
+        })
+        .then(() => {
+            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.SERVICES}`);
+            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.SUCCESS}`);
+            defer.resolve();
+        })
+        .catch(error => {
+            self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.ERROR} ${error.message}`);
+            defer.reject(error);
+        });
 
     return defer.promise;
-};;
+};
 
 motorizedFaderControl.prototype.onRestart = function() {
     var self = this;
-    // Optional, use if you need it
+    var defer = libQ.defer();
+
+    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.HEADER}`);
+
+    self.onStop()
+        .then(() => {
+            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.FADER_CONTROLLER}`);
+            return self.onStart();
+        })
+        .then(() => {
+            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.SERVICES}`);
+            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.SUCCESS}`);
+            defer.resolve();
+        })
+        .catch(error => {
+            self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.ERROR} ${error.message}`);
+            defer.reject(error);
+        });
+
+    return defer.promise;
 };
 
+motorizedFaderControl.prototype._stopFaderController = async function() {
+    var self = this;
+
+    try {
+        if (self.faderController == null || self.faderController == false) {
+            self.logger.info(`${self.PLUGINSTR}: Fader Controller not started, skipping stop`);
+            return;
+        }
+
+        self.logger.info(`${self.PLUGINSTR}: Stopping FaderController...`);
+
+        const stopPromise = self.faderController.stop().catch(error => {
+            self.logger.error(`${self.PLUGINSTR}: Error stopping FaderController: ${error.message}`);
+            throw error; // Re-throw to propagate the error
+        });
+
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => {
+                reject(new Error(`${self.PLUGINSTR}: Fader Controller stop timed out after 10 seconds.`));
+            }, 5000);
+        });
+
+        await Promise.race([stopPromise, timeoutPromise]);
+        await self.faderController.closeSerial().catch(error => {
+            self.logger.error(`${self.PLUGINSTR}: Error closing serial connection: ${error.message}`);
+            throw error; // Re-throw to propagate the error
+        });
+
+        self.logger.info(`${self.PLUGINSTR}: Fader Controller stopped successfully`);
+    } catch (error) {
+        self.logger.error(`${self.PLUGINSTR}: Error stopping Fader Controller: ${error.message}`);
+        if (self.faderController) {
+            await self.faderController.closeSerial().catch(error => {
+                self.logger.error(`${self.PLUGINSTR}: Error closing serial connection: ${error.message}`);
+            });
+            self.logger.warn(`${self.PLUGINSTR}: An error occurred trying to stop the FaderController. Forced closing serial connection.`);
+        }
+        throw error;
+    }
+};
+
+motorizedFaderControl.prototype._stopServices = function() {
+    var self = this;
+
+    return new Promise((resolve, reject) => {
+        try {
+            // Disconnect from Volumio
+            if (self.socket) {
+                self.socket.disconnect();
+                self.socket = null;
+            }
+
+            // Clear event bus listeners
+            if (self.eventBus) {
+                self.eventBus.removeAllListeners();
+                self.eventBus = null;
+            }
+
+            // Clear state cache
+            if (self.stateCache) {
+                self.stateCache.clear();
+                self.stateCache = null;
+            }
+
+            // Clear services
+            if (self.services) {
+                self.services.clear();
+                self.services = null;
+            }
+
+            resolve();
+        } catch (error) {
+            reject(error);
+        }
+    });
+};
 
 //* UI CONFIGURATION ------------------------------------------
 
@@ -417,6 +529,7 @@ motorizedFaderControl.prototype.saveGeneralSettingsRestart = async function(data
     }
     self.commandRouter.pushToastMessage('info', 'Restart Required', 'The FaderController will reset to apply the new settings.');
     self.onRestart();
+    //! add a then
 };
 
 motorizedFaderControl.prototype.getConfigurationFiles = function() {
@@ -425,7 +538,7 @@ motorizedFaderControl.prototype.getConfigurationFiles = function() {
 
 //* UI BUTTONS ACTIONS
 
-motorizedFaderControl.prototype.RunManualCalibration = async function() {
+motorizedFaderControl.prototype.RunManualCalibration = async function() { //! propably deprecated
     var self = this;
 
     try {
@@ -571,7 +684,6 @@ motorizedFaderControl.prototype.initializeLogs = function() {
 
 motorizedFaderControl.prototype.setupServiceRouter = function() {
     const self = this;
-  
 
     try { 
         const faderBehavior = JSON.parse(this.config.get('FADER_BEHAVIOR')) || [];
@@ -586,7 +698,10 @@ motorizedFaderControl.prototype.setupServiceRouter = function() {
                 FADER_IDX,
                 this.eventBus,
                 this.stateCache,
-                this.config
+                this.config,
+                this.logger,
+                this.logs,
+                this.PLUGINSTR
             );
 
             this.services.set(FADER_IDX, service);
@@ -629,7 +744,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function() {
     // Unified State Handler
     const handleStateUpdate = (state) => {  
         
-      this.stateCache.cachePlaybackState(rawState);
+      this.stateCache.cachePlaybackState(state);
   
       // Existing playback state checks
       if (self.checkPlayingState(state)) {
@@ -679,6 +794,7 @@ motorizedFaderControl.prototype.setupStateValidation = function() {
         self.eventBus.emit('validated/state', state);
     });
 };
+
 
 motorizedFaderControl.prototype.validateState = function(state) {
     // Check if state is not null or undefined and has the key "status"
@@ -736,8 +852,8 @@ motorizedFaderControl.prototype.setupFaderFeedback = function() {
     this.eventBus.on('fader/update', ({idxs, targets, speeds}) => {
       if(this.faderController) {
         //construct Fader Move here and pass it to the controller
-        move = new FaderMove(idxs, targets, speeds)
-        this.faderController.moveFaders(Move, position);
+        const move = new FaderMove(idxs, targets, speeds);
+        this.faderController.moveFaders(move);
       }
     });
 }
