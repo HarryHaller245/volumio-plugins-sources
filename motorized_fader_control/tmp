@@ -1,0 +1,442 @@
+/**
+ * EventBus class provides a mechanism for registering and emitting events.
+ * It supports logging of event registration and emission.
+ * 
+ * @class EventBus
+ * @param {Object} logger - Logger instance for logging event operations.
+ * @param {Object} logs - Log messages object containing various log message templates.
+ * @param {string} pluginStr - String representing the plugin name, used for logging.
+ * 
+ * @method on - Registers a callback for a specific event.
+ * @method emit - Emits an event with optional data.
+ * @method emitPlaybackState - Emits playback state events based on the state status.
+ * @method removeAllListeners - Removes all listeners for a specific event.
+ */
+class EventBus {
+  constructor(logger, logs, pluginStr) {
+    this.listeners = {};
+    this.logger = logger;
+    this.logs = logs;
+    this.PLUGINSTR = pluginStr;
+  }
+  
+  on(event, callback) {
+    if (!this.listeners[event]) this.listeners[event] = [];
+    this.listeners[event].push(callback);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.EVENT.REGISTERED} ${event}`);
+  }
+  
+  emit(event, data) {
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.EVENT.EMIT} ${event} ${JSON.stringify(data)}`);
+    (this.listeners[event] || []).forEach(cb => cb(data));
+  }
+
+  emitPlaybackState(state) {
+    this.emit('playback/update', state);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.EVENT.EMIT_PLAYBACK} ${state.status}`);
+    switch(state.status) {
+      case 'play': 
+        this.emit('playback/playing', state);
+        break;
+      case 'pause':
+        this.emit('playback/paused');
+        break;
+      case 'stop':
+        this.emit('playback/stopped');
+        break;
+    }
+  }
+
+  removeAllListeners(event) {
+    if (this.listeners[event]) {
+      delete this.listeners[event];
+      this.logger.debug(`${this.PLUGINSTR}: Removed all listeners for event: ${event}`);
+    }
+  }
+}
+
+module.exports = EventBus;
+
+/**
+ * StateCache class provides a caching mechanism for various states with support for namespaces, TTL (Time-To-Live), and subscriptions.
+ * It is designed to handle playback states, user input locks, and seek progression tracking.
+ * 
+ * @class StateCache
+ * @param {Object} logger - Logger instance for logging cache operations.
+ * @param {Object} logs - Log messages object containing various log message templates.
+ * @param {string} pluginStr - String representing the plugin name, used for logging.
+ * 
+ * @method namespace - Retrieves or creates a namespace for caching.
+ * @method set - Sets a cache value with an optional TTL.
+ * @method get - Retrieves a cache value if it has not expired.
+ * @method get_timestamp - Retrieves the timestamp of a cache value if it has not expired.
+ * @method subscribe - Subscribes to changes in a namespace.
+ * @method clear - Clears all cache values in a namespace.
+ * @method cachePlaybackState - Caches the playback state with a specific TTL.
+ * @method getPlaybackState - Retrieves the current playback state, calculating the current position if playing.
+ * @method validatePlaybackState - Validates the structure of a playback state.
+ * @method setUserInputLock - Sets a user input lock for a specific fader index with a TTL.
+ * @method hasActiveUserInput - Checks if there is an active user input lock for a specific fader index.
+ * @method cacheSeekProgression - Caches the seek progression for a specific fader index.
+ * @method getSeekProgression - Retrieves the seek progression for a specific fader index.
+ */
+class StateCache {
+    constructor(logger, logs, pluginStr) {
+      this.namespaces = new Map();
+      this.defaultTTL = 300000; // 300 seconds
+      this.logger = logger;
+      this.logs = logs;
+      this.PLUGINSTR = pluginStr;
+    }
+  
+    namespace(ns) {
+      if (!this.namespaces.has(ns)) {
+        this.namespaces.set(ns, {
+          data: new Map(),
+          ttl: new Map(),
+          subscriptions: new Set()
+        });
+      }
+      return this.namespaces.get(ns);
+    }
+  
+    set(ns, key, value, ttl = this.defaultTTL) {
+      const namespace = this.namespace(ns);
+      namespace.data.set(key, value);
+      namespace.ttl.set(key, Date.now() + ttl);
+      namespace.subscriptions.forEach(cb => cb({ ns, key, value }));
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.SET} ns: ${ns}, key: ${key}, value: ${JSON.stringify(value)}`);
+    }
+  
+    get(ns, key) {
+      const namespace = this.namespace(ns);
+      if (namespace.ttl.get(key) < Date.now()) {
+        namespace.data.delete(key);
+        namespace.ttl.delete(key);
+        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.EXPIRED} ns: ${ns}, key: ${key}`);
+        return null;
+      }
+      return namespace.data.get(key);
+    }
+  
+    get_timestamp(ns, key) {
+      const namespace = this.namespace(ns);
+      if (namespace.ttl.get(key) < Date.now()) {
+        namespace.data.delete(key);
+        namespace.ttl.delete(key);
+        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.EXPIRED} ns: ${ns}, key: ${key}`);
+        return null;
+      }
+      return namespace.ttl.get(key);
+    }
+  
+    subscribe(ns, callback) {
+      const namespace = this.namespace(ns);
+      namespace.subscriptions.add(callback);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.SUBSCRIBED.replace('${ns}', ns)}`);
+      return () => {
+        namespace.subscriptions.delete(callback);
+        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.UNSUBSCRIBED.replace('${ns}', ns)}`);
+      };
+    }
+  
+    clear(ns) {
+      const namespace = this.namespace(ns);
+      namespace.data.clear();
+      namespace.ttl.clear();
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CLEAR.replace('${ns}', ns)}`);
+    }
+  
+    // Specialized playback state methods
+    cachePlaybackState(state) {
+      const validState = this.validatePlaybackState(state);
+      if (!validState) return null;
+      
+      const stateWithTiming = {
+        ...validState,
+        timestamp: Date.now(),
+        originalDuration: validState.duration * 1000 // Convert to ms
+      };
+      
+      this.set('playback', 'current', stateWithTiming, 60000); // 1 minute TTL
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CACHE_PLAYBACK_STATE.replace('${state}', JSON.stringify(stateWithTiming))}`);
+      return stateWithTiming;
+    }
+  
+    getPlaybackState() {
+      const state = this.get('playback', 'current');
+      if (!state) return null;
+      
+      // Calculate elapsed time since last update
+      const elapsed = Date.now() - state.timestamp;
+      return {
+        ...state,
+        currentPosition: state.status === 'play' 
+          ? Math.min(state.seek + elapsed, state.originalDuration)
+          : state.seek
+      };
+    }
+  
+    validatePlaybackState(state) {
+      return state && 
+        typeof state.seek === 'number' &&
+        typeof state.duration === 'number' &&
+        ['play', 'pause', 'stop'].includes(state.status);
+    }
+  
+    // User input management
+    setUserInputLock(faderIdx, timeout = 30000) {
+      this.set('locks', `userInput_${faderIdx}`, true, timeout);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.SET_USER_INPUT_LOCK.replace('${faderIdx}', faderIdx)}`);
+    }
+  
+    hasActiveUserInput(faderIdx) {
+      return !!this.get('locks', `userInput_${faderIdx}`);
+    }
+  
+    // Seek progression tracking
+    cacheSeekProgression(faderIdx, progression) {
+      this.set('seek', `fader_${faderIdx}`, progression, 300000); // 5 minutes
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CACHE_SEEK_PROGRESSION.replace('${faderIdx}', faderIdx).replace('${progression}', progression)}`);
+    }
+  
+    getSeekProgression(faderIdx) {
+      return this.get('seek', `fader_${faderIdx}`) || 0;
+    }
+  }
+  
+  module.exports = StateCache;
+
+  // services/VolumeService.js
+  const BaseService = require('./BaseService');
+  
+  class VolumeService extends BaseService {
+    constructor(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr) {
+      super(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr);
+      
+      // Subscribe to volume updates
+      this.eventBus.on('volume/update', this.handleVolumeUpdate.bind(this));
+    }
+  
+    handleMove(faderInfo) {
+      const position = faderInfo.progression;
+      // propably needs rounging
+      const volume = Math.round(position);
+      this.eventBus.emit('command/volume', volume);
+      this.stateCache.set('volume', 'current', volume);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    }
+  
+    handleVolumeUpdate(volume) {
+      //! needs unpacking, since the listener will give a dict data.volume will be the volume
+      if (this.stateCache.get('volume', 'current') === volume) return;
+      
+      this.updateHardware(volume);
+      this.stateCache.set('volume', 'current', volume);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_UPDATE} ${this.faderIdx}`);
+    }
+  
+    updateHardware(volume) {
+      this.eventBus.emit('hardware/update', {
+        fader: this.faderIdx,
+        position: volume
+      });
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
+    }
+  }
+  
+  module.exports = VolumeService;
+  // services/TrackService.js
+  const BaseService = require('./BaseService');
+  
+  class TrackService extends BaseService {
+    constructor(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr) {
+      super(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr);
+      this.lastValidState = null;
+    }
+  
+    handlePlay(state) {
+      if (this.validateStatePlaying(state)) { 
+        this.lastValidState = state;
+        this.stateCache.set('playback', 'lastValid', {
+          ...state,
+          timestamp: Date.now()
+        });
+        this.startUpdateInterval();
+        this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
+      }
+    }
+  
+    validateStatePlaying(state) {
+      return state.status === 'play' && 
+             typeof state.seek === 'number' &&
+             typeof state.duration === 'number' &&
+             state.duration > 0;
+    }
+  
+    calculateDynamicProgression() {
+      const cachedState = this.stateCache.get('playback', 'lastValid');
+      if (!cachedState) return null;
+  
+      const elapsed = Date.now() - cachedState.timestamp;
+      const currentPosition = cachedState.seek + elapsed;
+      const progression = (currentPosition / cachedState.duration) * 100;
+  
+      return Math.min(100, Math.max(0, progression));
+    }
+  
+    updatePosition() {
+      if (this.stateCache.hasActiveUserInput(this.faderIdx)) return;
+  
+      const state = this.stateCache.getPlaybackState();
+      if (!state || state.status !== 'play') return;
+  
+      const progression = (state.currentPosition / state.originalDuration) * 100;
+      this.updateHardware(progression);
+      this.stateCache.cacheSeekProgression(this.faderIdx, progression);
+      this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
+    }
+  
+    handleMove(faderInfo) {
+      const position = faderInfo.progression;
+      if (this.config.get('UPDATE_SEEK_ON_MOVE')) {
+        const state = this.stateCache.get('playback', 'current');
+        const seekPosition = (position / 100) * state.duration;
+        this.eventBus.emit('command/seek', seekPosition);
+      }
+      this.stateCache.set('userInput', this.faderIdx, true, 1000); // 1s lockout
+      this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    }
+  }
+  
+  module.exports = TrackService;
+
+  /**
+ * BaseService class provides a base implementation for fader services.
+ * It includes common functionality for managing playback state and updating hardware.
+ * 
+ * @class BaseService
+ * @param {number} faderIdx - Index of the fader this service controls.
+ * @param {Object} eventBus - EventBus instance for handling events.
+ * @param {Object} stateCache - StateCache instance for caching state.
+ * @param {Object} config - Configuration object.
+ * @param {Object} logger - Logger instance for logging service operations.
+ * @param {Object} logs - Log messages object containing various log message templates.
+ * @param {string} pluginStr - String representing the plugin name, used for logging.
+ * 
+ * @method startUpdateInterval - Starts the interval for updating the fader position.
+ * @method stopUpdateInterval - Stops the interval for updating the fader position.
+ * @method handleStateUpdate - To be overridden by child classes to handle state updates.
+ * @method calculateDynamicProgression - To be overridden by child classes to calculate progression.
+ * @method handlePlay - To be overridden by child classes to handle play state.
+ * @method handlePause - To be overridden by child classes to handle pause state.
+ * @method handleStop - To be overridden by child classes to handle stop state.
+ * @method handleMove - To be overridden by child classes to handle fader movement.
+ * @method updateHardware - Sends a command to update the hardware fader position.
+ */
+class BaseService {
+    constructor(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr) {
+      this.faderIdx = faderIdx;
+      this.eventBus = eventBus;
+      this.stateCache = stateCache;
+      this.config = config;
+      this.logger = logger;
+      this.logs = logs;
+      this.PLUGINSTR = pluginStr;
+      this.updateInterval = null;
+      this.stopped = false;
+      // Common event subscriptions
+      this.eventBus.on('playback/playing', this.handlePlay.bind(this));
+      this.eventBus.on('playback/paused', this.handlePause.bind(this));
+      this.eventBus.on('playback/stopped', this.handleStop.bind(this));
+    }
+  
+    // Common interval management
+    startUpdateInterval() {
+      this.stopUpdateInterval();
+      this.updateInterval = setInterval(() => {
+        this.updatePosition();
+      }, this.config.get('FADER_REALTIME_SEEK_INTERVAL'));
+      this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.BASE.START_INTERVAL} ${this.faderIdx}`);
+    }
+  
+    stopUpdateInterval() {
+      if (this.updateInterval) {
+        clearInterval(this.updateInterval);
+        this.updateInterval = null;
+        this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.BASE.STOP_INTERVAL} ${this.faderIdx}`);
+      }
+    }
+  
+    // To be overridden by child classes
+    handleStateUpdate(state) {}
+    calculateDynamicProgression() {}
+    handlePlay(state) {}
+    handlePause() {}
+    handleStop() {}
+    handleMove(faderInfo) {} //! will recieve an object
+    
+    // Common hardware update method
+    updateHardware(position) {
+      const move = new FaderMove(
+        this.faderIdx,
+        position,
+        this.config.get('FADER_CONTROLLER_SPEED_HIGH')
+      );
+      this.eventBus.emit('hardware/command', move);
+    }
+  
+    stop() {
+      this.stopUpdateInterval();
+      this.stopped = true;
+      // integrate full stop
+    }
+  
+  }
+  
+  module.exports = BaseService;
+  // services/AlbumService.js
+  const BaseService = require('./BaseService');
+  
+  class AlbumService extends BaseService {
+    constructor(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr) {
+      super(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr);
+      
+      // Existing album cache integration
+      this.lastAlbumUri = null;
+      
+      this.eventBus.on('playback/update', (state) => {
+        if(this.shouldUpdateHardware(state)) {
+          const position = this.calculatePosition(state);
+          this.updateHardware(position);
+          this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
+        }
+      });
+    }
+  
+    calculatePosition(state) {
+      // Preserve your existing progression logic
+      if(this.config.get('SEEK_TYPE') === 'album') {
+        return this.calculateAlbumProgression(state);
+      }
+      return (state.seek / state.duration) * 100;
+    }
+  
+    calculateAlbumProgression(state) {
+      // Integrate your existing album progression logic
+      if(this.stateCache.get('currentAlbum')?.uri !== state.uri) {
+        this.fetchAlbumInfo(state);
+      }
+      
+      // ... rest of your existing album logic
+      //! realtime seek integration
+    }
+  
+    handleMove(faderInfo) {
+      const position = faderInfo.progression;
+      this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    }
+  
+  }
+  
+  module.exports = AlbumService;

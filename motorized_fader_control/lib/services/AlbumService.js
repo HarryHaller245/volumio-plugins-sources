@@ -12,7 +12,7 @@ class AlbumService extends BaseService {
       if(this.shouldUpdateHardware(state)) {
         const position = this.calculatePosition(state);
         this.updateHardware(position);
-        this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
+        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
       }
     });
   }
@@ -28,12 +28,18 @@ class AlbumService extends BaseService {
   calculateAlbumProgression(state) {
     // Integrate your existing album progression logic
     if(this.stateCache.get('currentAlbum')?.uri !== state.uri) {
-      this.fetchAlbumInfo(state.uri);
+      this.fetchAlbumInfo(state);
     }
     
     // ... rest of your existing album logic
     //! realtime seek integration
   }
+
+  handleMove(faderInfo) {
+    const position = faderInfo.progression;
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+  }
+
 }
 
 module.exports = AlbumService;

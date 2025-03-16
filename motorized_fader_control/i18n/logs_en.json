@@ -68,7 +68,8 @@
         "CLEAR": "Clearing cache: ",
         "CACHE_PLAYBACK_STATE": "Playback state cache: ",
         "SET_USER_INPUT_LOCK": "Setting user input lock: ",
-        "CACHE_SEEK_PROGRESSION": "Seek progression cache: "
+        "CACHE_SEEK_PROGRESSION": "Seek progression cache: ",
+        "CACHE_FADER_INFO": "Fader info cache: "
       },
       "SERVICES" : {
         "BASE": {

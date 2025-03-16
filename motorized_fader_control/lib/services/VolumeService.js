@@ -9,28 +9,35 @@ class VolumeService extends BaseService {
     this.eventBus.on('volume/update', this.handleVolumeUpdate.bind(this));
   }
 
-  handleMove(position) {
+  handleMove(faderInfo) {
+    const position = faderInfo.progression;
+    // propably needs rounging
     const volume = Math.round(position);
     this.eventBus.emit('command/volume', volume);
     this.stateCache.set('volume', 'current', volume);
-    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
   }
 
   handleVolumeUpdate(volume) {
+    //! needs unpacking, since the listener will give a dict data.volume will be the volume
     if (this.stateCache.get('volume', 'current') === volume) return;
     
     this.updateHardware(volume);
     this.stateCache.set('volume', 'current', volume);
-    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_UPDATE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_UPDATE} ${this.faderIdx}`);
   }
 
   updateHardware(volume) {
-    this.eventBus.emit('hardware/update', {
-      fader: this.faderIdx,
-      position: volume
+    // create a move and send it to the hardware
+    this.eventBus.emit('fader/update', {
+      indexes: [this.faderIdx],
+      targets: [volume],
+      speeds: this.config.get('FADER_SPEED_HIGH', 100)
     });
-    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_HARDWARE} ${this.faderIdx}`);
   }
+
+  // in the future send any fader/update to eventbus gets aggregated there and send packaged to hardware if concurrent
 }
 
 module.exports = VolumeService;

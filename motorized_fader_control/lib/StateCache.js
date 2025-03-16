@@ -81,14 +81,34 @@ class StateCache {
     };
   }
 
+  /**
+   * Clears all cache values in a namespace or all namespaces if no namespace is specified.
+   * 
+   * @param {string} [ns] - The namespace to clear. If undefined, all namespaces will be cleared.
+   */
   clear(ns) {
-    const namespace = this.namespace(ns);
-    namespace.data.clear();
-    namespace.ttl.clear();
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CLEAR.replace('${ns}', ns)}`);
+    if (ns) {
+      const namespace = this.namespace(ns);
+      namespace.data.clear();
+      namespace.ttl.clear();
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CLEAR.replace('${ns}', ns)}`);
+    } else {
+      this.namespaces.forEach((namespace, nsKey) => {
+        namespace.data.clear();
+        namespace.ttl.clear();
+        this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CLEAR.replace('${ns}', nsKey)}`);
+      });
+    }
   }
 
-  // Specialized playback state methods
+  /**
+   * Caches the playback state with a specific TTL (Time-To-Live).
+   * This method is specialized to include elapsed state durations for the seek value.
+   * It is useful for real-time updating of playback state without requiring a new state push from the Volumio system.
+   * 
+   * @param {Object} state - The playback state to cache.
+   * @returns {Object|null} The cached playback state with timing information, or null if the state is invalid.
+   */
   cachePlaybackState(state) {
     const validState = this.validatePlaybackState(state);
     if (!validState) return null;
@@ -104,6 +124,12 @@ class StateCache {
     return stateWithTiming;
   }
 
+  /**
+   * Retrieves the current playback state, calculating the current position if playing.
+   * This method is specialized to provide real-time updates for the seek value based on the elapsed time since the last state update.
+   * 
+   * @returns {Object|null} The current playback state with the updated seek value, or null if no state is cached.
+   */
   getPlaybackState() {
     const state = this.get('playback', 'current');
     if (!state) return null;
@@ -143,6 +169,11 @@ class StateCache {
 
   getSeekProgression(faderIdx) {
     return this.get('seek', `fader_${faderIdx}`) || 0;
+  }
+
+  cacheFaderInfo(faderInfo) {
+    this.set('fader', `fader_${faderInfo.index}`, faderInfo, 300000); // 5 minutes
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.CACHE.CACHE_FADER_INFO.replace('${faderInfo}', JSON.stringify(faderInfo))}`);
   }
 }
 

@@ -46,17 +46,18 @@ class TrackService extends BaseService {
     const progression = (state.currentPosition / state.originalDuration) * 100;
     this.updateHardware(progression);
     this.stateCache.cacheSeekProgression(this.faderIdx, progression);
-    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
   }
 
-  handleMove(position) {
-    if (this.config.get('UPDATE_SEEK_ON_MOVE')) {
+  handleMove(faderInfo) { //! touch/untouch logic this just updates directly as soon as move
+    const position = faderInfo.progression;
+    if (this.config.get('UPDATE_SEEK_ON_MOVE', false)) {
       const state = this.stateCache.get('playback', 'current');
       const seekPosition = (position / 100) * state.duration;
       this.eventBus.emit('command/seek', seekPosition);
     }
     this.stateCache.set('userInput', this.faderIdx, true, 1000); // 1s lockout
-    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
   }
 }
 

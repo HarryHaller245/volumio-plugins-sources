@@ -31,11 +31,14 @@ class BaseService {
     this.logs = logs;
     this.PLUGINSTR = pluginStr;
     this.updateInterval = null;
-    
+    this.stopped = false;
+    this.subscriptions = [];
     // Common event subscriptions
-    this.eventBus.on('playback/playing', this.handlePlay.bind(this));
-    this.eventBus.on('playback/paused', this.handlePause.bind(this));
-    this.eventBus.on('playback/stopped', this.handleStop.bind(this));
+    this.subscriptions.push(
+      this.eventBus.on('playback/playing', this.handlePlay.bind(this)),
+      this.eventBus.on('playback/paused', this.handlePause.bind(this)),
+      this.eventBus.on('playback/stopped', this.handleStop.bind(this))
+    );
   }
 
   // Common interval management
@@ -44,14 +47,14 @@ class BaseService {
     this.updateInterval = setInterval(() => {
       this.updatePosition();
     }, this.config.get('FADER_REALTIME_SEEK_INTERVAL'));
-    this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.BASE.START_INTERVAL} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.BASE.START_INTERVAL} ${this.faderIdx}`);
   }
 
   stopUpdateInterval() {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
-      this.logger.info(`${this.PLUGINSTR}: ${this.logs.SERVICES.BASE.STOP_INTERVAL} ${this.faderIdx}`);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.SERVICES.BASE.STOP_INTERVAL} ${this.faderIdx}`);
     }
   }
 
@@ -61,17 +64,22 @@ class BaseService {
   handlePlay(state) {}
   handlePause() {}
   handleStop() {}
-  handleMove(position) {}
+  handleMove(faderInfo) {} //! will recieve an object
   
   // Common hardware update method
-  updateHardware(position) {
-    const move = new FaderMove(
-      this.faderIdx,
-      position,
-      this.config.get('FADER_CONTROLLER_SPEED_HIGH')
-    );
-    this.eventBus.emit('hardware/command', move);
+  updateHardware(indexes, target_progressions, target_positions) {
+    this.eventBus.emit('fader/update', {indexes, target_progressions, target_positions});
   }
+
+  stop() {
+    this.stopUpdateInterval();
+    this.subscriptions.forEach(unsub => unsub());
+  }
+
+  clear() {
+    //dont know if needed
+  }
+
 }
 
 module.exports = BaseService;
