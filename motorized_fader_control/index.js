@@ -103,9 +103,9 @@ motorizedFaderControl.prototype.onStart = function() {
             })
             .then(() => {
                 self.logger.info(`${self.PLUGINSTR}: Starting service connections...`);
+                self.setupStateValidation();
                 self.setupVolumioBridge();
                 self.setupServiceRouter();
-                self.setupStateValidation();
                 self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SUCCESS}`);
                 defer.resolve();
             })
@@ -262,9 +262,8 @@ motorizedFaderControl.prototype.getUIConfig = function() {
     const self = this;
     const lang_code = this.commandRouter.sharedVars.get('language_code');
     
-    self.logger.debug(`${self.PLUGINSTR}: Getting UI Config for language code: ` + lang_code);
+    self.logger.debug(`${self.PLUGINSTR}: Getting UI Config for language code: ${lang_code}`);
 
-    // Load the UIConfig from specified i18n and UIConfig files
     self.commandRouter.i18nJson(
         __dirname + '/i18n/strings_' + lang_code + '.json',
         __dirname + '/i18n/strings_en.json',
@@ -273,7 +272,6 @@ motorizedFaderControl.prototype.getUIConfig = function() {
     .then(uiconf => {
         self.logger.info(`${self.PLUGINSTR}: Successfully loaded UIConfig.`);
         
-        // Validate sections
         if (!uiconf.sections || uiconf.sections.length === 0) {
             const errorMsg = `${self.PLUGINSTR}: UIConfig does not contain any sections.`;
             self.logger.error(errorMsg);
@@ -281,29 +279,42 @@ motorizedFaderControl.prototype.getUIConfig = function() {
             return;
         }
 
-        // Populate the UIConfig with values from the config
-        uiconf.sections.forEach(section => {
-            if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`${self.PLUGINSTR}: Processing section: ` + (section.label || 'Unnamed Section'));
-            }
-            if (section.content) {
-                self.populateSectionContent(section.content);
-                // Additional unpacking for fader settings
-                if (section.id === "section_fader_behavior") {
-                    if (self.config.get('DEBUG_MODE', false)) { 
-                        self.logger.debug(`${self.PLUGINSTR}: Unpacking fader config for section: ` + section.id);
-                    }
-                    self.unpackFaderConfig(section.content);
+        // Recursive section processing function
+        function processSectionsRecursively(sections) {
+            sections.forEach(section => {
+                if (self.config.get('DEBUG_MODE', false)) { 
+                    self.logger.debug(`${self.PUGLINSTR}: Processing section: ${section.label || 'Unnamed Section'}`);
                 }
-            } else {
-                self.logger.warn(`${self.PLUGINSTR}: No content found in section: ` + (section.label || 'Unnamed Section'));
-            }
-        });
+
+                // Process nested sections first
+                if (section.content) {
+                    // Find subsections in content
+                    const subsections = section.content.filter(item => item.element === 'section');
+                    if (subsections.length > 0) {
+                        processSectionsRecursively(subsections);
+                    }
+
+                    // Process regular content
+                    self.populateSectionContent(section.content);
+
+                    // Handle fader behavior unpacking
+                    if (section.id === "section_fader_behavior") {
+                        if (self.config.get('DEBUG_MODE', false)) { 
+                            self.logger.debug(`${self.PLUGINSTR}: Unpacking fader config for section: ${section.id}`);
+                        }
+                        self.unpackFaderConfig(section.content);
+                    }
+                }
+            });
+        }
+
+        // Start processing with root sections
+        processSectionsRecursively(uiconf.sections);
 
         defer.resolve(uiconf);
     })
     .fail(error => {
-        const errorMsg = `${self.PLUGINSTR}: Failed to parse UI Configuration page for plugin Motorized Fader Control: ` + error;
+        const errorMsg = `${self.PLUGINSTR}: Failed to parse UI Configuration: ${error}`;
         self.logger.error(errorMsg);
         defer.reject(new Error(errorMsg));
     });
@@ -313,21 +324,38 @@ motorizedFaderControl.prototype.getUIConfig = function() {
 
 motorizedFaderControl.prototype.populateSectionContent = function(content) {
     const self = this;
-    content.forEach(element => {
-        const configValue = self.config.get(element.id);
-        if (configValue !== undefined) {
-            element.value = (element.element === 'select') 
-                ? self.getSelectValue(element, configValue)
-                : configValue; // Directly set value for non-select elements
-            if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`${self.PLUGINSTR}: Set value for ${element.id}: ${JSON.stringify(element.value)}`);
+    
+    function processContentItems(items) {
+        items.forEach(element => {
+            // Handle nested sections recursively
+            if (element.element === 'section') {
+                if (self.config.get('DEBUG_MODE', false)) {
+                    self.logger.debug(`${self.PLUGINSTR}: Processing nested section: ${element.id}`);
+                }
+                processContentItems(element.content);
+                return;
             }
-        } else {
-            if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`${self.PLUGINSTR}: No value found in config for: ${element.id}`);
+
+            // Existing config population logic
+            const configValue = self.config.get(element.id);
+            if (configValue !== undefined) {
+                element.value = (element.element === 'select') 
+                    ? self.getSelectValue(element, configValue)
+                    : configValue;
+                
+                if (self.config.get('DEBUG_MODE', false)) { 
+                    self.logger.debug(`${self.PLUGINSTR}: Set value for ${element.id}: ${JSON.stringify(element.value)}`);
+                }
+            } else {
+                if (self.config.get('DEBUG_MODE', false)) { 
+                    self.logger.debug(`${self.PLUGINSTR}: No value found in config for: ${element.id}`);
+                }
             }
-        }
-    });
+        });
+    }
+
+    // Start processing with root content
+    processContentItems(content);
 };
 
 motorizedFaderControl.prototype.getSelectValue = function(element, selectedValue) {
@@ -391,12 +419,14 @@ motorizedFaderControl.prototype.updateFaderElement = function(content, elementId
     if (element) {
         if (elementId.includes("TRIM")) {
             element.config.bars[0].value = value; 
+            self.logger.debug(`${self.PLUGINSTR}: ${elementId} updated to : ${JSON.stringify(element.config.bars[0].value)}`);
+            return;
         } else {
             element.value = (typeof value === 'string') 
                 ? { value: value, label: self.getLabelForSelect(element.options, value) }
                 : value;
         }
-        self.logger.debug(`${self.PLUGINSTR}: ${elementId} updated: ${JSON.stringify(element.value)}`);
+        self.logger.debug(`${self.PLUGINSTR}: ${elementId} updated to : ${JSON.stringify(element.value)}`);
     } else {
         self.logger.warn(`${self.PLUGINSTR}: ${elementId} not found.`);
     }
@@ -543,7 +573,7 @@ motorizedFaderControl.prototype.getConfigurationFiles = function() {
 
 //* UI BUTTONS ACTIONS #####################################################################
 
-motorizedFaderControl.prototype.RunManualCalibration = async function() { //! propably deprecated
+motorizedFaderControl.prototype.RunManualCalibration = async function() { //! propably deprecated or not really needed OR wanted
     var self = this;
 
     try {
@@ -737,58 +767,68 @@ motorizedFaderControl.prototype.getServiceClass = function(controlType) {
 };
 
 //* Volumio Bridge #####################################################################
+
 motorizedFaderControl.prototype.setupVolumioBridge = function() { //! add error handling, if volumio websocket doesnt connect its a critical fail
     const self = this;
-    
-    self.socket = io.connect(`http://${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`, {
-      reconnection: true,
-      reconnectionAttempts: Infinity,
-      reconnectionDelay: 1000
-    });
-    //log this
-    self.logger.debug(`${self.PLUGINSTR}: Connecting to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
-    // emit a getState on connect
-    // Unified State Handler
-    const handleStateUpdate = (state) => {  
-        self.stateCache.cachePlaybackState(state);
-        self.stateCache.set('playback', 'state', state);
 
-        // Existing playback state checks
-        if (self.validatePlayingState(state)) {
-            // self.cacheTimeLastActiveStateUpdate(); !deprecated
-            self.eventBus.emit('playback/playing', state);
-        }
-    };
-  
-    // WebSocket Event Handling
-    self.socket.on('pushState', handleStateUpdate);
-    self.socket.on('pushQueue', queue => {
-      self.cachedQueue = queue;
-      self.stateCache.set('queue', 'current', queue);
-    });
-  
-    // Automatic Reconnect Handling
-    self.socket.on('reconnect', () => {
-      self.logger.info('WebSocket reconnected, resyncing state...');
-      self.socket.emit('getState');
-      self.socket.emit('getQueue');
-    });
-  
-    // Command Proxy
-    self.eventBus.on('command/*', (command, ...args) => {
-      const method = command.split('/')[1];
-      if (typeof self.socket.emit[method] === 'function') {
-        self.socket.emit(method, ...args);
-      }
-    });
+    try {
+        self.socket = io.connect(`http://${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`, {
+            reconnection: true,
+            reconnectionAttempts: Infinity,
+            reconnectionDelay: 1000
+        });
 
-    // Store the callback function in a variable
-    self.volumeUpdateCallback = (volumeData) => {
-        self.eventBus.emit('volume/update', volumeData);
-    };
+        // Log connection
+        self.logger.debug(`${self.PLUGINSTR}: Connected to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
 
-    // Register the callback
-    self.commandRouter.addCallback('volumioupdatevolume', self.volumeUpdateCallback);
+        // Emit a getState on connect
+        // Unified State Handler
+        const handleStateUpdate = (state) => {  
+            self.stateCache.cachePlaybackState(state);
+            self.stateCache.set('playback', 'state', state);
+
+            // Existing playback state checks
+            if (self.validatePlayingState(state)) {
+                self.eventBus.emit('playback/playing', state);
+            }
+        };
+
+        // WebSocket Event Handling
+        self.socket.on('pushState', handleStateUpdate);
+        self.socket.on('pushQueue', queue => {
+            self.cachedQueue = queue;
+            self.stateCache.set('queue', 'current', queue);
+        });
+
+        // Automatic Reconnect Handling
+        self.socket.on('reconnect', () => {
+            self.logger.info('WebSocket reconnected, resyncing state...');
+            self.socket.emit('getState');
+            self.socket.emit('getQueue');
+        });
+
+        // Command Proxy
+        self.eventBus.on('command/*', (command, ...args) => {
+            const method = command.split('/')[1];
+            if (typeof self.socket.emit[method] === 'function') {
+                self.socket.emit(method, ...args);
+            }
+        });
+
+        // Store the callback function in a variable
+        self.volumeUpdateCallback = (volumeData) => {
+            self.eventBus.emit('volume/update', volumeData);
+        };
+
+        // Register the callback
+        self.commandRouter.addCallback('volumioupdatevolume', self.volumeUpdateCallback);
+
+        // Initial state sync
+        self.socket.emit('getState');
+    } catch (error) {
+        self.logger.error(`${self.PLUGINSTR}: Error setting up Volumio bridge: ${error.message}`);
+        throw error; // Propagate the error
+    }
 };
 
 motorizedFaderControl.prototype.unregisterVolumeUpdateCallback = function() {
@@ -941,6 +981,8 @@ motorizedFaderControl.prototype.setupFaderController = function() {
 
             if (Object.keys(trimMap).length !== 0) {
                 self.faderController.setFadersTrimsDict(trimMap);
+                //log this
+                self.logger.debug(`${self.PLUGINSTR}: Fader trims set successfully: ${JSON.stringify(trimMap)}`);
             }
 
             const faderSpeedFactorConfig = self.config.get('FADER_SPEED_FACTOR', '[]');
@@ -1018,6 +1060,8 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
         });
     });
 };
+
+//* EVENT ERROR/WARNINGS
 
 motorizedFaderControl.prototype.setupErrorHandling = function() {
     const self = this;
