@@ -515,7 +515,7 @@ motorizedFaderControl.prototype.saveFaderControllerSettingsRestart = async funct
         }
     }
     self.commandRouter.pushToastMessage('info', 'Restart Required', 'The FaderController will reset to apply the new settings.');
-    await self.restartFaderController();
+    await self.onRestart();
     self.logger.info(`${self.PLUGINSTR}: Fader controller settings saved and restarted successfully`);
 };
 
@@ -534,7 +534,7 @@ motorizedFaderControl.prototype.saveGeneralSettingsRestart = async function(data
     }
     self.commandRouter.pushToastMessage('info', 'Restart Required', 'The FaderController will reset to apply the new settings.');
     await self.onRestart();
-    //! push the success
+    self.logger.info(`${self.PLUGINSTR}: Fader controller settings saved and restarted successfully`);
 };
 
 motorizedFaderControl.prototype.getConfigurationFiles = function() {
@@ -747,7 +747,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function() { //! add error 
     });
     //log this
     self.logger.debug(`${self.PLUGINSTR}: Connecting to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
-  
+    // emit a getState on connect
     // Unified State Handler
     const handleStateUpdate = (state) => {  
         self.stateCache.cachePlaybackState(state);
@@ -889,14 +889,16 @@ motorizedFaderControl.prototype.setupFaderFeedback = function() {
       if(this.faderController) {
         // in the future send any fader/update to eventbus gets aggregated there and send packaged to hardware if concurrent
         //construct Fader Move here and pass it to the controller
+        //this.FaderMoveAggregator(indexes, targets, speeds);
         const move = new FaderMove(indexes, targets, speeds);
-        this.faderController.moveFaders(move);
+        this.faderController.moveFaders(move, true);
       }
     });
 };
 
 // middleware to send concurrent moves is time delay is less than 1ms between events
 motorizedFaderControl.prototype.FaderMoveAggregator = function() {
+    //somehow
     this.faderMove = new FaderMove();
     this.faderMoveQueue = [];
     this.isAggregating = false;

@@ -117,7 +117,7 @@ class StateCache {
       originalDuration: validState.duration * 1000 // Convert to ms
     };
     this.set('playback', 'current', stateWithTiming, 60000000); // 1 minute TTL
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_PLAYBACK_STATE} ${JSON.stringify(stateWithTiming)}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_PLAYBACK_STATE}: ${JSON.stringify(stateWithTiming)}`);
     return stateWithTiming;
   }
 
@@ -142,10 +142,24 @@ class StateCache {
   }
 
   validatePlaybackState(state) {
-    return state && 
-      typeof state.seek === 'number' &&
-      typeof state.duration === 'number' &&
-      ['play', 'pause', 'stop'].includes(state.status);
+      if (state && typeof state === 'object' && state.hasOwnProperty("status")) {
+        const PlaybackStatus = state.status; 
+        // Check if the PlaybackStatus is one of the valid states
+        if (PlaybackStatus === 'play' || PlaybackStatus === 'pause' || PlaybackStatus === 'stop') {
+
+            if (state.hasOwnProperty("seek") && state.hasOwnProperty("duration")) {
+                const seek = state.seek;
+                const duration = state.duration * 1000; // convert to ms
+
+                if (seek > duration) {
+                    this.logger.warn(`${this.PLUGINSTR}: validateState: Invalid state: seek (${seek} ms) is larger than duration (${duration} ms)`);
+                    return state;
+                }
+            }
+            return state;
+        }
+      }
+    return null;
   }
 
   // User input management

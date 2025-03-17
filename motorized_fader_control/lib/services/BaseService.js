@@ -71,9 +71,9 @@ class BaseService {
   updateHardware(progression) {
     this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} ${progression}`);
     const indexes = [this.faderIdx];
-    const target_progressions = [progression];
+    const targets = [progression];
     const speeds = [this.config.get('FADER_SPEED_HIGH', 100)];
-    this.eventBus.emit('fader/update', {indexes, target_progressions, speeds});
+    this.eventBus.emit('fader/update', {indexes, targets, speeds});
   }
 
   stop() {

@@ -38,15 +38,19 @@ class TrackService extends BaseService {
   }
 
   updatePosition() {
-    // maybe if (this.stateCache.hasActiveUserInput(this.faderIdx)) return;
-    this.logger.debug(`${this.PLUGINSTR}: TRYING: ${this.logs.LOGS.SERVICES.UPDATE_POSITION} ${this.faderIdx} to ${progression}`);
-    const state = this.stateCache.getPlaybackState();
-    if (!state || state.status !== 'play') return;
+    try {
+      // maybe if (this.stateCache.hasActiveUserInput(this.faderIdx)) return;
+      this.logger.debug(`${this.PLUGINSTR}: TRYING: TRACK SERVICE: ${this.logs.LOGS.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
+      const state = this.stateCache.getPlaybackState();
+      if (!state || state.status !== 'play') return; // probably redundant
 
-    const progression = (state.currentPosition / state.originalDuration) * 100;
-    this.updateHardware(progression);
-    this.stateCache.cacheSeekProgression(this.faderIdx, progression); //seems unnecesarry
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_POSITION} ${this.faderIdx} to ${progression}`);
+      const progression = (state.currentPosition / state.originalDuration) * 100;
+      this.updateHardware(progression);
+      // this.stateCache.cacheSeekProgression(this.faderIdx, progression); // seems unnecessary
+    } catch (error) {
+      this.logger.error(`${this.PLUGINSTR}: TRACK SERVICE: ${this.logs.LOGS.SERVICES.UPDATE_POSITION_ERROR} ${this.faderIdx} - ${error.message}`);
+      this.eventBus.emit('error', error);
+    }
   }
 
   handleMove(faderInfo) { //! touch/untouch logic this just updates directly as soon as move
