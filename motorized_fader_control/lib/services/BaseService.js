@@ -43,6 +43,7 @@ class BaseService {
 
   // Common interval management
   startUpdateInterval() {
+    this.updatePosition()
     this.stopUpdateInterval();
     this.updateInterval = setInterval(() => {
       this.updatePosition();
@@ -58,13 +59,20 @@ class BaseService {
     }
   }
 
+  handlePause() {
+    this.stopUpdateInterval();
+  }
+
+  handleStop() {
+    this.stopUpdateInterval();
+  }
+
   // To be overridden by child classes
   handleStateUpdate(state) {}
   calculateDynamicProgression() {}
   handlePlay(state) {}
-  handlePause() {}
-  handleStop() {}
   handleMove(faderInfo) {}
+  handleMoved(faderInfo) {}
   updatePosition() {}
   
   // Common hardware update method
@@ -83,6 +91,14 @@ class BaseService {
 
   clear() {
     //dont know if needed
+  }
+
+  handleTouch() {
+    this.eventBus.on('fader/untouch', this.handleMoved.bind(this));
+  }
+
+  handleUntouch() {
+    this.eventBus.off('fader/untouch', this.handleMoved.bind(this));
   }
 
 }

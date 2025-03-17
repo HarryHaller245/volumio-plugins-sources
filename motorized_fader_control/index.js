@@ -99,11 +99,12 @@ motorizedFaderControl.prototype.onStart = function() {
         self.setupFaderController()
             .then(() => {
                 self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.FADER_CONTROLLER}`);
+                self.faderMoveAggregatorInitialize()
                 return self.startFaderController();
             })
             .then(() => {
                 self.logger.info(`${self.PLUGINSTR}: Starting service connections...`);
-                self.setupStateValidation();
+                // self.setupStateValidation();
                 self.setupVolumioBridge();
                 self.setupServiceRouter();
                 self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SUCCESS}`);
@@ -755,13 +756,20 @@ motorizedFaderControl.prototype.setupVolumioBridge = function() { //! add error 
 
         // Emit a getState on connect
         // Unified State Handler
-        const handleStateUpdate = (state) => {  
-            self.stateCache.cachePlaybackState(state);
-            self.stateCache.set('playback', 'state', state);
+        const handleStateUpdate = (state) => { 
+            const validState = self.stateCache.cachePlaybackState(state);
 
-            // Existing playback state checks
-            if (self.validatePlayingState(state)) {
-                self.eventBus.emit('playback/playing', state);
+            if (!validState) return;
+
+            const statusEvents = {
+            play: 'playback/playing',
+            pause: 'playback/paused',
+            stop: 'playback/stopped'
+            };
+
+            const event = statusEvents[validState.status];
+            if (event) {
+            self.eventBus.emit(event, state);
             }
         };
 
@@ -821,7 +829,7 @@ motorizedFaderControl.prototype.unregisterVolumeUpdateCallback = function() {
     }
 };
 
-// State Validation Middleware //! maybe move to a service
+// State Validation Middleware //! deprecated, there is a validation in cachePlaybackState
 //* avoid unnecesary state updates
 motorizedFaderControl.prototype.setupStateValidation = function() {
     const self = this;
@@ -895,27 +903,14 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volumeData) 
 
 //* FADER LAYER ########################################################################
 
-
-motorizedFaderControl.prototype.setupFaderFeedback = function() {
-    this.eventBus.on('fader/update', ({indexes, targets, speeds}) => {
-      if(this.faderController) {
-        // in the future send any fader/update to eventbus gets aggregated there and send packaged to hardware if concurrent
-        //construct Fader Move here and pass it to the controller
-        //this.FaderMoveAggregator(indexes, targets, speeds);
-        const move = new FaderMove(indexes, targets, speeds);
-        this.faderController.moveFaders(move, true);
-      }
-    });
-};
-
-// middleware to send concurrent moves is time delay is less than 1ms between events
-// store fader moves for a short delay, either delay runout or 1 move per configured fader is reached
 motorizedFaderControl.prototype.setupFaderFeedback = function() {
     const self = this;
     
     this.eventBus.on('fader/update', ({indexes, targets, speeds}) => {
-        if(this.faderController) {
-            this.queueFaderMove(indexes, targets, speeds);
+        if (this.faderController) {
+            // Create FaderMove instance before queuing
+            const move = new FaderMove(indexes, targets, speeds);
+            this.queueFaderMove(move);
         }
     });
 };
@@ -929,18 +924,17 @@ motorizedFaderControl.prototype.faderMoveAggregatorInitialize = function() {
     ) * 1000; // Convert seconds to ms
 };
 
-motorizedFaderControl.prototype.queueFaderMove = function(indexes, targets, speeds) {
-    const timestamp = Date.now();
+motorizedFaderControl.prototype.queueFaderMove = function(move) {
+    if (!(move instanceof FaderMove)) {
+        this.logger.error('Invalid move object queued');
+        return;
+    }
     
-    // Add move to queue with timestamp
     this.faderMoveQueue.push({
-        indexes,
-        targets,
-        speeds,
-        timestamp
+        move,
+        timestamp: Date.now()
     });
     
-    // If not already aggregating, start the aggregation window
     if (!this.aggregationTimeout) {
         this.aggregationTimeout = setTimeout(() => {
             this.processFaderMoveQueue();
@@ -952,47 +946,44 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
     if (this.faderMoveQueue.length === 0) return;
 
     try {
-        // 1. Get all queued moves
-        const rawMoves = this.faderMoveQueue.map(item => item.move);
-        
-        // 2. Combine using controller logic
-        const combinedMove = this.faderController.combineMoves(rawMoves);
-        
-        // 3. Get active faders from config
         const activeFaders = JSON.parse(this.config.get('FADERS_IDXS', '[]'));
-        
-        // 4. Filter to only active faders
-        const filteredIndexes = [];
-        const filteredTargets = [];
-        const filteredSpeeds = [];
-        
-        combinedMove.idx.forEach((faderIndex, i) => {
-            if (activeFaders.includes(faderIndex)) {
-                filteredIndexes.push(faderIndex);
-                filteredTargets.push(combinedMove.target[i]);
-                filteredSpeeds.push(combinedMove.speed[i]);
-            }
+        const latestMoves = new Map();
+
+        // Process moves in reverse to prioritize newer commands
+        [...this.faderMoveQueue].reverse().forEach(({ move }) => {
+            move.idx.forEach((faderIndex, i) => {
+                if (activeFaders.includes(faderIndex) && !latestMoves.has(faderIndex)) {
+                    latestMoves.set(faderIndex, {
+                        target: move.target[i],
+                        speed: move.speed[i]
+                    });
+                }
+            });
         });
 
-        // 5. Create final move command
-        const finalMove = new FaderMove(filteredIndexes, filteredTargets, filteredSpeeds);
+        // Build final move
+        const indexes = Array.from(latestMoves.keys());
+        const targets = indexes.map(idx => latestMoves.get(idx).target);
+        const speeds = indexes.map(idx => latestMoves.get(idx).speed);
         
-        if (finalMove.idx.length > 0) {
+        if (indexes.length > 0) {
+            const finalMove = new FaderMove(indexes, targets, speeds);
             this.faderController.moveFaders(finalMove, true);
             
             if (this.config.get('DEBUG_MODE')) {
-                this.logger.debug(`${this.PLUGINSTR}: Sent combined move for faders: ${finalMove.idx}`);
+                this.logger.debug(`${this.PLUGINSTR}: Sent latest moves for faders ${indexes}`);
             }
         }
     } catch (error) {
         this.logger.error(`${this.PLUGINSTR}: Move processing failed: ${error}`);
     } finally {
-        // Reset queue
         this.faderMoveQueue = [];
         clearTimeout(this.aggregationTimeout);
         this.aggregationTimeout = null;
     }
 };
+
+//* FADERCONTROLLER #####################################################################
 
 motorizedFaderControl.prototype.setupFaderController = function() {
     var self = this;

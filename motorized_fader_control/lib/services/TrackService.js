@@ -14,6 +14,7 @@ class TrackService extends BaseService {
         ...state,
         timestamp: Date.now()
       });
+      // this.updatePosition(); //send a direct update avoiding the interval
       this.startUpdateInterval();
       this.logger.info(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
     }
@@ -24,17 +25,6 @@ class TrackService extends BaseService {
            typeof state.seek === 'number' &&
            typeof state.duration === 'number' &&
            state.duration > 0;
-  }
-
-  calculateDynamicProgression() {
-    const cachedState = this.stateCache.get('playback', 'lastValid');
-    if (!cachedState) return null;
-
-    const elapsed = Date.now() - cachedState.timestamp;
-    const currentPosition = cachedState.seek + elapsed;
-    const progression = (currentPosition / cachedState.duration) * 100;
-
-    return Math.min(100, Math.max(0, progression));
   }
 
   updatePosition() {
@@ -55,13 +45,31 @@ class TrackService extends BaseService {
 
   handleMove(faderInfo) { //! touch/untouch logic this just updates directly as soon as move
     const position = faderInfo.progression;
+    let seekPosition = null
     if (this.config.get('UPDATE_SEEK_ON_MOVE', false)) {
       const state = this.stateCache.get('playback', 'current');
-      const seekPosition = (position / 100) * state.duration;
+      seekPosition = (position / 100) * state.duration;
       this.eventBus.emit('command/seek', seekPosition);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx}.to ${seekPosition}`);
+    } else {
+      // cache faderInfo and command, seek maybe register a eventbus listener for untouch for the fader
+      // we need to react on the untouch event to send the seek command
+      this.stateCache.cacheFaderInfo(faderInfo);
     }
-    this.stateCache.set('userInput', this.faderIdx, true, 1000); // 1s lockout
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    this.stateCache.cacheSeekProgression(this.faderIdx, position); // seems unnecessary
+  }
+
+  handleMoved(faderInfo) {
+    //unregister the listener for untouch
+    //send the seek command
+    //clear the fader cache 
+    if (this.config.get('UPDATE_SEEK_ON_MOVE', false) !== true) {
+      const state = this.stateCache.get('playback', 'current');
+      const seekPosition = (faderInfo.progression / 100) * state.duration;
+      this.eventBus.emit('command/seek', seekPosition);
+      this.stateCache.clear('fader', `fader_${faderInfo.index}`);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx}.to ${seekPosition}`);
+    }
   }
 }
 

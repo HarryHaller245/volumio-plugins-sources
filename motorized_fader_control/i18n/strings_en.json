@@ -61,7 +61,7 @@
     "LABEL_STATE_UPDATE_INTERVAL": "State Update Interval",
     "DOC_STATE_UPDATE_INTERVAL": "Deprecated, we avoid ussing contious state updates. 1000ms matches the ui playback refreshrate",
     "LABEL_FADER_REALTIME_SEEK_INTERVAL": "Realtime Seek Interval",
-    "DOC_FADER_REALTIME_SEEK_INTERVAL": "Set the interval for realtime seek in milliseconds.1000ms matches the ui playback refreshrate",
+    "DOC_FADER_REALTIME_SEEK_INTERVAL": "Set the interval for realtime seek in milliseconds. 1000ms matches the ui playback refreshrate. This will delay reactivity",
     "LABEL_DEBUG_MODE": "Debug mode",
     "DOC_DEBUG_MODE": "Enable/Disable Logging in debugging mode. This will log more verbose and slow down timings"
   },

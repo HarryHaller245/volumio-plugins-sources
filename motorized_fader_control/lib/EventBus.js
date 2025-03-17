@@ -31,6 +31,12 @@ class EventBus {
       this.logger.debug(`${this.PLUGINSTR}: Unsubscribed from event: ${event}`);
     };
   }
+
+  off(event, callback) {
+    if (!this.listeners[event]) return;
+    this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
+    this.logger.debug(`${this.PLUGINSTR}: Unsubscribed from event: ${event}`);
+  }
   
   emit(event, data) {
     this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.EVENT.EMIT} ${event} ${JSON.stringify(data)}`);

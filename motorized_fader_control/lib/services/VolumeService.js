@@ -18,11 +18,11 @@ class VolumeService extends BaseService {
   }
 
   handleVolumeUpdate(volume) {
-    if (this.stateCache.get('volume', 'current') === volume) return; 
-    const progression = volume; 
+    if (this.stateCache.get('volume', 'current') === volume) return;
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_VOLUME} volume: ${volume.vol}`);
+    const progression = volume.vol; 
     this.updateHardware(progression);
-    this.stateCache.set('volume', 'current', volume);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_UPDATE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_VOLUME} ${this.faderIdx}`);
   }
   
 }

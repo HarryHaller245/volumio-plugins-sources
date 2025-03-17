@@ -157,10 +157,10 @@ class StateCache {
                 }
             }
             return state;
+          }
         }
-      }
-    return null;
-  }
+      return null;
+    }
 
   // User input management
   setUserInputLock(faderIdx, timeout = 10) {
