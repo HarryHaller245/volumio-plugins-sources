@@ -117,7 +117,7 @@ class StateCache {
       originalDuration: validState.duration * 1000 // Convert to ms
     };
     this.set('playback', 'current', stateWithTiming, 60000000); // 1 minute TTL
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_PLAYBACK_STATE}: ${JSON.stringify(stateWithTiming)}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_PLAYBACK_STATE} ${JSON.stringify(stateWithTiming)}`);
     return stateWithTiming;
   }
 
@@ -186,6 +186,13 @@ class StateCache {
     this.set('fader', `fader_${faderInfo.index}`, faderInfo, 300000);
     this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_FADER_INFO.replace('${faderInfo}', JSON.stringify(faderInfo))}`);
   }
+
+  //cache fader info and untouch and what to do after untouch maybe put into
+  cacheFaderInfoCommand(faderInfo, command) {
+    this.set('fader', `fader_${faderInfo.index}`, { faderInfo, command }, 300000);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_FADER_INFO_COMMAND.replace('${faderInfo}', JSON.stringify(faderInfo)).replace('${command}', command)}`);
+  }
+
 }
 
 module.exports = StateCache;

@@ -80,7 +80,9 @@
         "UPDATE_POSITION": "Updating position for fader:",
         "HANDLE_MOVE": "Handling move for fader:",
         "UPDATE_HARDWARE": "Updating hardware for fader:",
-        "HANDLE_UPDATE": "Handling update for fader:"
+        "HANDLE_UPDATE": "Handling update for fader:",
+        "HANDLE_SEEK": "Handling seek for fader:",
+        "HANDLE_VOLUME": "Handling volume for fader:"
       }
   }
 }
