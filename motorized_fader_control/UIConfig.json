@@ -365,20 +365,20 @@
       },
       "content": [
         {
-          "id": "DEBUG_MODE",
-          "type": "switch",
-          "element": "switch",
-          "doc": "TRANSLATE.DEV_SETTINGS.DOC_DEBUG_MODE",
-          "label": "TRANSLATE.DEV_SETTINGS.LABEL_DEBUG_MODE",
-          "value": true
-        },
-        {
           "id": "FADER_REALTIME_SEEK_INTERVAL",
           "type": "number",
           "element": "input",
           "doc": "TRANSLATE.DEV_SETTINGS.DOC_FADER_REALTIME_SEEK_INTERVAL",
           "label": "TRANSLATE.DEV_SETTINGS.LABEL_FADER_REALTIME_SEEK_INTERVAL",
           "value": 100
+        },
+        {
+          "id": "DEBUG_MODE",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.DEV_SETTINGS.DOC_DEBUG_MODE",
+          "label": "TRANSLATE.DEV_SETTINGS.LABEL_DEBUG_MODE",
+          "value": true
         },
         {
           "id": "FADER_CONTROLLER_MIDI_LOG",
