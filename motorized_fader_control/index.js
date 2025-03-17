@@ -262,8 +262,9 @@ motorizedFaderControl.prototype.getUIConfig = function() {
     const self = this;
     const lang_code = this.commandRouter.sharedVars.get('language_code');
     
-    self.logger.debug(`${self.PLUGINSTR}: Getting UI Config for language code: ${lang_code}`);
+    self.logger.debug(`${self.PLUGINSTR}: Getting UI Config for language code: ` + lang_code);
 
+    // Load the UIConfig from specified i18n and UIConfig files
     self.commandRouter.i18nJson(
         __dirname + '/i18n/strings_' + lang_code + '.json',
         __dirname + '/i18n/strings_en.json',
@@ -272,6 +273,7 @@ motorizedFaderControl.prototype.getUIConfig = function() {
     .then(uiconf => {
         self.logger.info(`${self.PLUGINSTR}: Successfully loaded UIConfig.`);
         
+        // Validate sections
         if (!uiconf.sections || uiconf.sections.length === 0) {
             const errorMsg = `${self.PLUGINSTR}: UIConfig does not contain any sections.`;
             self.logger.error(errorMsg);
@@ -279,42 +281,29 @@ motorizedFaderControl.prototype.getUIConfig = function() {
             return;
         }
 
-        // Recursive section processing function
-        function processSectionsRecursively(sections) {
-            sections.forEach(section => {
-                if (self.config.get('DEBUG_MODE', false)) { 
-                    self.logger.debug(`${self.PUGLINSTR}: Processing section: ${section.label || 'Unnamed Section'}`);
-                }
-
-                // Process nested sections first
-                if (section.content) {
-                    // Find subsections in content
-                    const subsections = section.content.filter(item => item.element === 'section');
-                    if (subsections.length > 0) {
-                        processSectionsRecursively(subsections);
+        // Populate the UIConfig with values from the config
+        uiconf.sections.forEach(section => {
+            if (self.config.get('DEBUG_MODE', false)) { 
+                self.logger.debug(`${self.PLUGINSTR}: Processing section: ` + (section.label || 'Unnamed Section'));
+            }
+            if (section.content) {
+                self.populateSectionContent(section.content);
+                // Additional unpacking for fader settings
+                if (section.id === "section_fader_behavior") {
+                    if (self.config.get('DEBUG_MODE', false)) { 
+                        self.logger.debug(`${self.PLUGINSTR}: Unpacking fader config for section: ` + section.id);
                     }
-
-                    // Process regular content
-                    self.populateSectionContent(section.content);
-
-                    // Handle fader behavior unpacking
-                    if (section.id === "section_fader_behavior") {
-                        if (self.config.get('DEBUG_MODE', false)) { 
-                            self.logger.debug(`${self.PLUGINSTR}: Unpacking fader config for section: ${section.id}`);
-                        }
-                        self.unpackFaderConfig(section.content);
-                    }
+                    self.unpackFaderConfig(section.content);
                 }
-            });
-        }
-
-        // Start processing with root sections
-        processSectionsRecursively(uiconf.sections);
+            } else {
+                self.logger.warn(`${self.PLUGINSTR}: No content found in section: ` + (section.label || 'Unnamed Section'));
+            }
+        });
 
         defer.resolve(uiconf);
     })
     .fail(error => {
-        const errorMsg = `${self.PLUGINSTR}: Failed to parse UI Configuration: ${error}`;
+        const errorMsg = `${self.PLUGINSTR}: Failed to parse UI Configuration page for plugin Motorized Fader Control: ` + error;
         self.logger.error(errorMsg);
         defer.reject(new Error(errorMsg));
     });
@@ -324,38 +313,21 @@ motorizedFaderControl.prototype.getUIConfig = function() {
 
 motorizedFaderControl.prototype.populateSectionContent = function(content) {
     const self = this;
-    
-    function processContentItems(items) {
-        items.forEach(element => {
-            // Handle nested sections recursively
-            if (element.element === 'section') {
-                if (self.config.get('DEBUG_MODE', false)) {
-                    self.logger.debug(`${self.PLUGINSTR}: Processing nested section: ${element.id}`);
-                }
-                processContentItems(element.content);
-                return;
+    content.forEach(element => {
+        const configValue = self.config.get(element.id);
+        if (configValue !== undefined) {
+            element.value = (element.element === 'select') 
+                ? self.getSelectValue(element, configValue)
+                : configValue; // Directly set value for non-select elements
+            if (self.config.get('DEBUG_MODE', false)) { 
+                self.logger.debug(`${self.PLUGINSTR}: Set value for ${element.id}: ${JSON.stringify(element.value)}`);
             }
-
-            // Existing config population logic
-            const configValue = self.config.get(element.id);
-            if (configValue !== undefined) {
-                element.value = (element.element === 'select') 
-                    ? self.getSelectValue(element, configValue)
-                    : configValue;
-                
-                if (self.config.get('DEBUG_MODE', false)) { 
-                    self.logger.debug(`${self.PLUGINSTR}: Set value for ${element.id}: ${JSON.stringify(element.value)}`);
-                }
-            } else {
-                if (self.config.get('DEBUG_MODE', false)) { 
-                    self.logger.debug(`${self.PLUGINSTR}: No value found in config for: ${element.id}`);
-                }
+        } else {
+            if (self.config.get('DEBUG_MODE', false)) { 
+                self.logger.debug(`${self.PLUGINSTR}: No value found in config for: ${element.id}`);
             }
-        });
-    }
-
-    // Start processing with root content
-    processContentItems(content);
+        }
+    });
 };
 
 motorizedFaderControl.prototype.getSelectValue = function(element, selectedValue) {
@@ -937,6 +909,7 @@ motorizedFaderControl.prototype.setupFaderFeedback = function() {
 };
 
 // middleware to send concurrent moves is time delay is less than 1ms between events
+// store fader moves for a short delay, either delay runout or 1 move per configured fader is reached
 motorizedFaderControl.prototype.FaderMoveAggregator = function() {
     //somehow
     this.faderMove = new FaderMove();

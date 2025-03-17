@@ -6,9 +6,11 @@
     "GENERAL_SETTINGS": "General Settings",
     "LOGGING_SETTINGS": "Logging Settings",
     "DEVELOPMENT_SETTINGS": "Development Settings",
-    "DEVELOPMENT_SETTINGS_DESCRIPTION": "Configure the development settings for the fader controller.",
+    "DEVELOPMENT_SETTINGS_DESCRIPTION": "Configure settings for debugging and development.",
     "FADER_BEHAVIOR": "Fader Behavior",
-    "FADER_BEHAVIOR_DESCRIPTION": "Configure what the faders control & show during playback. Note: Album control does only work for certain services. Playlist, Queue are not implemented yet"
+    "FADER_BEHAVIOR_DESCRIPTION": "Configure what the faders control & show during playback. Note: Album control does only work for certain services. Playlist, Queue are not implemented yet",
+    "ADVANCED_SETTINGS": "Advanced Settings",
+    "ADVANCED_SETTINGS_DESCRIPTION": "Configure hardware and logging settings."
   },
   "BUTTON": {
     "SAVE": "Save",
@@ -66,8 +68,8 @@
   "FADER_BEHAVIOR": {
     "DOC_FADER_BEHAVIOR": "Configure which functions the faders are assigned to",
     "LABEL_FADER_BEHAVIOR": "control type",
-    "LABEL_FADER_TRIM": "Fader Trim",
-    "DOC_FADER_TRIM": "Set trim cutoffs for the fader.Use this to avoid overshoot and rattling at the end positions",
+    "LABEL_FADER_TRIM": "Trim",
+    "DOC_FADER_TRIM": "Set trims for the fader. This will map all values to this range. Use this to avoid overshoot and rattling at the end positions",
     "LABEL_FADER_0": "Fader 0",
     "DOC_FADER_0_CONFIGURED": "Enable or disable Fader 0 configuration.",
     "LABEL_FADER_0_OUTPUT": "Fader 0 Behavior",

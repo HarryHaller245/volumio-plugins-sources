@@ -41,46 +41,46 @@
         "SERIAL_PORT": {
           "CONNECTING": "Connecting to serial port...",
           "SUCCESS": "Connected",
-          "ERROR": "Error connecting to serial port: "
+          "ERROR": "Error connecting to serial port:"
         }
       },
       "WARNINGS": {
         "NO_FADER_INDEXES": "Fader indexes not set. Please enable at least one Fader.",
-        "CONFIG_ISSUE": "Configuration issue detected: "
+        "CONFIG_ISSUE": "Configuration issue detected:"
       },
       "ERRORS": {
-        "SETUP_FAILED": "Error during plugin setup: ",
-        "FADER_CONTROLLER_FAILED": "Error starting FaderController: ",
-        "GENERIC_ERROR": "An error occurred: ",
+        "SETUP_FAILED": "Error during plugin setup:",
+        "FADER_CONTROLLER_FAILED": "Error starting FaderController:",
+        "GENERIC_ERROR": "An error occurred:",
         "CRITICAL_ERROR": "A critical error occurred:"
       },
       "EVENT": {
-        "REGISTERED": "Event registered: ",
-        "EMIT": "Event triggered: ",
-        "EMIT_PLAYBACK": "Playback event emitted: "
+        "REGISTERED": "Event registered:",
+        "EMIT": "Event triggered:",
+        "EMIT_PLAYBACK": "Playback event emitted:"
       },
       "CACHE": {
-        "SET" : "Setting cache value: ",
-        "GET" : "Getting cache value: ",
-        "EXPIRED" : "Cache expired: ",
-        "SUBSCRIBED" : "Subscribed to cache: ",
-        "UNSUBSCRIBED" : "Unsubscribed from cache: ",
-        "CLEAR": "Clearing cache: ",
-        "CACHE_PLAYBACK_STATE": "Playback state cache: ",
-        "SET_USER_INPUT_LOCK": "Setting user input lock: ",
-        "CACHE_SEEK_PROGRESSION": "Seek progression cache: ",
+        "SET" : "Setting cache value:",
+        "GET" : "Getting cache value:",
+        "EXPIRED" : "Cache expired:",
+        "SUBSCRIBED" : "Subscribed to cache:",
+        "UNSUBSCRIBED" : "Unsubscribed from cache:",
+        "CLEAR": "Clearing cache:",
+        "CACHE_PLAYBACK_STATE": "Playback state cache:",
+        "SET_USER_INPUT_LOCK": "Setting user input lock:",
+        "CACHE_SEEK_PROGRESSION": "Seek progression cache:",
         "CACHE_FADER_INFO": "Fader info cache: "
       },
       "SERVICES" : {
         "BASE": {
-          "START_INTERVAL": "Starting interval for service: ",
-          "STOP_INTERVAL": "Stopping interval for service: "
+          "START_INTERVAL": "Starting interval for service:",
+          "STOP_INTERVAL": "Stopping interval for service:"
         },
-        "HANDLE_PLAY": "Handling play state for fader: ",
-        "UPDATE_POSITION": "Updating position for fader: ",
-        "HANDLE_MOVE": "Handling move for fader: ",
-        "UPDATE_HARDWARE": "Updating hardware for fader: ",
-        "HANDLE_UPDATE": "Handling update for fader: "
+        "HANDLE_PLAY": "Handling play state for fader:",
+        "UPDATE_POSITION": "Updating position for fader:",
+        "HANDLE_MOVE": "Handling move for fader:",
+        "UPDATE_HARDWARE": "Updating hardware for fader:",
+        "HANDLE_UPDATE": "Handling update for fader:"
       }
   }
 }
