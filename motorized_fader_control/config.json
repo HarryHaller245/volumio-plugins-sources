@@ -139,9 +139,9 @@
       "type": "number",
       "value": 900
     },
-    "EXPERIMENTAL_ARCHITEXTURE": {
-      "type": "boolean",
-      "value": false
+    "FADER_AGGREGATION_DELAY": {
+      "type": "number",
+      "value": 10
     }
 }
   

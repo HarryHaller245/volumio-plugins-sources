@@ -910,12 +910,89 @@ motorizedFaderControl.prototype.setupFaderFeedback = function() {
 
 // middleware to send concurrent moves is time delay is less than 1ms between events
 // store fader moves for a short delay, either delay runout or 1 move per configured fader is reached
-motorizedFaderControl.prototype.FaderMoveAggregator = function() {
-    //somehow
-    this.faderMove = new FaderMove();
+motorizedFaderControl.prototype.setupFaderFeedback = function() {
+    const self = this;
+    
+    this.eventBus.on('fader/update', ({indexes, targets, speeds}) => {
+        if(this.faderController) {
+            this.queueFaderMove(indexes, targets, speeds);
+        }
+    });
+};
+
+motorizedFaderControl.prototype.faderMoveAggregatorInitialize = function() {
     this.faderMoveQueue = [];
-    this.isAggregating = false;
-}
+    this.aggregationTimeout = null;
+    this.aggregationDelay = Math.max(
+        this.config.get('FADER_CONTROLLER_MESSAGE_DELAY') || 0.001, 
+        0.001 // Minimum 1ms delay
+    ) * 1000; // Convert seconds to ms
+};
+
+motorizedFaderControl.prototype.queueFaderMove = function(indexes, targets, speeds) {
+    const timestamp = Date.now();
+    
+    // Add move to queue with timestamp
+    this.faderMoveQueue.push({
+        indexes,
+        targets,
+        speeds,
+        timestamp
+    });
+    
+    // If not already aggregating, start the aggregation window
+    if (!this.aggregationTimeout) {
+        this.aggregationTimeout = setTimeout(() => {
+            this.processFaderMoveQueue();
+        }, this.aggregationDelay);
+    }
+};
+
+motorizedFaderControl.prototype.processFaderMoveQueue = function() {
+    if (this.faderMoveQueue.length === 0) return;
+
+    try {
+        // 1. Get all queued moves
+        const rawMoves = this.faderMoveQueue.map(item => item.move);
+        
+        // 2. Combine using controller logic
+        const combinedMove = this.faderController.combineMoves(rawMoves);
+        
+        // 3. Get active faders from config
+        const activeFaders = JSON.parse(this.config.get('FADERS_IDXS', '[]'));
+        
+        // 4. Filter to only active faders
+        const filteredIndexes = [];
+        const filteredTargets = [];
+        const filteredSpeeds = [];
+        
+        combinedMove.idx.forEach((faderIndex, i) => {
+            if (activeFaders.includes(faderIndex)) {
+                filteredIndexes.push(faderIndex);
+                filteredTargets.push(combinedMove.target[i]);
+                filteredSpeeds.push(combinedMove.speed[i]);
+            }
+        });
+
+        // 5. Create final move command
+        const finalMove = new FaderMove(filteredIndexes, filteredTargets, filteredSpeeds);
+        
+        if (finalMove.idx.length > 0) {
+            this.faderController.moveFaders(finalMove, true);
+            
+            if (this.config.get('DEBUG_MODE')) {
+                this.logger.debug(`${this.PLUGINSTR}: Sent combined move for faders: ${finalMove.idx}`);
+            }
+        }
+    } catch (error) {
+        this.logger.error(`${this.PLUGINSTR}: Move processing failed: ${error}`);
+    } finally {
+        // Reset queue
+        this.faderMoveQueue = [];
+        clearTimeout(this.aggregationTimeout);
+        this.aggregationTimeout = null;
+    }
+};
 
 motorizedFaderControl.prototype.setupFaderController = function() {
     var self = this;
