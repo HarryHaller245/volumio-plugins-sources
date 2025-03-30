@@ -442,7 +442,6 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
         // Iterate over the fader data and repack the information
         for (let i = 0; i < 4; i++) {  // Assuming a maximum of 4 faders
             self.logger.debug(`${self.PLUGINSTR}: Processing fader ${i}...`);
-
             // Log the raw data for this fader
             self.logger.debug(`${self.PLUGINSTR}: Fader ${i} raw data: ${JSON.stringify({
                 configured: data[`FADER_${i}_CONFIGURED`],
@@ -453,7 +452,6 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
             let faderConfigured = data[`FADER_${i}_CONFIGURED`];
             let faderBehaviorValue = data[`FADER_${i}_BEHAVIOR`]?.value || "volume";
             let faderTrimMapValue = data[`FADER_${i}_TRIM`];
-
             // Unnest the trim value if it's in the `bars` array format
             let faderTrim = Array.isArray(faderTrimMapValue) && faderTrimMapValue.length > 0
                 ? faderTrimMapValue[0]  // Extract the nested array
@@ -464,12 +462,10 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
                 FADER_IDX: i,
                 CONTROL_TYPE: faderBehaviorValue
             });
-
-            // Add fader trim to the trim map
-            faderTrimMap[i] = faderTrim;
-
+            
             // Add fader index to configured list if configured
             if (faderConfigured) {
+                faderTrimMap[i] = faderTrim;
                 faderIdxs.push(i);
                 self.logger.debug(`${self.PLUGINSTR}: Fader ${i} is configured.`);
             } else {
@@ -1019,13 +1015,12 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                 CalibrationOnStart,
                 faderIndexes
             );
-
-            if (Object.keys(trimMap).length !== 0) {
-                self.faderController.setFadersTrimsDict(trimMap);
-                //log this
-                self.logger.debug(`${self.PLUGINSTR}: Fader trims set successfully: ${JSON.stringify(trimMap)}`);
+            try {
+                await self.faderController.setFadersTrimsDict(trimMap);
+            } catch (error) {
+                self.logger.error(`${self.PLUGINSTR}: Error setting fader trims: ${error.message}`);
             }
-
+            
             const faderSpeedFactorConfig = self.config.get('FADER_SPEED_FACTOR', '[]');
             let faderSpeedFactors;
             try {

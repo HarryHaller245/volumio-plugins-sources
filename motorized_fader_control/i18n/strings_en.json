@@ -68,8 +68,8 @@
   "FADER_BEHAVIOR": {
     "DOC_FADER_BEHAVIOR": "Configure which functions the faders are assigned to",
     "LABEL_FADER_BEHAVIOR": "control type",
-    "LABEL_FADER_TRIM": "Trim",
-    "DOC_FADER_TRIM": "Set trims for the fader. This will map all values to this range. Use this to avoid overshoot and rattling at the end positions",
+    "LABEL_FADER_TRIM": "Trim/Mapping",
+    "DOC_FADER_TRIM": "Set trims/mapping for the fader. This will map all values to this range. Use this to avoid overshoot and rattling at the end positions",
     "LABEL_FADER_0": "Fader 0",
     "DOC_FADER_0_CONFIGURED": "Enable or disable Fader 0 configuration.",
     "LABEL_FADER_0_OUTPUT": "Fader 0 Behavior",
