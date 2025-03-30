@@ -982,125 +982,183 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
 //* FADERCONTROLLER #####################################################################
 
 motorizedFaderControl.prototype.setupFaderController = function() {
-    var self = this;
-    self.logger.info('${self.PLUGINSTR}: Setting up FaderController...');
+    const self = this;
+    self.logger.info(`${self.PLUGINSTR}: Initializing FaderController V2...`);
 
     return new Promise(async (resolve, reject) => {
         try {
-            const messageDelay = self.config.get('FADER_CONTROLLER_MESSAGE_DELAY', 0.001);
-            const MIDILog = self.config.get('FADER_CONTROLLER_MIDI_LOG', false);
-            const ValueLog = self.config.get('FADER_CONTROLLER_VALUE_LOG', false);
-            const MoveLog = self.config.get('FADER_CONTROLLER_MOVE_LOG', false);
-            const trimMap = JSON.parse(self.config.get('FADER_TRIM_MAP', '{}'));
-            const speedHigh = self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100);
-            const speedMedium = self.config.get('FADER_CONTROLLER_SPEED_MEDIUM', 50);
-            const speedLow = self.config.get('FADER_CONTROLLER_SPEED_LOW', 20);
-            const CalibrationOnStart = self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true);
+            const controllerConfig = {
+                logger: self.logger,
+                MIDILog: self.config.get('FADER_CONTROLLER_MIDI_LOG', false),
+                ValueLog: self.config.get('FADER_CONTROLLER_VALUE_LOG', false),
+                MoveLog: self.config.get('FADER_CONTROLLER_MOVE_LOG', false),
+                messageDelay: self.config.get('FADER_CONTROLLER_MESSAGE_DELAY', 10),
+                speeds: [
+                    self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100),
+                    self.config.get('FADER_CONTROLLER_SPEED_MEDIUM', 50),
+                    self.config.get('FADER_CONTROLLER_SPEED_LOW', 20)
+                ],
+                faderIndexes: JSON.parse(self.config.get('FADERS_IDXS', '[]')),
+                MIDILog: self.config.get('FADER_CONTROLLER_MIDI_LOG', false),
+                ValueLog: self.config.get('FADER_CONTROLLER_VALUE_LOG', false),
+                MoveLog: self.config.get('FADER_CONTROLLER_MOVE_LOG', false),
+                CalibrationOnStart: self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true)
+            };
 
-            const faderIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
-            if (faderIndexes === undefined || faderIndexes.length === 0) {
-                self.logger.warn(`${self.PLUGINSTR}: Fader indexes not set. Please enable at least one Fader.`);
-                self.commandRouter.pushToastMessage('warning', 'No fader configured!', 'Check your settings.');
-                reject(new Error('No fader indexes configured.'));
-                return;
+            if (!controllerConfig.faderIndexes?.length) {
+                const errorMsg = 'No valid fader indexes configured';
+                self.logger.warn(`${self.PLUGINSTR}: ${errorMsg}`);
+                self.commandRouter.pushToastMessage('warning', 'Configuration Error', 'No faders enabled');
+                return reject(new Error(errorMsg));
             }
 
-            self.faderController = new FaderController(
-                self.logger,
-                messageDelay,
-                MIDILog,
-                [speedHigh, speedMedium, speedLow],
-                ValueLog,
-                MoveLog,
-                CalibrationOnStart,
-                faderIndexes
+            // Initialize controller with consolidated config
+            self.faderController = new FaderController(controllerConfig);
+
+            // Configure trims and speed factors
+            await this.configureFaderSettings(
+                JSON.parse(self.config.get('FADER_TRIM_MAP', '{}')),
+                JSON.parse(self.config.get('FADER_SPEED_FACTOR', '{}'))
             );
-            try {
-                await self.faderController.setFadersTrimsDict(trimMap);
-            } catch (error) {
-                self.logger.error(`${self.PLUGINSTR}: Error setting fader trims: ${error.message}`);
-            }
-            
-            const faderSpeedFactorConfig = self.config.get('FADER_SPEED_FACTOR', '[]');
-            let faderSpeedFactors;
-            try {
-                faderSpeedFactors = JSON.parse(faderSpeedFactorConfig);
-                faderSpeedFactors.forEach(factorConfig => {
-                    const index = Object.keys(factorConfig)[0];
-                    const factor = factorConfig[index];
-                    self.faderController.setFadersMovementSpeedFactor(parseInt(index), parseFloat(factor));
-                });
-                self.logger.debug(`${self.PLUGINSTR}: Fader speed factors set successfully.`);
-            } catch (error) {
-                self.logger.error(`${self.PLUGINSTR}: Failed to parse FADER_SPEED_FACTOR config: ${error.message}`);
-            }
 
-            // New adapter connection
+            // Initialize hardware connections
             this.setupFaderAdapter();
             this.setupFaderFeedback();
 
-            resolve(true); // Resolve the promise on successful setup
+            resolve(true);
         } catch (error) {
-            self.logger.error(`${self.PLUGINSTR}: Error setting up FaderController: ` + error.message);
-            reject(error); // Reject the promise on failure
+            self.logger.error(`${self.PLUGINSTR}: Controller setup failed: ${error.message}`);
+            reject(error);
         }
     });
 };
 
-motorizedFaderControl.prototype.startFaderController = async function() {
-    var self = this;
-
+motorizedFaderControl.prototype.configureFaderSettings = async function(trimMap, speedFactors) {
+    const self = this;
+    
     try {
-        const serialPort = self.config.get("SERIAL_PORT");
-        const baudRate = self.config.get("BAUD_RATE");
-        const calibrationOnStart = self.config.get("FADER_CONTROLLER_CALIBRATION_ON_START", true);
-
-        await self.faderController.setupSerial(serialPort, baudRate).catch(error => {
-            self.logger.error(`${self.PLUGINSTR}: Error setting up serial connection: ` + error.message);
-            throw error; // Re-throw to propagate the error
+        // Set progression maps using V2 API
+        const trimPromises = Object.entries(trimMap).map(([index, range]) => 
+            self.faderController.setFaderProgressionMap(parseInt(index), range)
+        );
+        await Promise.all(trimPromises);
+        
+        // Apply speed factors using V2 method
+        Object.entries(speedFactors).forEach(([index, factor]) => {
+            self.faderController.setFadersMovementSpeedFactor(
+                [parseInt(index)], 
+                parseFloat(factor)
+            );
         });
-        await self.faderController.start(calibrationOnStart).catch(error => {
-            self.logger.error(`${self.PLUGINSTR}: Error starting FaderController: ` + error.message);
-            throw error; // Re-throw to propagate the error
-        });
-
-        // old: self.setupFaderControllerTouchCallbacks();
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Error starting Fader Controller: ` + error.message);
+        self.logger.error(`${self.PLUGINSTR}: Configuration error: ${error.message}`);
         throw error;
     }
 };
-// Modified adapter setup
+
+motorizedFaderControl.prototype.startFaderController = async function() {
+    const self = this;
+    
+    try {
+        const serialConfig = {
+            port: self.config.get("SERIAL_PORT"),
+            baudRate: self.config.get("BAUD_RATE", 1000000),
+            retries: 5 // Added retry capability from V2
+        };
+
+        // Use new setupSerial interface
+        await self.faderController.setupSerial(serialConfig);
+        
+        // Start with calibration flag from config
+        await self.faderController.start();
+        
+        self.logger.info(`${self.PLUGINSTR}: FaderController V2 started successfully`);
+
+    } catch (error) {
+        self.logger.error(`${self.PLUGINSTR}: Startup failed: ${error.message}`);
+        throw error;
+    }
+};
+
 motorizedFaderControl.prototype.setupFaderAdapter = function() {
-    // Assuming FaderController emits 'move' events
-    this.faderController.on('touch', (faderIdx, faderInfo) => {
-        this.eventBus.emit(`fader/${faderIdx}/touch`, {
-        fader: faderInfo,
-        timestamp: Date.now()
-        });
-        //fader is touch changed to touched
-    });
+    const self = this;
 
-    this.faderController.on('untouch', (faderIdx, faderInfo) => {
-        this.eventBus.emit(`fader/${faderIdx}/untouch`, {
-        fader: faderInfo,
-        timestamp: Date.now()
+    // Unified event handler factory
+    const createEventHandler = (eventType) => (idx, info) => {
+        self.eventBus.emit(`fader/${faderIdx}/${eventType}`, {
+            index: faderIdx,
+            position: faderInfo.position,
+            progression: faderInfo.progression,
+            rawPosition: faderInfo.rawPosition,
+            timestamp: Date.now(),
+            state: {
+                touched: eventType === 'touch',
+                moving: eventType === 'move'
+            }
         });
-        // indicates a finished move when touch & move was emitted before
-    });
 
-    this.faderController.on('move', (faderIdx, faderInfo) => {
-        this.eventBus.emit(`fader/${faderIdx}/move`, {
-        fader: faderInfo,
-        timestamp: Date.now()
-        });
+        // Additional handling for touch release
+        if (eventType === 'untouch') {
+            self.eventBus.emit(`fader/${faderIdx}/move/end`, {
+                finalPosition: faderInfo.position
+            });
+        }
+    };
+
+    // Connect V2 controller events
+    const eventMapping = {
+        touch: createEventHandler('touch'),
+        untouch: createEventHandler('untouch'),
+        move: createEventHandler('move'),
+        error: (error) => { //think this is done in event 
+            self.eventBus.emit('FaderController/error', {
+                message: error.message,
+                code: error.code || 'UNKNOWN'
+            });
+        }
+    };
+
+    // Attach all event handlers
+    Object.entries(eventMapping).forEach(([event, handler]) => {
+        self.faderController.on(event, handler);
     });
+};
+
+// Add validation helper
+motorizedFaderControl.prototype.validateFaderConfig = function(config) {
+    return {
+      ...config,
+      faderIndexes: config.faderIndexes.filter(idx => 
+        Number.isInteger(idx) && idx >= 0 && idx < 8
+      ),
+      speeds: config.speeds.map(s => 
+        Math.min(Math.max(s, 0.1), 100)
+      )
+    };
+  };
+
+motorizedFaderControl.prototype.collectMetrics = function() {
+return {
+    queueSize: this.faderMoveQueue.length,
+    moveRate: this.metricsCounter.moves / 
+    (Date.now() - this.startTime),
+    errorRate: this.metricsCounter.errors /
+    (Date.now() - this.startTime)
+};
 };
 
 //* EVENT ERROR/WARNINGS
 
 motorizedFaderControl.prototype.setupErrorHandling = function() {
     const self = this;
+
+    //Fader Controller Errors:
+    this.faderController.on('error', (error) => {
+        self.logger.error(`${self.PLUGINSTR}: FaderController error: ${error.message}`);
+        if (error.details) {
+            self.logger.error(`${self.PLUGINSTR}: FaderController error details: ${error.details}`);
+        }
+    });
 
     // Global error handler
     process.on('unhandledRejection', (error) => {
