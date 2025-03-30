@@ -9,7 +9,7 @@
     },
     "FADER_CONTROLLER_MIDI_LOG": {
       "type": "boolean",
-      "value": false
+      "value": true
     },
     "FADER_CONTROLLER_VALUE_LOG": {
       "type": "boolean",

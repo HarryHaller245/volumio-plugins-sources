@@ -29,11 +29,12 @@
 		"volumio": ">=3.631.0 <4.0.0"
 	},
 	"dependencies": {
+		"async-mutex": "^0.5.0",
 		"fs-extra": "^0.28.0",
 		"kew": "^0.7.0",
-		"v-conf": "^1.4.0",
 		"serialport": "^9.2.8",
 		"socket.io-client": "^2.5.0",
+		"v-conf": "^1.4.0",
 		"weak-napi": "^2.0.2"
 	},
 	"devDependencies": {
