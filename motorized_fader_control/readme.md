@@ -63,12 +63,10 @@ supporting real-time feedback and multiple seek modes.
 
 ### TODOs & Next Steps
 - **High Priority**:
-  - handle serial pport is already closed
-  - Plugin crashes to unresponse when no fadder is configured and saved, warning message works, but we gett an error during stop UnhandledPromiseRejectionWarning
-  - Test Fader Trim Settings
   - Implement album/queue seek logic
   - Improve seek position accuracy
   - restructure UI
+  - reduce message polling
 
 - **Enhancements**:
   - Playlist support

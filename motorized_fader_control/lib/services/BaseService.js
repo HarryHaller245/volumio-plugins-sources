@@ -81,7 +81,8 @@ class BaseService {
     const indexes = [this.faderIdx];
     const targets = [progression];
     const speeds = [this.config.get('FADER_SPEED_HIGH', 100)];
-    this.eventBus.emit('fader/update', {indexes, targets, speeds});
+    const resolution = this.config.get('FADER_RESOLUTION', 1);
+    this.eventBus.emit('fader/update', {indexes, targets, speeds, resolution});
   }
 
   stop() {

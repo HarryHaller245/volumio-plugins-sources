@@ -23,6 +23,10 @@
       "type": "boolean",
       "value": true
     },
+    "FADER_CONTROLLER_MOVE_RESOLUTION": {
+      "type": "number",
+      "value": 1
+    },
     "FADER_CONTROLLER_SPEED_HIGH": {
       "type": "number",
       "value": 100

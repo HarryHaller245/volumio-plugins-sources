@@ -725,6 +725,7 @@ motorizedFaderControl.prototype.setupServiceRouter = function() {
             this.eventBus.on('validated/state', state => {
                 service.handleStateUpdate(state);
             });
+
         });
     } catch (error) {
         self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.SETUP.SERVICES.ERROR}: ${error.message}`);
@@ -742,7 +743,7 @@ motorizedFaderControl.prototype.getServiceClass = function(controlType) {
 
 //* Volumio Bridge #####################################################################
 
-motorizedFaderControl.prototype.setupVolumioBridge = function() { //! add error handling, if volumio websocket doesnt connect its a critical fail
+motorizedFaderControl.prototype.setupVolumioBridge = function () {
     const self = this;
 
     try {
@@ -752,25 +753,23 @@ motorizedFaderControl.prototype.setupVolumioBridge = function() { //! add error 
             reconnectionDelay: 1000
         });
 
-        // Log connection
         self.logger.debug(`${self.PLUGINSTR}: Connected to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
 
-        // Emit a getState on connect
         // Unified State Handler
-        const handleStateUpdate = (state) => { 
+        const handleStateUpdate = (state) => {
             const validState = self.stateCache.cachePlaybackState(state);
 
             if (!validState) return;
 
             const statusEvents = {
-            play: 'playback/playing',
-            pause: 'playback/paused',
-            stop: 'playback/stopped'
+                play: 'playback/playing',
+                pause: 'playback/paused',
+                stop: 'playback/stopped'
             };
 
             const event = statusEvents[validState.status];
             if (event) {
-            self.eventBus.emit(event, state);
+                self.eventBus.emit(event, state);
             }
         };
 
@@ -781,34 +780,43 @@ motorizedFaderControl.prototype.setupVolumioBridge = function() { //! add error 
             self.stateCache.set('queue', 'current', queue);
         });
 
-        // Automatic Reconnect Handling
-        self.socket.on('reconnect', () => {
-            self.logger.info('WebSocket reconnected, resyncing state...');
-            self.socket.emit('getState');
-            self.socket.emit('getQueue');
+        // Album Info Order Event
+        self.eventBus.on('command/volumio/getAlbumInfo', (state) => {
+            const timeout = setTimeout(() => {
+                self.logger.error(`${self.PLUGINSTR}: Timeout while waiting for album info response.`);
+                self.eventBus.emit('album/info/error', { message: 'Timeout while waiting for album info response.' });
+            }, 5000); // 5-second timeout
+
+            self.socket.once('pushBrowseLibrary', (response) => {
+                clearTimeout(timeout);
+
+                if (response.navigation && response.navigation.info && response.navigation.info.uri === state.uri) {
+                    const albumInfo = {
+                        uri: response.navigation.info.uri,
+                        album: response.navigation.info.album,
+                        artist: response.navigation.info.artist,
+                        service: response.navigation.info.service,
+                        songs: response.navigation.lists[0]?.items.map(item => ({
+                            title: item.title,
+                            duration: item.duration,
+                            uri: item.uri
+                        })) || []
+                    };
+                    const stateWithAlbumInfo = { ...state, albumInfo };
+                    self.eventBus.emit('album/info', stateWithAlbumInfo);
+                } else {
+                    self.logger.error(`${self.PLUGINSTR}: Received unexpected response for album info.`);
+                    self.eventBus.emit('album/info/error', { message: 'Unexpected response for album info.' });
+                }
+            });
+            self.socket.emit('goTo', {type: 'album'})
         });
-
-        // Command Proxy
-        self.eventBus.on('command/*', (command, ...args) => {
-            const method = command.split('/')[1];
-            if (typeof self.socket.emit[method] === 'function') {
-                self.socket.emit(method, ...args);
-            }
-        });
-
-        // Store the callback function in a variable
-        self.volumeUpdateCallback = (volumeData) => {
-            self.eventBus.emit('volume/update', volumeData);
-        };
-
-        // Register the callback
-        self.commandRouter.addCallback('volumioupdatevolume', self.volumeUpdateCallback);
 
         // Initial state sync
         self.socket.emit('getState');
     } catch (error) {
         self.logger.error(`${self.PLUGINSTR}: Error setting up Volumio bridge: ${error.message}`);
-        throw error; // Propagate the error
+        throw error;
     }
 };
 
@@ -907,10 +915,10 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volumeData) 
 motorizedFaderControl.prototype.setupFaderFeedback = function() {
     const self = this;
     
-    this.eventBus.on('fader/update', ({indexes, targets, speeds}) => {
+    this.eventBus.on('fader/update', ({indexes, targets, speeds, resolution}) => {
         if (this.faderController) {
             // Create FaderMove instance before queuing
-            const move = new FaderMove(indexes, targets, speeds);
+            const move = new FaderMove(indexes, targets, speeds, resolution);
             this.queueFaderMove(move);
         }
     });
@@ -948,49 +956,53 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
 
     try {
         const activeFaders = JSON.parse(this.config.get('FADERS_IDXS', '[]'));
-        const latestMoves = new Map();
+        const faderData = new Map();
 
-        // Process moves in reverse to prioritize newer commands
-        [...this.faderMoveQueue].reverse().forEach(({ move }) => {
-            this.logger.debug(`${this.PLUGINSTR}: Processing move: ${JSON.stringify(move)}`);
-            
-            // Validate move structure
-            if (!Array.isArray(move.indexes) || !Array.isArray(move.targets) || !Array.isArray(move.speeds)) {
-                this.logger.error(`${this.PLUGINSTR}: Invalid move structure: ${JSON.stringify(move)}`);
+        // Process moves in order (newest last)
+        this.faderMoveQueue.forEach(({move}) => {
+            if (!(move instanceof FaderMove)) {
+                this.logger.error('Invalid move object in queue');
                 return;
             }
 
+            // DEBUG: Log original move data
+            this.logger.debug(`Original move data: ${JSON.stringify({
+                indexes: move.indexes,
+                targets: move.targets,
+                speeds: move.speeds,
+                resolution: move.resolution
+            })}`);
+
             move.indexes.forEach((faderIndex, i) => {
-                if (activeFaders.includes(faderIndex) && !latestMoves.has(faderIndex)) {
-                    if (typeof move.targets[i] === 'undefined' || typeof move.speeds[i] === 'undefined') {
-                        this.logger.error(`${this.PLUGINSTR}: Invalid move structure: ${JSON.stringify(move)}`);
-                        return;
-                    }
-                    latestMoves.set(faderIndex, {
+                if (activeFaders.includes(faderIndex)) {
+                    faderData.set(faderIndex, {
                         target: move.targets[i],
-                        speed: move.speeds[i]
+                        speed: move.speeds[i], // Ensure speed is preserved
+                        resolution: move.resolution
                     });
                 }
             });
         });
 
-        //use combine moves here
-        // Build final move
-        const indexes = Array.from(latestMoves.keys());
-        const targets = indexes.map(index => latestMoves.get(index).target);
-        const speeds = indexes.map(index => latestMoves.get(index).speed);
+        // Build final move with proper speed values
+        const indexes = Array.from(faderData.keys());
+        const targets = indexes.map(i => faderData.get(i).target);
+        const speeds = indexes.map(i => faderData.get(i).speed);
+        const resolution = Math.max(...indexes.map(i => faderData.get(i).resolution));
 
-        if (indexes.length > 0 && latestMoves.size > 0) {
-            // const finalMove = new FaderMove(indexes, targets, speeds);
-            const finalMove = this.faderController.combineMoves(latestMoves); //this doesnt access the moves, but our map
-            this.faderController.moveFaders(finalMove, true);
+        // DEBUG: Log before creating FaderMove
+        this.logger.debug(`Creating FaderMove with: ${JSON.stringify({
+            indexes,
+            targets,
+            speeds,
+            resolution
+        })}`);
 
-            if (this.config.get('DEBUG_MODE')) {
-                this.logger.debug(`${this.PLUGINSTR}: Sent latest moves for faders ${indexes}`);
-            }
-        }
+        const finalMove = new FaderMove(indexes, targets, speeds, resolution);
+        this.faderController.moveFaders(finalMove, true);
+
     } catch (error) {
-        this.logger.error(`${this.PLUGINSTR}: Move processing failed: ${error}`);
+        this.logger.error(`Move processing failed: ${error.stack}`);
     } finally {
         this.faderMoveQueue = [];
         clearTimeout(this.aggregationTimeout);

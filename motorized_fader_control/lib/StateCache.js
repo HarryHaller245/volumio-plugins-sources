@@ -24,7 +24,7 @@
 class StateCache {
   constructor(logger, logs, pluginStr) {
     this.namespaces = new Map();
-    this.defaultTTL = 3000000000;
+    this.defaultTTL = 30000;
     this.logger = logger;
     this.logs = logs;
     this.PLUGINSTR = pluginStr;
@@ -69,6 +69,13 @@ class StateCache {
     return namespace.ttl.get(key);
   }
 
+  /**
+   * Subscribes a callback function to a specific namespace for state change notifications.
+   *
+   * @param {string} ns - The namespace to subscribe to.
+   * @param {Function} callback - The callback function to be invoked when the state changes in the specified namespace.
+   * @returns {Function} A function to unsubscribe the callback from the namespace.
+   */
   subscribe(ns, callback) {
     const namespace = this.namespace(ns);
     namespace.subscriptions.add(callback);
@@ -141,6 +148,12 @@ class StateCache {
     };
   }
 
+  /**
+   * Validates the playback state object to ensure it contains valid properties and values.
+   *
+   * @param {Object} state - The playback state object to validate.
+   * @returns {Object|null} - Returns the validated state object if valid, otherwise returns null.
+   */
   validatePlaybackState(state) {
       if (state && typeof state === 'object' && state.hasOwnProperty("status")) {
         const PlaybackStatus = state.status; 
@@ -182,6 +195,7 @@ class StateCache {
     return this.get('seek', `fader_${faderIdx}`) || 0;
   }
 
+  // Cache fader info - ! i hope this will not be used since this is state cache
   cacheFaderInfo(faderInfo) {
     this.set('fader', `fader_${faderInfo.index}`, faderInfo, 300000);
     this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_FADER_INFO.replace('${faderInfo}', JSON.stringify(faderInfo))}`);
