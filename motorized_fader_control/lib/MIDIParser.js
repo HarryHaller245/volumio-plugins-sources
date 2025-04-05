@@ -234,7 +234,7 @@ class MIDIParser extends Transform {
     formatParsedMidiDataArrToObject(midiDataArray) {
         const midiData = {
             type: midiDataArray[0],
-            channel: this.getChannelMidiDataArr(midiDataArr),
+            channel: this.getChannelMidiDataArr(midiDataArray),
             data1: midiDataArray[2],
             data2: midiDataArray[3]
         };
@@ -261,7 +261,7 @@ class MIDIParser extends Transform {
      * @returns {number} - The channel of the MIDI message.
      */
     getChannelPITCHMessage(midiMessageArr) {
-        return midiMessageArr[0] & 0x0F;
+        return midiMessageArr[1];
     }
     
     /**
@@ -270,7 +270,7 @@ class MIDIParser extends Transform {
      * @returns {number} - The channel of the note message.
      */
     getChannelNOTEMessage(midiMessageArr) {
-        return midiMessageArr[1] - 104;
+        return midiMessageArr[2] - 104;
     }
     
     /**

@@ -71,13 +71,13 @@ class BaseService {
   handleStateUpdate(state) {}
   calculateDynamicProgression() {}
   handlePlay(state) {}
-  handleMove(faderInfo) {}
-  handleMoved(faderInfo) {}
+  handleMove(data) {}
+  handleMoved(data) {}
   updatePosition() {}
   
   // Common hardware update method
   updateHardware(progression) {
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} ${progression}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} -> ${progression}`);
     const indexes = [this.faderIdx];
     const targets = [progression];
     const speeds = [this.config.get('FADER_SPEED_HIGH', 100)];

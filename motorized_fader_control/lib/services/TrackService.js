@@ -43,33 +43,30 @@ class TrackService extends BaseService {
     }
   }
 
-  handleMove(faderInfo) { //! touch/untouch logic this just updates directly as soon as move
+  handleMove(data) { //! touch/untouch logic this just updates directly as soon as move
+    const faderInfo = data.faderInfo;
     const position = faderInfo.progression;
     let seekPosition = null
     if (this.config.get('UPDATE_SEEK_ON_MOVE', false)) {
       const state = this.stateCache.get('playback', 'current');
       seekPosition = (position / 100) * state.duration;
       this.eventBus.emit('command/seek', seekPosition);
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx}.to ${seekPosition}`);
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);
     } else {
-      // cache faderInfo and command, seek maybe register a eventbus listener for untouch for the fader
-      // we need to react on the untouch event to send the seek command
-      this.stateCache.cacheFaderInfo(faderInfo);
+       //propably not needed we just use the event for move/end
+      return
     }
+
     this.stateCache.cacheSeekProgression(this.faderIdx, position); // seems unnecessary
   }
 
-  handleMoved(faderInfo) {
-    //unregister the listener for untouch
-    //send the seek command
-    //clear the fader cache 
-    if (this.config.get('UPDATE_SEEK_ON_MOVE', false) !== true) {
-      const state = this.stateCache.get('playback', 'current');
-      const seekPosition = (faderInfo.progression / 100) * state.duration;
-      this.eventBus.emit('command/seek', seekPosition);
-      this.stateCache.clear('fader', `fader_${faderInfo.index}`);
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx}.to ${seekPosition}`);
-    }
+  handleMoved(data) {
+    const faderInfo = data.faderInfo;
+    const state = this.stateCache.get('playback', 'current');
+    const seekPosition = (faderInfo.progression / 100) * state.duration;
+    this.eventBus.emit('command/seek', seekPosition);
+    // this.stateCache.clear('fader', `fader_${faderInfo.index}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);
   }
 }
 

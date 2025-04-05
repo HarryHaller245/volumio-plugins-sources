@@ -711,9 +711,14 @@ motorizedFaderControl.prototype.setupServiceRouter = function() {
             this.services.set(FADER_IDX, service);
 
             // Connect to fader events
-            this.eventBus.on(`fader/${FADER_IDX}/move`, position => {
-                if (this.isSeeking) return;
-                service.handleMove(position);
+            this.eventBus.on(`fader/${FADER_IDX}/move`, data => {
+                if (this.isSeeking) return; //not sure if needed
+                service.handleMove(data);
+            });
+
+            this.eventBus.on(`fader/${FADER_IDX}/move/end`, data => {
+                if (this.isSeeking) return; //not sure if needed
+                service.handleMoved(data);
             });
 
             // Connect to state updates
@@ -947,25 +952,39 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
 
         // Process moves in reverse to prioritize newer commands
         [...this.faderMoveQueue].reverse().forEach(({ move }) => {
-            move.idx.forEach((faderIndex, i) => {
+            this.logger.debug(`${this.PLUGINSTR}: Processing move: ${JSON.stringify(move)}`);
+            
+            // Validate move structure
+            if (!Array.isArray(move.indexes) || !Array.isArray(move.targets) || !Array.isArray(move.speeds)) {
+                this.logger.error(`${this.PLUGINSTR}: Invalid move structure: ${JSON.stringify(move)}`);
+                return;
+            }
+
+            move.indexes.forEach((faderIndex, i) => {
                 if (activeFaders.includes(faderIndex) && !latestMoves.has(faderIndex)) {
+                    if (typeof move.targets[i] === 'undefined' || typeof move.speeds[i] === 'undefined') {
+                        this.logger.error(`${this.PLUGINSTR}: Invalid move structure: ${JSON.stringify(move)}`);
+                        return;
+                    }
                     latestMoves.set(faderIndex, {
-                        target: move.target[i],
-                        speed: move.speed[i]
+                        target: move.targets[i],
+                        speed: move.speeds[i]
                     });
                 }
             });
         });
 
+        //use combine moves here
         // Build final move
         const indexes = Array.from(latestMoves.keys());
-        const targets = indexes.map(idx => latestMoves.get(idx).target);
-        const speeds = indexes.map(idx => latestMoves.get(idx).speed);
-        
-        if (indexes.length > 0) {
-            const finalMove = new FaderMove(indexes, targets, speeds);
+        const targets = indexes.map(index => latestMoves.get(index).target);
+        const speeds = indexes.map(index => latestMoves.get(index).speed);
+
+        if (indexes.length > 0 && latestMoves.size > 0) {
+            // const finalMove = new FaderMove(indexes, targets, speeds);
+            const finalMove = this.faderController.combineMoves(latestMoves); //this doesnt access the moves, but our map
             this.faderController.moveFaders(finalMove, true);
-            
+
             if (this.config.get('DEBUG_MODE')) {
                 this.logger.debug(`${this.PLUGINSTR}: Sent latest moves for faders ${indexes}`);
             }
@@ -1046,7 +1065,7 @@ motorizedFaderControl.prototype.configureFaderSettings = async function(trimMap,
         // Apply speed factors using V2 method
         Object.entries(speedFactors).forEach(([index, factor]) => {
             self.faderController.setFadersMovementSpeedFactor(
-                [parseInt(index)], 
+                parseInt(index), 
                 parseFloat(factor)
             );
         });
@@ -1084,23 +1103,25 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
     const self = this;
 
     // Unified event handler factory
-    const createEventHandler = (eventType) => (idx, info) => {
-        self.eventBus.emit(`fader/${faderIdx}/${eventType}`, {
-            index: faderIdx,
-            position: faderInfo.position,
-            progression: faderInfo.progression,
-            rawPosition: faderInfo.rawPosition,
+    const createEventHandler = (eventType) => (index, info) => {
+        self.eventBus.emit(`fader/${index}/${eventType}`, {
             timestamp: Date.now(),
             state: {
                 touched: eventType === 'touch',
                 moving: eventType === 'move'
-            }
+            },
+            faderInfo: info
         });
 
         // Additional handling for touch release
         if (eventType === 'untouch') {
-            self.eventBus.emit(`fader/${faderIdx}/move/end`, {
-                finalPosition: faderInfo.position
+            self.eventBus.emit(`fader/${index}/move/end`, {
+                timestamp: Date.now(),
+                state: {
+                    touched: false,
+                    moving: false
+                },
+                faderInfo: info
             });
         }
     };
@@ -1128,8 +1149,8 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
 motorizedFaderControl.prototype.validateFaderConfig = function(config) {
     return {
       ...config,
-      faderIndexes: config.faderIndexes.filter(idx => 
-        Number.isInteger(idx) && idx >= 0 && idx < 8
+      faderIndexes: config.faderIndexes.filter(index => 
+        Number.isInteger(index) && index >= 0 && index < 8
       ),
       speeds: config.speeds.map(s => 
         Math.min(Math.max(s, 0.1), 100)

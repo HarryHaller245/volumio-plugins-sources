@@ -51,7 +51,7 @@ class Fader extends EventEmitter {
     return Math.round(minPos + (position / 16383) * (maxPos - minPos));
   }
 
-  updateTouchState(touch) {
+  updateTouchState(touch) { //bool
     if (this.touch !== touch) {
       this.touch = touch;
       this.emit(touch ? 'touch' : 'untouch', this.index, this.info);
@@ -61,7 +61,9 @@ class Fader extends EventEmitter {
   updatePosition(position) {
     this.position = position;
     this.progression = (position / 16383) * 100;
-    if (this.touch) this.emit('move', this.index, this.info);
+    if (this.touch) {
+      this.emit('move', this.index, this.info);
+    }
   }
 
   get info() {
@@ -119,14 +121,14 @@ class MIDIHandler {
       if (!buffer || buffer.length < 3) {
         throw new Error('Invalid MIDI message length');
       }
-      
+      // THIS SEEMS LIKE A DUPLICATION OF ALREADY DONE PARSING IN THE MIDIPARSER ?
       return { 
-        raw: buffer,
+        raw: buffer, //"Buffer","data":[224,1,110,119]}
         type: this.parser.translateStatusByte(buffer[0]),
         channel: this.parser.getChannel(buffer),
-        data1: buffer[1],
-        data2: buffer[2],
-        timestamp: Date.now()
+        data1: buffer[2],
+        data2: buffer[3],
+        timestamp: Date.now() //does this eat performance
       };
     } catch (error) {
       this.controller.emit('error', Object.assign(error, {
@@ -245,8 +247,12 @@ class FaderController extends EventEmitter {
   createFaders() {
     return this.config.faderIndexes.map(index => {
       const fader = new Fader(index);
-      fader.on('touch move untouch configChange', (evt, idx, info) => 
-        this.emit(evt, idx, info));
+      ['touch', 'move', 'untouch', 'configChange'].forEach(evt => {
+        fader.on(evt, (index, info) => {
+          this.emit(evt, index, info);
+          this.config.logger.debug(`[Fader_Controller]: emitting ${evt} for fader ${index}`);
+        });
+      });
       return fader;
     });
   }
@@ -274,7 +280,7 @@ class FaderController extends EventEmitter {
 
   handleMIDIMessage(message) {
     try {
-
+      this.config.logger.debug(`[Fader_Controller]: MIDI HANDLE: ${message.type}`);
       switch(message.type) {
         case 'PITCH_BEND':
           this.handleFaderMove(message);
@@ -293,7 +299,8 @@ class FaderController extends EventEmitter {
   }
 
   handleFaderMove(message) {
-    const position = (message.data2 << 7) | message.data1;
+
+    const position = message.data1 | (message.data2 << 7);
     const fader = this.getFader(message.channel);
     
     if (fader) {
@@ -310,8 +317,10 @@ class FaderController extends EventEmitter {
 
   handleTouch(message) {
     const fader = this.getFader(message.channel);
-    if (fader && message.data1 === 0x7F) {
-      fader.updateTouchState(message.type === 'NOTE_ON');
+    if (fader && message.type == "NOTE_ON") {
+      fader.updateTouchState(true);
+    } else if (fader && message.type == "NOTE_OFF") {
+      fader.updateTouchState(false);
     }
   }
 
@@ -333,6 +342,12 @@ class FaderController extends EventEmitter {
     }));
 
     const positions = this.calculateMovements(movements);
+    if (this.config.MoveLog) {
+      this.config.logger.debug(`[Fader_Controller]: Move: ${JSON.stringify(movements)}`);
+    }
+    if (this.config.ValueLog) {
+      this.config.logger.debug(`[Fader_Controller]: Positions: ${JSON.stringify(positions)}`);
+    }
     await this.sendPositions(positions);
   }
 
@@ -567,6 +582,9 @@ class FaderController extends EventEmitter {
   setFadersMovementSpeedFactor(index, speedFactor) { // make this accept multiple indexes optionally
     const fader = this.getFader(index);
     if (!fader) throw new Error(`Fader ${index} not found`);
+    if (typeof speedFactor !== 'number' || speedFactor <= 0) {
+      speedFactor = 1;
+    }
     fader.speedFactor = speedFactor;
   }
 
