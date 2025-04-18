@@ -5,23 +5,31 @@
     },
     "FADER_CONTROLLER_MESSAGE_DELAY": {
       "type": "number",
-      "value": 0.0001
+      "value": 0.1
+    },
+    "FADER_CONTROLLER_QUEUE_OVERFLOW": {
+      "type": "number",
+      "value": 10000000
     },
     "FADER_CONTROLLER_MIDI_LOG": {
       "type": "boolean",
-      "value": false
+      "value": true
     },
     "FADER_CONTROLLER_VALUE_LOG": {
       "type": "boolean",
-      "value": false
+      "value": true
     },
     "FADER_CONTROLLER_MOVE_LOG": {
       "type": "boolean",
-      "value": false
+      "value": true
     },
     "FADER_CONTROLLER_CALIBRATION_ON_START": {
       "type": "boolean",
       "value": true
+    },
+    "FADER_CONTROLLER_MOVE_RESOLUTION": {
+      "type": "number",
+      "value": 1
     },
     "FADER_CONTROLLER_SPEED_HIGH": {
       "type": "number",
@@ -53,7 +61,7 @@
     },
     "FADER_BEHAVIOR": {
       "type": "string",
-      "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"track\"},{\"FADER_IDX\":1,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"album\"}]"
+      "value": "[{\"FADER_IDX\":0,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"track\",\"CONTROL_TYPE\":\"track\"},{\"FADER_IDX\":1,\"OUTPUT\":\"seek\",\"INPUT\":\"seek\",\"SEEK_TYPE\":\"track\",\"CONTROL_TYPE\":\"track\"}]"
     },
     "UPDATE_VOLUME_ON_MOVE": {
       "type": "boolean",
@@ -65,7 +73,7 @@
     },
     "FADER_SPEED_FACTOR": {
         "type": "string",
-        "value": "[{\"0\":1}, {\"1\":1}]"
+        "value": "{\"0\":1,\"1\":1}"
     },
     "CALIBRATION_START_PROGRESSION": {
       "type": "number",
@@ -107,6 +115,14 @@
       "type": "boolean",
       "value": true
     },
+    "TOUCH_USE_CACHED_FADER_INFO": {
+      "type": "boolean",
+      "value": true
+    },
+    "TOUCH_CACHING_INTERVAL": {
+      "type": "number",
+      "value": 100
+    },
     "VOLUMIO_VOLUMIO_HOST": {
       "type": "string",
       "value": "localhost"
@@ -130,6 +146,10 @@
     "FADER_REALTIME_SEEK_INTERVAL": {
       "type": "number",
       "value": 900
+    },
+    "FADER_AGGREGATION_DELAY": {
+      "type": "number",
+      "value": 10
     }
-  }
+}
   

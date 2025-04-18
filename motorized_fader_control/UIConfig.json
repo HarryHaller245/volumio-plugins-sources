@@ -12,38 +12,30 @@
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/motorized_fader_control",
-        "method": "saveFaderControllerSettingsRestart"
+        "method": "saveGeneralSettingsRestart"
       },
       "saveButton": {
         "label": "TRANSLATE.BUTTON.SAVE",
         "data": [
-          "FADER_CONTROLLER_MESSAGE_DELAY",
-          "FADER_CONTROLLER_CALIBRATION_ON_START",
           "FADER_CONTROLLER_SPEED_HIGH",
           "FADER_CONTROLLER_SPEED_MEDIUM",
           "FADER_CONTROLLER_SPEED_LOW",
-          "SERIAL_PORT",
-          "BAUD_RATE",
           "UPDATE_VOLUME_ON_MOVE",
           "UPDATE_SEEK_ON_MOVE"
         ]
       },
       "content": [
         {
-          "id": "FADER_CONTROLLER_CALIBRATION_ON_START",
-          "type": "switch",
-          "element": "switch",
-          "doc": "TRANSLATE.GENERAL.DOC_CALIBRATION_ON_START",
-          "label": "TRANSLATE.GENERAL.LABEL_CALIBRATION_ON_START",
-          "value": true
-        },
-        {
-          "id": "FADER_CONTROLLER_MESSAGE_DELAY",
-          "type": "number",
-          "element": "input",
-          "doc": "TRANSLATE.GENERAL.DOC_MESSAGE_DELAY",
-          "label": "TRANSLATE.GENERAL.LABEL_MESSAGE_DELAY",
-          "value": 0.001
+          "id": "CALIBRATE_BUTTON",
+          "type": "button",
+          "element": "button",
+          "label": "TRANSLATE.BUTTON.LABEL_CALIBRATE",
+          "doc": "TRANSLATE.BUTTON.DOC_CALIBRATE",
+          "onClick": {
+            "type": "controller",
+            "endpoint": "system_hardware/motorized_fader_control",
+            "method": "RunManualCalibration"
+          }
         },
         {
           "id": "FADER_CONTROLLER_SPEED_HIGH",
@@ -70,22 +62,6 @@
           "value": 10
         },
         {
-          "id": "SERIAL_PORT",
-          "type": "text",
-          "element": "input",
-          "doc": "TRANSLATE.GENERAL.DOC_SERIAL_PORT",
-          "label": "TRANSLATE.GENERAL.LABEL_SERIAL_PORT",
-          "value": "/dev/ttyUSB0"
-        },
-        {
-          "id": "BAUD_RATE",
-          "type": "number",
-          "element": "input",
-          "doc": "TRANSLATE.GENERAL.DOC_BAUD_RATE",
-          "label": "TRANSLATE.GENERAL.LABEL_BAUD_RATE",
-          "value": 1000000
-        },
-        {
           "id": "UPDATE_VOLUME_ON_MOVE",
           "type": "switch",
           "element": "switch",
@@ -100,18 +76,6 @@
           "doc": "TRANSLATE.GENERAL.DOC_UPDATE_SEEK_ON_MOVE",
           "label": "TRANSLATE.GENERAL.LABEL_UPDATE_SEEK_ON_MOVE",
           "value": true
-        },
-        {
-          "id": "CALIBRATE_BUTTON",
-          "type": "button",
-          "element": "button",
-          "label": "TRANSLATE.BUTTON.LABEL_CALIBRATE",
-          "doc": "TRANSLATE.BUTTON.DOC_CALIBRATE",
-          "onClick": {
-            "type": "controller",
-            "endpoint": "system_hardware/motorized_fader_control",
-            "method": "RunManualCalibration"
-          }
         }
       ]
     },
@@ -175,7 +139,7 @@
           "visibleIf": { "field": "FADER_0_CONFIGURED", "value": true },
           "config": {
             "orientation": "horizontal",
-            "bars": [ 
+            "bars": [
               {
                 "min": 0,
                 "max": 100,
@@ -219,7 +183,7 @@
           "visibleIf": { "field": "FADER_1_CONFIGURED", "value": true },
           "config": {
             "orientation": "horizontal",
-            "bars": [ 
+            "bars": [
               {
                 "min": 0,
                 "max": 100,
@@ -323,10 +287,11 @@
       ]
     },
     {
-      "id": "section_logging_settings",
+      "id": "section_advanced_settings",
       "element": "section",
-      "label": "TRANSLATE.SECTION.LOGGING_SETTINGS",
-      "icon": "fa-file-alt",
+      "label": "TRANSLATE.SECTION.ADVANCED_SETTINGS",
+      "icon": "fa-tools",
+      "description": "TRANSLATE.SECTION.ADVANCED_SETTINGS_DESCRIPTION",
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/motorized_fader_control",
@@ -335,6 +300,63 @@
       "saveButton": {
         "label": "TRANSLATE.BUTTON.SAVE",
         "data": [
+          "FADER_CONTROLLER_MESSAGE_DELAY",
+          "SERIAL_PORT",
+          "BAUD_RATE",
+          "FADER_CONTROLLER_CALIBRATION_ON_START"
+        ]
+      },
+      "content": [
+        {
+          "id": "SERIAL_PORT",
+          "type": "text",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_SERIAL_PORT",
+          "label": "TRANSLATE.GENERAL.LABEL_SERIAL_PORT",
+          "value": "/dev/ttyUSB0"
+        },
+        {
+          "id": "BAUD_RATE",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_BAUD_RATE",
+          "label": "TRANSLATE.GENERAL.LABEL_BAUD_RATE",
+          "value": 1000000
+        },
+        {
+          "id": "FADER_CONTROLLER_MESSAGE_DELAY",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.GENERAL.DOC_MESSAGE_DELAY",
+          "label": "TRANSLATE.GENERAL.LABEL_MESSAGE_DELAY",
+          "value": 0.001
+        },
+        {
+          "id": "FADER_CONTROLLER_CALIBRATION_ON_START",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.GENERAL.DOC_CALIBRATION_ON_START",
+          "label": "TRANSLATE.GENERAL.LABEL_CALIBRATION_ON_START",
+          "value": true
+        }
+      ]
+    },
+    {
+      "id": "section_development_settings",
+      "element": "section",
+      "label": "TRANSLATE.SECTION.DEVELOPMENT_SETTINGS",
+      "icon": "fa-code",
+      "description": "TRANSLATE.SECTION.DEVELOPMENT_SETTINGS_DESCRIPTION",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "system_hardware/motorized_fader_control",
+        "method": "saveGeneralSettingsRestart"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.BUTTON.SAVE",
+        "data": [
+          "DEBUG_MODE",
+          "FADER_REALTIME_SEEK_INTERVAL",
           "FADER_CONTROLLER_MIDI_LOG",
           "FADER_CONTROLLER_VALUE_LOG",
           "FADER_CONTROLLER_MOVE_LOG",
@@ -342,6 +364,22 @@
         ]
       },
       "content": [
+        {
+          "id": "FADER_REALTIME_SEEK_INTERVAL",
+          "type": "number",
+          "element": "input",
+          "doc": "TRANSLATE.DEV_SETTINGS.DOC_FADER_REALTIME_SEEK_INTERVAL",
+          "label": "TRANSLATE.DEV_SETTINGS.LABEL_FADER_REALTIME_SEEK_INTERVAL",
+          "value": 100
+        },
+        {
+          "id": "DEBUG_MODE",
+          "type": "switch",
+          "element": "switch",
+          "doc": "TRANSLATE.DEV_SETTINGS.DOC_DEBUG_MODE",
+          "label": "TRANSLATE.DEV_SETTINGS.LABEL_DEBUG_MODE",
+          "value": true
+        },
         {
           "id": "FADER_CONTROLLER_MIDI_LOG",
           "type": "switch",
@@ -381,43 +419,6 @@
           ]
         }
       ]
-    },
-    {
-      "id": "section_development_settings",
-      "element": "section",
-      "label": "TRANSLATE.SECTION.DEVELOPMENT_SETTINGS",
-      "icon": "fa-tools",
-      "onSave": {
-        "type": "controller",
-        "endpoint": "system_hardware/motorized_fader_control",
-        "method": "saveFaderControllerSettingsRestart"
-      },
-      "saveButton": {
-        "label": "TRANSLATE.BUTTON.SAVE",
-        "data": [
-          "FADER_REALTIME_SEEK_INTERVAL",
-          "DEBUG_MODE"
-        ]
-      },
-      "content": [
-        {
-          "id": "DEBUG_MODE",
-          "type": "switch",
-          "element": "switch",
-          "doc": "TRANSLATE.DEV_SETTINGS.DOC_DEBUG_MODE",
-          "label": "TRANSLATE.DEV_SETTINGS.LABEL_DEBUG_MODE",
-          "value": "true"
-        },
-        {
-          "id": "FADER_REALTIME_SEEK_INTERVAL",
-          "type": "number",
-          "element": "input",
-          "doc": "TRANSLATE.DEV_SETTINGS.DOC_FADER_REALTIME_SEEK_INTERVAL",
-          "label": "TRANSLATE.DEV_SETTINGS.LABEL_FADER_REALTIME_SEEK_INTERVAL",
-          "value": 100
-        }
-      ]
     }
   ]
 }
-

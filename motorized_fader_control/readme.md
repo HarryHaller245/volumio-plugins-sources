@@ -46,22 +46,9 @@ supporting real-time feedback and multiple seek modes.
 
 ## Configuration
 
-### Essential Settings
-
-| Section | Key | Description |
-|---------|-----|-------------|
-| **General** | `SERIAL_PORT` | Device path for fader controller (e.g., `/dev/ttyACM0`) |
-|         | `FADERS_IDXS` | Array of active fader indexes (e.g., `[0,1]`) |
-| **Fader Behavior** | `FADER_X_OUTPUT` | Fader function: `volume` or `seek` |
-|                 | `FADER_X_SEEK_TYPE` | Seek mode: `track`/`album`/`queue`/`playlist` |
-| **Advanced** | `FADER_REALTIME_SEEK_INTERVAL` | Update frequency for seek faders (ms) |
-|             | `FADER_CONTROLLER_SPEED_HIGH` | Maximum fader movement speed |
-
-## Usage
-
 ### Basic Operations
 1. **Volume Control**:
-   - Touch fader → Immediate volume adjustment
+   - Touch fader → volume adjustment
    - Configurable update-on-move behavior
 
 2. **Seek Control**:
@@ -71,45 +58,16 @@ supporting real-time feedback and multiple seek modes.
    - Playlist Mode: Playback Playlists progression *(Planned)*
 
 ### Advanced Features
-- **Calibration**: Run Calibration through UI *(Planned)* **propably not needed**
-- **Speed Profiles**: Configure different movement speeds for precision/rapid adjustments
-
-## Development Notes
-
-### Code Structure
-```
-index.js
-├── Plugin Lifecycle
-├── Fader Controller Management
-├── Volumio Interaction (WebSocket/State)
-├── Seek/Volume Handlers
-└── Configuration UI
-```
-
-### Key Components
-1. **FaderController** (`lib/FaderController.js`):
-   - Manages hardware communication
-   - Handles fader movements and calibration
-   - Implements echo mode and speed control
-
-2. **State Management**:
-   - `pushState` WebSocket handler for real-time updates
-   - Cached state comparison for efficient updates
-
-3. **Seek Handlers**:
-   - Track: `getTrackProgression()`
-   - Album: `getAlbumProgression()` *(Partial)*
-   - Queue: `getQueueProgression()` *(Stub)*
+- **Calibration**: Run Calibration through UI *(Partial)* **propably not needed**
+- **Speed Profiles**: Configure different movement speeds for precision/rapid adjustments **propably not needed**
 
 ### TODOs & Next Steps
 - **High Priority**:
-  - Integrate the Trim Map Scaling into Echo Mode
-  - Send a faderInfo dict with the untouch/ontouch for the fader... use the cache as fallback on untouch
-  - Plugin crashes to unresponse when no fadder is configured and saved, warning message works, but we gett an error during stop UnhandledPromiseRejectionWarning
-  - Integrate Fader Trim Settings
+  - Fix speed handling, it is way too high.
   - Implement album/queue seek logic
   - Improve seek position accuracy
   - restructure UI
+  - reduce message polling
 
 - **Enhancements**:
   - Playlist support
@@ -125,7 +83,6 @@ index.js
 **Known Issues**:
 - Intermittent WebSocket disconnects
 - Album seek validation false negatives
-- Volume jitter during rapid changes
 - Slow Response on Track Output Seek
 
 **Debugging**:
@@ -135,5 +92,5 @@ journalctl -u volumio -f | grep motorized_fader_control
 
 **Hardware Compatibility**:
 Tested with:
-- build doc
+- TODO: build doc
 ---

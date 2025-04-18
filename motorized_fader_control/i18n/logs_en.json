@@ -1,0 +1,94 @@
+{
+    "LOGS": {
+      "SEPARATOR": "--------------------------------------------------------------------",
+      "START": {
+        "HEADER": "Starting motorized fader control plugin...",
+        "SETUP": "Setting up plugin...",
+        "FADER_CONTROLLER": "Starting FaderController...",
+        "SERVICES": "SERVICES enabled: ",
+        "VOLUME_LISTENER": "Registering Volumio volume change listener...",
+        "SUCCESS": "Plugin started successfully!",
+        "ERROR": "Error starting plugin: "
+      },
+      "STOP": {
+        "HEADER": "Stopping motorized fader control plugin...",
+        "FADER_CONTROLLER": "Stopping FaderController...",
+        "SERVICES": "Stopping services...",
+        "SUCCESS": "Plugin stopped successfully!",
+        "ERROR": "Error stopping plugin: "
+      },
+      "RESTART": {
+        "HEADER": "Restarting motorized fader control plugin...",
+        "FADER_CONTROLLER": "Restarting FaderController...",
+        "SERVICES": "Restarting services...",
+        "SUCCESS": "Plugin restarted successfully!",
+        "ERROR": "Error restarting plugin: "
+      },
+      "SETUP": {
+        "FADER_CONTROLLER": {
+          "INITIALIZING": "Initializing FaderController...",
+          "CONFIGURING": "Configuring FaderController with settings...",
+          "SPEED_FACTORS": "Setting fader speed factors...",
+          "TRIMMING": "Applying fader trim settings...",
+          "SUCCESS": "FaderController initialized successfully.",
+          "ERROR": "Error initializing FaderController: "
+        },
+        "SERVICES": {
+          "INITIALIZING": "Initializing services connection...",
+          "SUCCESS": "services connection established.",
+          "ERROR": "Error initializing services: "
+        },
+        "SERIAL_PORT": {
+          "CONNECTING": "Connecting to serial port...",
+          "SUCCESS": "Connected",
+          "ERROR": "Error connecting to serial port:"
+        }
+      },
+      "WARNINGS": {
+        "NO_FADER_INDEXES": "Fader indexes not set. Please enable at least one Fader.",
+        "CONFIG_ISSUE": "Configuration issue detected:"
+      },
+      "ERRORS": {
+        "SETUP_FAILED": "Error during plugin setup:",
+        "FADER_CONTROLLER_FAILED": "Error starting FaderController:",
+        "GENERIC_ERROR": "An error occurred:",
+        "CRITICAL_ERROR": "A critical error occurred:"
+      },
+      "EVENT": {
+        "REGISTERED": "Event registered:",
+        "EMIT": "Event triggered:",
+        "EMIT_PLAYBACK": "Playback event emitted:"
+      },
+      "CACHE": {
+        "SET" : "Setting cache value:",
+        "GET" : "Getting cache value:",
+        "EXPIRED" : "Cache expired:",
+        "SUBSCRIBED" : "Subscribed to cache:",
+        "UNSUBSCRIBED" : "Unsubscribed from cache:",
+        "CLEAR": "Clearing cache:",
+        "CACHE_PLAYBACK_STATE": "Playback state cache:",
+        "SET_USER_INPUT_LOCK": "Setting user input lock:",
+        "CACHE_SEEK_PROGRESSION": "Seek progression cache:",
+        "CACHE_FADER_INFO": "Fader info cache: "
+      },
+      "SERVICES" : {
+        "BASE": {
+          "START_INTERVAL": "Starting interval for service:",
+          "STOP_INTERVAL": "Stopping interval for service:"
+        },
+        "HANDLE_PLAY": "Handling play state for fader:",
+        "UPDATE_POSITION": "Updating position for fader:",
+        "HANDLE_MOVE": "Handling move for fader:",
+        "UPDATE_HARDWARE": "Updating hardware for fader:",
+        "HANDLE_UPDATE": "Handling update for fader:",
+        "HANDLE_SEEK": "Handling seek for fader:",
+        "HANDLE_VOLUME": "Handling volume for fader:",
+        "HANDLE_MOVED": "Handling moved for fader:",
+        "FETCH_ALBUM_INFO": "Fetching album info for fader:",
+        "ALBUM_INFO": "Album info fetched for fader:",
+        "CALCULATE_POSITION": "Calculating position for fader:",
+        "CALCULATE_SEEK": "Calculating seek for fader:"
+      }
+  }
+}
+  

@@ -234,7 +234,7 @@ class MIDIParser extends Transform {
     formatParsedMidiDataArrToObject(midiDataArray) {
         const midiData = {
             type: midiDataArray[0],
-            channel: this.getChannelMidiDataArr(midiDataArr),
+            channel: this.getChannelMidiDataArr(midiDataArray),
             data1: midiDataArray[2],
             data2: midiDataArray[3]
         };
@@ -243,13 +243,25 @@ class MIDIParser extends Transform {
 
     // MIDI MESSAGE TOOLS
 
+    getChannel(midiMessageArr) {
+        const status = this.translateStatusByte(midiMessageArr[0]);
+        let channel;
+        if (status === 'NOTE_ON' || status === 'NOTE_OFF') {
+            channel = this.getChannelNOTEMessage(midiMessageArr);
+        } else {
+            channel = this.getChannelPITCHMessage(midiMessageArr);
+        }
+        return channel;
+    }
+
+
     /**
-     * Gets the channel of a MIDI message array.
+     * Gets the channel of a Pitch message array.
      * @param {Array} midiMessageArr - The MIDI message array.
      * @returns {number} - The channel of the MIDI message.
      */
-    getChannelMIDIMessage(midiMessageArr) {
-        return midiMessageArr[0] & 0x0F;
+    getChannelPITCHMessage(midiMessageArr) {
+        return midiMessageArr[1];
     }
     
     /**
@@ -258,7 +270,7 @@ class MIDIParser extends Transform {
      * @returns {number} - The channel of the note message.
      */
     getChannelNOTEMessage(midiMessageArr) {
-        return midiMessageArr[1] - 104;
+        return midiMessageArr[2] - 104;
     }
     
     /**
@@ -272,7 +284,7 @@ class MIDIParser extends Transform {
         if (status === 'NOTE_ON' || status === 'NOTE_OFF') {
             channel = this.getChannelNOTEMessage(midiMessageArr);
         } else {
-            channel = this.getChannelMIDIMessage(midiMessageArr);
+            channel = this.getChannelPITCHMessage(midiMessageArr);
         }
         const msg = `MIDI MESSAGE: STATUS: ${status} CHANNEL: ${channel} DATA1: ${midiMessageArr[1]} DATA2: ${midiMessageArr[2]}`;
         return msg;
