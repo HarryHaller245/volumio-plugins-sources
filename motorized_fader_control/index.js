@@ -106,7 +106,7 @@ motorizedFaderControl.prototype.onStart = function() {
                 self.logger.info(`${self.PLUGINSTR}: Starting service connections...`);
                 // self.setupStateValidation();
                 self.setupVolumioBridge();
-                self.setupServiceRouter();
+                self.setupServices();
                 self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SUCCESS}`);
                 defer.resolve();
             })
@@ -548,14 +548,6 @@ motorizedFaderControl.prototype.RunManualCalibration = async function() { //! pr
     try {
         // Run a full calibration
         const calibrationIndexes = JSON.parse(self.config.get('FADERS_IDXS', '[]'));
-        const START_PROGRESSION = self.config.get("CALIBRATION_START_PROGRESSION");
-        const END_PROGRESSION = self.config.get("CALIBRATION_END_PROGRESSION");
-        const COUNT = self.config.get("CALIBRATION_COUNT");
-        const START_SPEED = self.config.get("CALIBRATION_START_SPEED");
-        const END_SPEED = self.config.get("CALIBRATION_END_SPEED");
-        const TIME_GOAL = self.config.get("CALIBRATION_TIME_GOAL");
-        const TOLERANCE = self.config.get("CALIBRATION_TOLERANCE");
-        const RUN_IN_PARALLEL = self.config.get("CALIBRATION_RUN_IN_PARALLEL");
 
         if (!calibrationIndexes) {
             self.commandRouter.pushToastMessage('error', 'No fader configured.');
@@ -563,25 +555,11 @@ motorizedFaderControl.prototype.RunManualCalibration = async function() { //! pr
         }
 
         self.commandRouter.pushToastMessage('info', 'Starting Calibration');
-        const results = await self.faderController.calibrate(
-            calibrationIndexes, 
-            START_PROGRESSION, 
-            END_PROGRESSION, 
-            COUNT, 
-            START_SPEED, 
-            END_SPEED, 
-            TIME_GOAL, 
-            TOLERANCE, 
-            RUN_IN_PARALLEL
-        );
-
+        const results = await self.faderController.advancedCalibration(calibrationIndexes);
         // Unpack results and update the configuration
-        const { indexes, movementSpeedFactors, validationResult } = results;
-        const speedFactorsConfig = indexes.map(index => ({ [index]: movementSpeedFactors[index] }));
-        self.config.set("FADER_SPEED_FACTOR", JSON.stringify(speedFactorsConfig));
 
         self.commandRouter.pushToastMessage('info', 'Finished Calibration');
-        await self.restartFaderController();
+        await self.onRestart()
     } catch (error) {
         self.logger.error(`${self.PLUGINSTR}: Error during calibration: ${error.message}`);
         self.commandRouter.pushToastMessage('error', 'Calibration Failed', 'Please check logs for details.');
@@ -686,7 +664,7 @@ motorizedFaderControl.prototype.initializeLogs = function() {
 
 //* ADAPTER LAYER #####################################################################
 
-motorizedFaderControl.prototype.setupServiceRouter = function() {
+motorizedFaderControl.prototype.setupServices = function() {
     const self = this;
 
     try { 
@@ -776,7 +754,6 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
         // WebSocket Event Handling
         self.socket.on('pushState', handleStateUpdate);
         self.socket.on('pushQueue', queue => {
-            self.cachedQueue = queue;
             self.stateCache.set('queue', 'current', queue);
         });
 
@@ -811,6 +788,34 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
             });
             self.socket.emit('goTo', {type: 'album'})
         });
+
+        //Queue Info Order Event
+        self.eventBus.on('command/volumio/getQueueInfo', (state) => {
+            const timeout = setTimeout(() => {
+                self.logger.error(`${self.PLUGINSTR}: Timeout while waiting for queue info response.`);
+                self.eventBus.emit('queue/info/error', { message: 'Timeout while waiting for queue info response.' });
+            }, 5000); // 5-second timeout
+
+            self.socket.once('pushQueue', (response) => {
+                clearTimeout(timeout);
+
+                if (response.navigation && response.navigation.info && response.navigation.info.uri === state.uri) {
+                    const queueInfo = {
+                        uri: response.navigation.info.uri,
+                        service: response.navigation.info.service,
+                        items: response.navigation.lists[0]?.items || []
+                    };
+                    const stateWithQueueInfo = { ...state, queueInfo };
+                    self.eventBus.emit('queue/info', stateWithQueueInfo);
+                } else {
+                    self.logger.error(`${self.PLUGINSTR}: Received unexpected response for queue info.`);
+                    self.eventBus.emit('queue/info/error', { message: 'Unexpected response for queue info.' });
+                }
+            });
+            self.socket.emit('goTo', {type: 'queue'})
+        });
+
+        //Playlist Info Order Event
 
         // Initial state sync
         self.socket.emit('getState');
@@ -935,7 +940,7 @@ motorizedFaderControl.prototype.faderMoveAggregatorInitialize = function() {
 
 motorizedFaderControl.prototype.queueFaderMove = function(move) {
     if (!(move instanceof FaderMove)) {
-        this.logger.error('Invalid move object queued');
+        this.logger.error(`${self.PLUGINSTR}: Invalid move object queued`);
         return;
     }
     
@@ -961,12 +966,12 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
         // Process moves in order (newest last)
         this.faderMoveQueue.forEach(({move}) => {
             if (!(move instanceof FaderMove)) {
-                this.logger.error('Invalid move object in queue');
+                this.logger.error(`${self.PLUGINSTR}: Invalid move object in queue`);
                 return;
             }
 
             // DEBUG: Log original move data
-            this.logger.debug(`Original move data: ${JSON.stringify({
+            this.logger.debug(`${self.PLUGINSTR}: Original move data: ${JSON.stringify({
                 indexes: move.indexes,
                 targets: move.targets,
                 speeds: move.speeds,
@@ -991,7 +996,7 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
         const resolution = Math.max(...indexes.map(i => faderData.get(i).resolution));
 
         // DEBUG: Log before creating FaderMove
-        this.logger.debug(`Creating FaderMove with: ${JSON.stringify({
+        this.logger.debug(`${self.PLUGINSTR}: Creating FaderMove with: ${JSON.stringify({
             indexes,
             targets,
             speeds,
@@ -1002,7 +1007,7 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
         this.faderController.moveFaders(finalMove, true);
 
     } catch (error) {
-        this.logger.error(`Move processing failed: ${error.stack}`);
+        this.logger.error(`${self.PLUGINSTR}: Move processing failed: ${error.stack}`);
     } finally {
         this.faderMoveQueue = [];
         clearTimeout(this.aggregationTimeout);
@@ -1014,7 +1019,7 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
 
 motorizedFaderControl.prototype.setupFaderController = function() {
     const self = this;
-    self.logger.info(`${self.PLUGINSTR}: Initializing FaderController V2...`);
+    self.logger.info(`${self.PLUGINSTR}: Initializing FaderController...`);
 
     return new Promise(async (resolve, reject) => {
         try {
@@ -1027,13 +1032,14 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                 speeds: [
                     self.config.get('FADER_CONTROLLER_SPEED_HIGH', 100),
                     self.config.get('FADER_CONTROLLER_SPEED_MEDIUM', 50),
-                    self.config.get('FADER_CONTROLLER_SPEED_LOW', 20)
+                    self.config.get('FADER_CONTROLLER_SPEED_LOW', 10)
                 ],
                 faderIndexes: JSON.parse(self.config.get('FADERS_IDXS', '[]')),
                 MIDILog: self.config.get('FADER_CONTROLLER_MIDI_LOG', false),
                 ValueLog: self.config.get('FADER_CONTROLLER_VALUE_LOG', false),
                 MoveLog: self.config.get('FADER_CONTROLLER_MOVE_LOG', false),
-                CalibrationOnStart: self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true)
+                calibrateOnStart: self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true),
+                queueOverflow: self.config.get('FADER_CONTROLLER_QUEUE_OVERFLOW', 16383),
             };
 
             if (!controllerConfig.faderIndexes?.length) {
@@ -1047,10 +1053,13 @@ motorizedFaderControl.prototype.setupFaderController = function() {
             self.faderController = new FaderController(controllerConfig);
 
             // Configure trims and speed factors
-            await this.configureFaderSettings(
+            await this._configurePackedFaderSettings(
                 JSON.parse(self.config.get('FADER_TRIM_MAP', '{}')),
                 JSON.parse(self.config.get('FADER_SPEED_FACTOR', '{}'))
             );
+            if (self.config.get('DEBUG_MODE', false)) {
+                self.faderController.logConfig()
+            }
 
             // Initialize hardware connections
             this.setupFaderAdapter();
@@ -1064,7 +1073,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
     });
 };
 
-motorizedFaderControl.prototype.configureFaderSettings = async function(trimMap, speedFactors) {
+motorizedFaderControl.prototype._configurePackedFaderSettings = async function(trimMap, speedFactors) {
     const self = this;
     
     try {
@@ -1103,7 +1112,7 @@ motorizedFaderControl.prototype.startFaderController = async function() {
         // Start with calibration flag from config
         await self.faderController.start();
         
-        self.logger.info(`${self.PLUGINSTR}: FaderController V2 started successfully`);
+        self.logger.info(`${self.PLUGINSTR}: FaderController started successfully`);
 
     } catch (error) {
         self.logger.error(`${self.PLUGINSTR}: Startup failed: ${error.message}`);
