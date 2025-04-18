@@ -32,4 +32,4 @@ volumio vrestart
 
 sleep 1
 
-sudo journalctl -f | grep motorized_fader_control
+sudo journalctl -f | grep -e motorized_fader_control -e Fader_Controller -e FaderController
