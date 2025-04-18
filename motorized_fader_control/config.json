@@ -5,7 +5,11 @@
     },
     "FADER_CONTROLLER_MESSAGE_DELAY": {
       "type": "number",
-      "value": 0.0001
+      "value": 0.1
+    },
+    "FADER_CONTROLLER_QUEUE_OVERFLOW": {
+      "type": "number",
+      "value": 10000000
     },
     "FADER_CONTROLLER_MIDI_LOG": {
       "type": "boolean",
@@ -69,7 +73,7 @@
     },
     "FADER_SPEED_FACTOR": {
         "type": "string",
-        "value": "[{\"0\":1}, {\"1\":1}]"
+        "value": "{\"0\":1,\"1\":1}"
     },
     "CALIBRATION_START_PROGRESSION": {
       "type": "number",
