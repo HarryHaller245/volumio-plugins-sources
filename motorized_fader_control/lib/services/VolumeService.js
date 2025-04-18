@@ -7,6 +7,7 @@ class VolumeService extends BaseService {
     
     // Subscribe to volume updates
     this.eventBus.on('volume/update', this.handleVolumeUpdate.bind(this));
+    this.SERVICESTR = this.getServiceName(this.constructor);
   }
 
   handleMove(faderInfo) {
@@ -14,15 +15,15 @@ class VolumeService extends BaseService {
     const volume = Math.round(progression);
     this.eventBus.emit('command/volume', volume);
     this.stateCache.set('volume', 'current', volume);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.HANDLE_MOVE} ${this.faderIdx}`);
   }
 
   handleVolumeUpdate(volume) {
     if (this.stateCache.get('volume', 'current') === volume) return;
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_VOLUME} volume: ${volume.vol}`);
+    this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.HANDLE_VOLUME} volume: ${volume.vol}`);
     const progression = volume.vol; 
     this.updateHardware(progression);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_VOLUME} ${this.faderIdx}`);
+    this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.HANDLE_VOLUME} ${this.faderIdx}`);
   }
   
 }

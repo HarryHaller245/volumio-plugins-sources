@@ -30,6 +30,7 @@ class BaseService {
     this.logger = logger;
     this.logs = logs;
     this.PLUGINSTR = pluginStr;
+    this.SERVICESTR = this.getServiceName(this.constructor);
     this.updateInterval = null;
     this.stopped = false;
     this.subscriptions = [];
@@ -39,6 +40,8 @@ class BaseService {
       this.eventBus.on('playback/paused', this.handlePause.bind(this)),
       this.eventBus.on('playback/stopped', this.handleStop.bind(this))
     );
+    this.MoveLog = this.config.get('FADER_CONTROLLER_MOVE_LOG', false);
+    this.DebugMode = this.config.get('DEBUG_MODE', false);
   }
 
   // Common interval management
@@ -77,7 +80,9 @@ class BaseService {
   
   // Common hardware update method
   updateHardware(progression) {
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} -> ${progression}`);
+    if (this.DebugMode) {
+      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} -> ${progression}`);
+    }
     const indexes = [this.faderIdx];
     const targets = [progression];
     const speeds = [this.config.get('FADER_SPEED_HIGH', 100)];
@@ -94,12 +99,23 @@ class BaseService {
     //dont know if needed
   }
 
-  handleTouch() {
+  handleTouch() { //! deprecated
     this.eventBus.on('fader/untouch', this.handleMoved.bind(this));
   }
 
-  handleUntouch() {
+  handleUntouch() { //! deprecated
     this.eventBus.off('fader/untouch', this.handleMoved.bind(this));
+  }
+
+  checkPlaybackPredictable(state) {
+    // checks if random, repeat etc
+  }
+
+  getServiceName(constructor) {
+    if (constructor) {
+      return `[${constructor.name}]`;
+    }
+    return `[${this.constructor.name}]`;
   }
 
 }

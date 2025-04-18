@@ -124,7 +124,7 @@ class StateCache {
       originalDuration: validState.duration * 1000 // Convert to ms
     };
     this.set('playback', 'current', stateWithTiming, 60000000); // 1 minute TTL
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_PLAYBACK_STATE} ${JSON.stringify(stateWithTiming)}`);
+    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.CACHE.CACHE_PLAYBACK_STATE} timestamp: ${Date.now()}`);
     return stateWithTiming;
   }
 

@@ -5,6 +5,8 @@ class TrackService extends BaseService {
   constructor(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr) {
     super(faderIdx, eventBus, stateCache, config, logger, logs, pluginStr);
     this.lastValidState = null;
+    // get the module/ service name of this class
+    this.SERVICESTR = this.getServiceName(this.constructor);
   }
 
   handlePlay(state) {
@@ -16,7 +18,7 @@ class TrackService extends BaseService {
       });
       // this.updatePosition(); //send a direct update avoiding the interval
       this.startUpdateInterval();
-      this.logger.info(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
+      this.logger.info(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
     }
   }
 
@@ -30,7 +32,9 @@ class TrackService extends BaseService {
   updatePosition() {
     try {
       // maybe if (this.stateCache.hasActiveUserInput(this.faderIdx)) return;
-      this.logger.debug(`${this.PLUGINSTR}: TRYING: TRACK SERVICE: ${this.logs.LOGS.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
+      if (this.DebugMode) {
+        this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.UPDATE_POSITION} ${this.faderIdx}`);
+      }
       const state = this.stateCache.getPlaybackState();
       if (!state || state.status !== 'play') return; // probably redundant
 
@@ -38,12 +42,12 @@ class TrackService extends BaseService {
       this.updateHardware(progression);
       // this.stateCache.cacheSeekProgression(this.faderIdx, progression); // seems unnecessary
     } catch (error) {
-      this.logger.error(`${this.PLUGINSTR}: TRACK SERVICE: ${this.logs.LOGS.SERVICES.UPDATE_POSITION_ERROR} ${this.faderIdx} - ${error.message}`);
+      this.logger.error(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.UPDATE_POSITION_ERROR} ${this.faderIdx} - ${error.message}`);
       this.eventBus.emit('error', error);
     }
   }
 
-  handleMove(data) { //! touch/untouch logic this just updates directly as soon as move
+  handleMove(data) {
     const faderInfo = data.faderInfo;
     const position = faderInfo.progression;
     let seekPosition = null
@@ -51,7 +55,7 @@ class TrackService extends BaseService {
       const state = this.stateCache.get('playback', 'current');
       seekPosition = (position / 100) * state.duration;
       this.eventBus.emit('command/seek', seekPosition);
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);
+      this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);
     } else {
        //propably not needed we just use the event for move/end
       return
@@ -66,7 +70,9 @@ class TrackService extends BaseService {
     const seekPosition = (faderInfo.progression / 100) * state.duration;
     this.eventBus.emit('command/seek', seekPosition);
     // this.stateCache.clear('fader', `fader_${faderInfo.index}`);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);
+    if (this.DebugMode) {
+      this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);
+    }
   }
 }
 
