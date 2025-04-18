@@ -31,7 +31,9 @@ class Fader extends EventEmitter {
         throw new Error('Invalid progression map range');
       }
       this.progressionMap = [min, max];
-      this.emit('configChange');
+      this.emit('configChange', this.index, {
+        progressionMap: this.progressionMap
+      });
     } catch (error) {
       this.emit('error', Object.assign(error, {
         code: FaderErrors.INVALID_CONFIG,
@@ -105,13 +107,14 @@ class MIDIHandler {
     this.controller = controller;
     this.parser = new MIDIParser();
     this.setupHandlers();
+    this.MODULESTR = `[${this.constructor.name}]`;
   }
 
   setupHandlers() {
     this.parser.on('data', data => {
       const message = this.parseMessage(data);
       if (this.controller.config.MIDILog) {
-        this.controller.config.logger.debug(`[Fader_Controller]: MIDI RECV: ${JSON.stringify(message)}`);
+        this.controller.config.logger.debug(`[FaderController] ${this.MODULESTR}: MIDI RECV: ${JSON.stringify(message)}`);
       }
       this.controller.handleMIDIMessage(message);
     });
@@ -119,27 +122,44 @@ class MIDIHandler {
 
   parseMessage(buffer) {
     try {
-      if (!buffer || buffer.length < 3) {
-        throw new Error('Invalid MIDI message length');
-      }
-      // THIS SEEMS LIKE A DUPLICATION OF ALREADY DONE PARSING IN THE MIDIPARSER ?
-      return { 
-        raw: buffer, //"Buffer","data":[224,1,110,119]}
-        type: this.parser.translateStatusByte(buffer[0]),
-        channel: this.parser.getChannel(buffer),
-        data1: buffer[2],
-        data2: buffer[3],
-        timestamp: Date.now() //does this eat performance
-      };
+        if (!buffer || buffer.length < 1) return null;
+        
+        // Handle real-time messages
+        if (buffer[0] >= 0xF8) {
+            return {
+                raw: buffer,
+                type: 'REALTIME',
+                data: buffer[0]
+            };
+        }
+
+        // Handle different message lengths
+        const message = {
+            raw: buffer,
+            type: this.parser.translateStatusByte(buffer[0]),
+            channel: (buffer[0] & 0x0F) + 1, // MIDI channels 1-16
+            data1: buffer.length > 1 ? buffer[1] : 0,
+            data2: buffer.length > 2 ? buffer[2] : 0
+        };
+
+        // Special handling for different message types
+        switch(message.type) {
+            case 'PROGRAM_CHANGE':
+            case 'CHANNEL_AFTERTOUCH':
+                message.data2 = undefined;
+                break;
+        }
+
+        return message;
     } catch (error) {
-      this.controller.emit('error', Object.assign(error, {
-        code: 'MIDI_PARSE_ERROR',
-        rawData: buffer,
-        error: error
-      }));
-      return null;
+        this.controller.emit('error', {
+            ...error,
+            code: 'MIDI_PARSE_ERROR',
+            rawData: buffer
+        });
+        return null;
     }
-  }
+}
 
   formatForLog(message) {
     return this.parser.formatMIDIMessageLogArr([
@@ -151,32 +171,121 @@ class MIDIHandler {
 }
 
 class MIDIQueue {
-  constructor(serial, controller, delay = 10) {
+  constructor(serial, controller, delay = 0.01, timeout = 500000) {
     this.serial = serial;
-    this.queue = [];
+    this.queue = new Map(); // Using Map to track sequences per fader
     this.delay = delay;
     this.isProcessing = false;
     this.controller = controller;
+    this.pendingPromises = new Map();
+    this.timeout = timeout;
+    this.faders = controller.faders;
+    this.sequenceCounters = new Map(); // Track sequence numbers per fader
+    this.batchSize = 2; // Number of faders to process in parallel
+    this.currentBatch = new Set(); // Currently processing faders
   }
 
   add(message) {
-    this.queue.push(message);
-    this.process();
+    return new Promise((resolve, reject) => {
+      const id = Symbol();
+      const timer = setTimeout(() => {
+        this.pendingPromises.delete(id);
+        reject(new Error('MIDI send timeout'));
+      }, this.timeout);
+
+      const faderIndex = this.get_index(message);
+      
+      // Initialize sequence counter if not exists
+      if (!this.sequenceCounters.has(faderIndex)) {
+        this.sequenceCounters.set(faderIndex, 0);
+      }
+      
+      const sequenceNumber = this.sequenceCounters.get(faderIndex);
+      this.sequenceCounters.set(faderIndex, sequenceNumber + 1);
+
+      // Initialize queue for fader if not exists
+      if (!this.queue.has(faderIndex)) {
+        this.queue.set(faderIndex, []);
+      }
+
+      this.queue.get(faderIndex).push({ 
+        message, 
+        id,
+        sequenceNumber 
+      });
+
+      this.pendingPromises.set(id, { resolve, reject, timer });
+      this.process();
+    });
   }
 
   async process() {
-    if (this.isProcessing || !this.queue.length) return;
+    if (this.isProcessing || this.queue.size === 0) return;
     
     this.isProcessing = true;
-    const message = this.queue.shift();
-    
+
     try {
-      await this.send(message);
-    } catch (error) {
-      this.controller.emit('error', Object.assign(error, {
-        code: 'MIDI_SEND_ERROR',
-        message: message
+      // Find available faders for parallel processing
+      const availableFaders = [];
+      for (const [faderIndex, messages] of this.queue) {
+        if (!this.currentBatch.has(faderIndex) && messages.length > 0) {
+          availableFaders.push(faderIndex);
+          if (availableFaders.length >= this.batchSize) break;
+        }
+      }
+
+      if (availableFaders.length === 0) {
+        this.isProcessing = false;
+        return;
+      }
+
+      // Process messages in parallel
+      await Promise.all(availableFaders.map(async faderIndex => {
+        this.currentBatch.add(faderIndex);
+        const messages = this.queue.get(faderIndex);
+        
+        if (messages && messages.length > 0) {
+          // Get the next message in sequence for this fader
+          const nextMessage = messages.shift();
+          
+          if (messages.length === 0) {
+            this.queue.delete(faderIndex);
+          }
+
+          try {
+            await this.send(nextMessage.message);
+            const index = this.get_index(nextMessage.message);
+            const position = this.get_position(nextMessage.message);
+            this.controller.getFader(index).updatePosition(position);
+
+            this.controller.emit('midi/sent', {
+              message: nextMessage.message
+            });
+
+            if (this.pendingPromises.has(nextMessage.id)) {
+              const { resolve, timer } = this.pendingPromises.get(nextMessage.id);
+              clearTimeout(timer);
+              resolve();
+              this.pendingPromises.delete(nextMessage.id);
+            }
+          } catch (error) {
+            if (this.pendingPromises.has(nextMessage.id)) {
+              const { reject, timer } = this.pendingPromises.get(nextMessage.id);
+              clearTimeout(timer);
+              reject(error);
+              this.pendingPromises.delete(nextMessage.id);
+            }
+            this.controller.emit('error', {
+              ...error,
+              code: 'MIDI_SEND_ERROR',
+              message: nextMessage.message
+            });
+          }
+        }
+        
+        this.currentBatch.delete(faderIndex);
       }));
+
     } finally {
       setTimeout(() => {
         this.isProcessing = false;
@@ -187,22 +296,74 @@ class MIDIQueue {
 
   send(message) {
     return new Promise((resolve, reject) => {
+      const buffer = Buffer.from(message);
+  
       if (this.controller.config.MIDILog) {
-        this.controller.config.logger.debug(`[Fader_Controller]: MIDI SEND: ${this.formatForLog(message)}`);
+        this.controller.config.logger.debug(`[FaderController]: MIDI SEND: ${JSON.stringify(message)}`);
       }
-      this.serial.write(message, (err) => {
+  
+      if (!this.serial.isOpen) {
+        const err = new Error('Serial port not open');
+        this.controller.emit('error', {
+          ...err,
+          code: FaderErrors.CONNECTION_FAILED
+        });
+        return reject(err);
+      }
+  
+      this.serial.write(buffer, (err) => {
         if (err) {
-          const wrappedError = Object.assign(err, {
-            code: FaderErrors.CONNECTION_FAILED,
-            message: `MIDI send failed: ${err.message}`
+          this.controller.emit('error', {
+            ...err,
+            code: FaderErrors.CONNECTION_FAILED
           });
-          reject(wrappedError);
+          reject(err);
         } else {
           resolve();
         }
       });
     });
   }
+
+  flush(faderIndex = null) {
+    if (faderIndex === null) {
+      // Clear entire queue if no fader specified
+      this.queue = [];
+      for (const [id, { reject, timer }] of this.pendingPromises) {
+        clearTimeout(timer);
+        reject(new Error('Queue flushed'));
+        this.pendingPromises.delete(id);
+      }
+    } else {
+      // Clear only messages for the specified fader
+      this.queue = this.queue.filter(item => {
+        const msgFaderIndex = item.message[0] & 0x0F; // Extract fader index from message
+        return msgFaderIndex !== faderIndex;
+      });
+      
+      // Reject pending promises for the specified fader
+      for (const [id, { reject, timer, message }] of this.pendingPromises) {
+        const msgFaderIndex = message[0] & 0x0F;
+        if (msgFaderIndex === faderIndex) {
+          clearTimeout(timer);
+          reject(new Error(`Queue flushed for fader ${faderIndex}`));
+          this.pendingPromises.delete(id);
+        }
+      }
+    }
+    this.isProcessing = false;
+  }
+
+  get_index(message) {
+    const faderIndex = message[0] & 0x0F;
+    return faderIndex;
+  }
+
+  get_position(message) {
+    const position = (message[1] << 7) | message[2];
+    return position;
+  }
+
 }
 
 /**
@@ -212,6 +373,9 @@ class MIDIQueue {
  * - 'move'(index, faderInfo) - Fader position changed
  * - 'error'(Error) - Critical failure
  * - 'midi'(rawData) - Raw MIDI input
+ * - 'ready' - Fader controller is ready
+ * - 'configChange'(index, config) - Fader configuration changed
+ * - 'calibration'(index, calibrationData) - Fader calibration data
  */
 class FaderController extends EventEmitter {
   constructor(config = {}) {
@@ -221,12 +385,14 @@ class FaderController extends EventEmitter {
       MIDILog: false,
       ValueLog: false,
       MoveLog: false,
-      messageDelay: 10,
-      speeds: [80, 50, 10],
+      messageDelay: 0.0001,
+      speeds: [60, 30, 10],
       faderIndexes: [0, 1, 2, 3],
+      queueOverflow: 16383,
+      calibrateOnStart: true,
       ...config
     };
-
+    this.MODULESTR = `[${this.constructor.name}]`;
     this.faders = this.createFaders();
     this.midiHandler = null;
     this.midiQueue = null;
@@ -237,9 +403,15 @@ class FaderController extends EventEmitter {
 
   // INIT CONF AND INSTANCES #############################################
 
-  updateConfig(newConfig) {
-    Object.assign(this.config, newConfig);
-    this.midiQueue.delay = this.config.messageDelay;
+  logConfig() {
+    //loop through config and log the values
+    if (this.config.logger) {
+      for (const [key, value] of Object.entries(this.config)) {
+        if (key !== 'logger') {
+          this.config.logger.debug(`${this.MODULESTR}: ${key}: ${value}`);
+        }
+      }
+    }
   }
 
   setFaderTrim(index, min, max) {
@@ -252,7 +424,7 @@ class FaderController extends EventEmitter {
       ['touch', 'move', 'untouch', 'configChange'].forEach(evt => {
         fader.on(evt, (index, info) => {
           this.emit(evt, index, info);
-          this.config.logger.debug(`[Fader_Controller]: emitting ${evt} for fader ${index}`);
+          this.config.logger.debug(`${this.MODULESTR}: emitting ${evt} for fader ${index}`);
         });
       });
       return fader;
@@ -282,7 +454,7 @@ class FaderController extends EventEmitter {
 
   handleMIDIMessage(message) {
     try {
-      this.config.logger.debug(`[Fader_Controller]: MIDI HANDLE: ${message.type}`);
+      this.config.logger.debug(`${this.MODULESTR}: MIDI HANDLE: ${message.type}`);
       switch(message.type) {
         case 'PITCH_BEND':
           this.handleFaderMove(message);
@@ -301,21 +473,24 @@ class FaderController extends EventEmitter {
   }
 
   handleFaderMove(message) {
-
-    const position = message.data1 | (message.data2 << 7);
+    // MIDI pitch bend uses 14-bit value (0-16383)
+    // LSB is first data byte, MSB is second data byte
+    const position = (message.data2 << 7) | message.data1;
     const fader = this.getFader(message.channel);
     
     if (fader) {
-      fader.updatePosition(position);
-      if (fader.echoMode) {
-        this.midiQueue.add([
-          message.raw[0],
-          fader.mapPosition(position) & 0x7F,
-          (fader.mapPosition(position) >> 7) & 0x7F
-        ]);
-      }
+        fader.updatePosition(position);
+        if (fader.echoMode) {
+            // Use mapped position for echo
+            const mappedPos = fader.mapPosition(position);
+            this.midiQueue.add([
+                0xE0 | (message.channel - 1), // MIDI channels 0-15
+                mappedPos & 0x7F,             // LSB
+                (mappedPos >> 7) & 0x7F       // MSB
+            ]);
+        }
     }
-  }
+}
 
   handleTouch(message) {
     const fader = this.getFader(message.channel);
@@ -336,72 +511,163 @@ class FaderController extends EventEmitter {
   // Movement Control #############################################
   async moveFaders(move, interrupt = false) {
     if (interrupt) this.clearQueue(move.indexes);
-    //log the raw move object values
+    
     if (this.config.MoveLog) {
-      this.config.logger.debug(`[Fader_Controller]: Move: ${JSON.stringify(move)}`);
-      //log the fader speed calculation with speedfactor since there is an error ?
+        this.config.logger.debug(`${this.MODULESTR}: Move: ${JSON.stringify(move)}`);
     }
+
     const movements = move.indexes.map((index, i) => {
-      const fader = this.getFader(index);
-      this.config.logger.debug(`[Fader_Controller]: Fader ${index} speedFactor: ${fader.speedFactor}`);
-      return {
-          index,
-          target: fader.mapProgression(move.targets[i]),
-          speed: move.speeds[i] * fader.speedFactor, // Calculate speed
-          resolution: move.resolution // Pass the resolution
-      };
+        const fader = this.getFader(index);
+        const effectiveSpeed = this.calculateEffectiveSpeed(
+            move.speeds[i], 
+            fader.speedFactor,
+            fader.progression,
+            move.targets[i]
+        );
+        
+        if (this.config.MoveLog) {
+            this.config.logger.debug(`${this.MODULESTR}: Fader ${index} ` +
+                `speedFactor: ${fader.speedFactor.toFixed(2)}, ` +
+                `effectiveSpeed: ${effectiveSpeed.toFixed(2)}`);
+        }
+
+        return {
+            index,
+            target: fader.mapProgression(move.targets[i]),
+            speed: effectiveSpeed,
+            resolution: move.resolution
+        };
     });
 
     const positions = this.calculateMovements(movements);
-    if (this.config.MoveLog) {
-      this.config.logger.debug(`[Fader_Controller]: movements: ${JSON.stringify(movements)}`);
-    }
+    
     if (this.config.ValueLog) {
-      this.config.logger.debug(`[Fader_Controller]: Positions: ${JSON.stringify(positions)}`);
+        this.config.logger.debug(`${this.MODULESTR}: Generated ${positions.length} positions`);
+        this.config.logger.debug(`${this.MODULESTR}: Positions: ${JSON.stringify(positions)}`);
+        if (positions.length > 0) {
+            this.config.logger.debug(`${this.MODULESTR}: First position: ${positions[0].value}, ` +
+                `Last position: ${positions[positions.length-1].value}`);
+        }
     }
+    
     await this.sendPositions(positions);
+
+  }
+
+  calculateEffectiveSpeed(requestedSpeed, speedFactor, currentPos, targetPos) {
+    // Apply speed factor
+    return Math.max(0.1, requestedSpeed * speedFactor);
   }
 
   calculateMovements(movements) {
     const positions = [];
+    const MIN_STEP = 1; // Minimum movement step (1)
+    const MAX_STEPS = 16383;  // Maximum 14-bit value
     
-    // Validate all movements have valid speeds
     movements.forEach(move => {
-        if (move.speed === null || move.speed === undefined) {
-            this.config.logger.error(`Invalid speed for fader ${move.index}: ${move.speed}`);
-            throw new Error(`Invalid speed for fader ${move.index}`);
+        // Validate input
+        if (typeof move.speed !== 'number' || move.speed <= 0 || move.speed > 100) {
+            throw new Error(`${this.MODULESTR}: Invalid speed ${move.speed} for fader ${move.index} - must be >0 and <=100`);
         }
-    });
-
-    const maxSteps = Math.max(...movements.map(m => {
-        const fader = this.getFader(m.index);
-        const distance = Math.abs(m.target - fader.progression);
-        const steps = Math.ceil(distance / (m.speed / 100));
-        return steps > 0 ? steps : 1; // Ensure at least 1 step
-    }));
-
-    for (let step = 0; step < maxSteps; step++) {
-        movements.forEach(move => {
-            const fader = this.getFader(move.index);
-            const progress = step / maxSteps;
-            const current = fader.progression + (move.target - fader.progression) * progress;
-            
+  
+        const fader = this.getFader(move.index);
+        const currentPos = fader.position;
+        const targetPos = fader.progressionToPosition(move.target);
+        
+        if (Math.abs(currentPos - targetPos) <= MIN_STEP) {
+            // Already at target (or very close)
             positions.push({
                 index: move.index,
-                value: fader.progressionToPosition(current)
+                value: targetPos
             });
-        });
-    }
-
-    // Apply resolution downsampling
-    const resolution = movements[0]?.resolution || 1;
-    if (resolution > 1) {
-        return positions.filter((_, i) => i % resolution === 0);
-    }
-
+            return;
+        }
+  
+        // Calculate number of steps based on speed
+        // Faster speeds = fewer steps, slower speeds = more steps
+        const distance = Math.abs(targetPos - currentPos);
+        const speedRatio = move.speed / 100; // Normalize speed to 0-1 range
+        
+        // Base number of steps scales inversely with speed
+        // Minimum 2 steps (start + end), maximum based on distance
+        let numSteps = Math.max(
+            2, 
+            Math.min(
+                Math.ceil(distance * (1 - speedRatio) * 0.5), // Adjust multiplier as needed
+                MAX_STEPS // Maximum steps to prevent excessive messages
+            )
+        );
+  
+        // Generate intermediate positions
+        const stepSize = (targetPos - currentPos) / (numSteps - 1);
+        for (let i = 0; i < numSteps; i++) {
+            const value = Math.round(currentPos + (stepSize * i));
+            positions.push({
+                index: move.index,
+                value: value
+            });
+        }
+  
+        // Apply resolution filter
+        const filteredSteps = this.applyResolutionFilter(
+            positions.filter(p => p.index === move.index),
+            move.resolution,
+            currentPos,
+            targetPos
+        );
+  
+        // Replace positions for this fader with filtered ones
+        positions.splice(
+            positions.findIndex(p => p.index === move.index),
+            positions.filter(p => p.index === move.index).length,
+            ...filteredSteps
+        );
+    });
+  
     return positions;
   }
 
+  applyResolutionFilter(steps, resolution, startPos, endPos) {
+    if (resolution >= 1 || steps.length <= 2) {
+        return steps;
+    }
+  
+    // Convert resolution (0-1) to a step selection ratio
+    const keepRatio = Math.min(1, Math.max(0.01, resolution));
+    const keepCount = Math.max(2, Math.ceil(steps.length * keepRatio));
+    
+    // Always include first and last positions
+    const filtered = [steps[0]];
+    
+    // Distribute remaining steps evenly
+    const stepInterval = (steps.length - 2) / (keepCount - 2);
+    for (let i = 1; i < keepCount - 1; i++) {
+        const index = Math.round(1 + (i * stepInterval));
+        filtered.push(steps[index]);
+    }
+    
+    filtered.push(steps[steps.length - 1]);
+    return filtered;
+  }
+
+  /**
+   * Sends an array of fader positions to the MIDI queue for processing.
+   *
+   * @async
+   * @param {Array<{index: number, value: number}>} positions - An array of position objects.
+   * Each object should have the following properties:
+   *   - `index` {number}: The index of the fader (0-15).
+   *   - `value` {number}: The position value of the fader (0-16383).
+   * 
+   * @throws {Error} Throws an error if the queue lock cannot be acquired or if a queue overflow occurs.
+   * The error object will include additional properties:
+   *   - `code` {string}: Error code ('QUEUE_LOCK_ERROR' or 'QUEUE_OVERFLOW').
+   *   - `positions` {Array} (for 'QUEUE_LOCK_ERROR'): The positions array that caused the error.
+   *   - `count` {number} (for 'QUEUE_OVERFLOW'): The number of messages in the queue.
+   * 
+   * @emits error - Emits an 'error' event with the error object and additional details.
+   */
+  // Modified sendPositions to better support parallel movements
   async sendPositions(positions) {
     const release = await this.queueMutex.acquire().catch(error => {
       this.emit('error', Object.assign(error, {
@@ -410,76 +676,246 @@ class FaderController extends EventEmitter {
       }));
       throw error;
     });
-    
+  
     try {
-      const messages = positions.map(pos => [
-        0xE0 | pos.index,
-        pos.value & 0x7F,
-        (pos.value >> 7) & 0x7F
-      ]);
-      
-      if (messages.length > 100) {
+
+      if (positions.length > this.config.queueOverflow) {
         this.emit('error', new Error('Queue overflow'), {
           code: FaderErrors.QUEUE_OVERFLOW,
-          count: messages.length
+          count: positionGroups.length
         });
-        messages.splice(100); // Keep only first 100 messages
+        positions.splice(this.config.queueOverflow);
       }
-      
-      messages.forEach(msg => this.midiQueue.add(msg));
-      await this.midiQueue.process();
+
+      await Promise.all(positions.map(pos => {
+        const message = [
+          0xE0 | pos.index,
+          pos.value & 0x7F,
+          (pos.value >> 7) & 0x7F
+        ];
+        return this.midiQueue.add(message);
+      }));
+    } catch (error) {
+      this.emit('error', Object.assign(error, {
+        code: FaderErrors.MOVEMENT_ERROR,
+        positions
+      }));
+      throw error;
     } finally {
       release();
     }
   }
 
   // Calibration System #############################################
-  //! this needs logging since it is a dev process
-  async advancedCalibration(indexes) { //not sure there is a return from the mididevice if a move is sent ?
-    const calibrationData = {};
-    const calibrationTimeout = setTimeout(() => {
-      this.emit('error', Object.assign(new Error('Calibration timeout'), {
-        code: FaderErrors.CALIBRATION_FAILED,
-        timeout: 30000
-      }));
-    }, 30000);
-    const listener = (message) => {
-      if (message.type === 'PITCH_BEND' && indexes.includes(message.channel)) {
-        calibrationData[message.channel] = calibrationData[message.channel] || [];
-        calibrationData[message.channel].push({
-          position: (message.data2 << 7) | message.data1,
-          time: message.timestamp
+  async advancedCalibration(indexes) {
+    // Validate input
+    if (!Array.isArray(indexes) || indexes.length === 0) {
+        const error = new Error('Invalid calibration indexes - must be a non-empty array');
+        this.config.logger.error('CALIBRATION ERROR:', error.message, { indexes });
+        throw Object.assign(error, {
+            code: FaderErrors.INVALID_INPUT,
+            indexes
         });
-      }
+    }
+
+    // Configuration
+    const testParams = {
+        distance: 100,           // Full range movement (0-100%)
+        testSpeeds: [100, 50, 25],   // Test speeds to evaluate
+        resolutions: [1, 0.5, 0.1],  // Resolution values to test
+        warmupRuns: 2,           // Number of warmup runs per test
+        measureRuns: 3           // Number of measured runs per test
     };
 
+    this.config.logger.info('\n=== STARTING CALIBRATION ===');
+    this.config.logger.info(`Faders: ${indexes.join(', ')}`);
+    this.config.logger.info(`Testing speeds: ${testParams.testSpeeds.join(', ')}`);
+    this.config.logger.info(`Testing resolutions: ${testParams.resolutions.join(', ')}`);
+
+    const calibrationTimeout = setTimeout(() => {
+        const error = new Error('Calibration timeout');
+        this.config.logger.error('CALIBRATION TIMEOUT:', error.message);
+        this.emit('error', Object.assign(error, {
+            code: FaderErrors.CALIBRATION_FAILED,
+            timeout: 30000
+        }));
+    }, 30000);
+
     try {
-      this.midiHandler.parser.on('data', listener);
-      await this.testCalibrationMoves(indexes);
-      return this.processCalibrationData(calibrationData);
+        const calibrationResults = {};
+        const logTable = [];
+
+        for (const index of indexes) {
+            calibrationResults[index] = {};
+            const fader = this.getFader(index);
+            
+            for (const resolution of testParams.resolutions) {
+                calibrationResults[index][resolution] = {};
+                this.config.logger.info(`\nTesting Fader ${index} at resolution ${resolution}`);
+
+                for (const speed of testParams.testSpeeds) {
+                    this.config.logger.info(`\nSpeed ${speed}%:`);
+                    const runTimes = [];
+
+                    // Warmup runs (discarded)
+                    for (let i = 0; i < testParams.warmupRuns; i++) {
+                        await this.runCalibrationMove(index, 0, testParams.distance, speed, resolution);
+                    }
+
+                    // Measured runs
+                    for (let i = 0; i < testParams.measureRuns; i++) {
+                        const duration = await this.runCalibrationMove(index, 0, testParams.distance, speed, resolution);
+                        runTimes.push(duration);
+                        
+                        this.config.logger.info(`  Run ${i+1}: ${duration}ms`);
+                    }
+
+                    // Calculate statistics
+                    const avgTime = runTimes.reduce((a, b) => a + b, 0) / runTimes.length;
+                    const variance = runTimes.reduce((a, b) => a + Math.pow(b - avgTime, 2), 0) / runTimes.length;
+                    const stdDev = Math.sqrt(variance);
+                    const effectiveSpeed = testParams.distance / (avgTime / 1000);
+
+                    // Store results
+                    calibrationResults[index][resolution][speed] = {
+                        runTimes,
+                        avgTime,
+                        stdDev,
+                        effectiveSpeed
+                    };
+
+                    // Add to log table
+                    logTable.push({
+                        Fader: index,
+                        Resolution: resolution,
+                        Speed: speed,
+                        'Avg Time (ms)': Math.round(avgTime),
+                        'Std Dev (ms)': stdDev.toFixed(1),
+                        'Effective Speed (units/s)': effectiveSpeed.toFixed(1)
+                    });
+                }
+            }
+
+            // Calculate optimal resolution and speed factor
+            const optimal = this.calculateOptimalSettings(calibrationResults[index]);
+            fader.speedFactor = optimal.speedFactor;
+            fader.optimalResolution = optimal.resolution;
+            
+            this.config.logger.info(`\nFader ${index} calibration complete:`);
+            this.config.logger.info(`- Optimal resolution: ${optimal.resolution}`);
+            this.config.logger.info(`- Speed factor: ${optimal.speedFactor.toFixed(2)}`);
+        }
+
+        // Print summary table
+        this.printCalibrationTable(logTable);
+        
+        this.emit('calibration', calibrationResults);
+        return calibrationResults;
+        
     } catch (error) {
-      this.emit('error', Object.assign(error, {
-        code: FaderErrors.CALIBRATION_FAILED,
-        indexes
-      }));
-      throw error;
+        this.config.logger.error('CALIBRATION FAILED:', error);
+        this.emit('error', Object.assign(error, {
+            code: FaderErrors.CALIBRATION_FAILED,
+            indexes
+        }));
+        throw error;
     } finally {
-      clearTimeout(calibrationTimeout);
-      this.midiHandler.parser.off('data', listener);
-      await this.reset(indexes);
+        clearTimeout(calibrationTimeout);
+        this.config.logger.info('\n=== CALIBRATION COMPLETE ===');
+        await this.reset(indexes);
     }
   }
 
-  async testCalibrationMoves(indexes) {
-    const moves = [
-      new FaderMove(indexes, 0, 100),
-      new FaderMove(indexes, 100, 1),
-      new FaderMove(indexes, 0, 100)
+  async runCalibrationMove(index, start, end, speed, resolution) {
+      const startTime = Date.now();
+      await this.moveFaders(new FaderMove(index, start, speed), true); // Move to start
+      await this.moveFaders(new FaderMove(index, end, speed, resolution), true); // Timed move
+      return Date.now() - startTime;
+  }
+
+  calculateOptimalSettings(faderData) {
+      // Find resolution with best consistency (lowest average std deviation)
+      let bestResolution = 1;
+      let bestConsistency = Infinity;
+      
+      for (const [resolution, data] of Object.entries(faderData)) {
+          const avgStdDev = Object.values(data).reduce((sum, test) => sum + test.stdDev, 0) / Object.keys(data).length;
+          if (avgStdDev < bestConsistency) {
+              bestConsistency = avgStdDev;
+              bestResolution = Number(resolution);
+          }
+      }
+
+      // Calculate speed factor based on best resolution's 100% speed test
+      const refSpeed = 100; // Our target speed
+      const effectiveSpeed = faderData[bestResolution][refSpeed].effectiveSpeed;
+      const speedFactor = refSpeed / effectiveSpeed;
+
+      return {
+          resolution: bestResolution,
+          speedFactor,
+          consistency: bestConsistency
+      };
+  }
+
+  printCalibrationTable(data) {
+      const columns = [
+          { field: 'Fader', title: 'Fader' },
+          { field: 'Resolution', title: 'Resolution' },
+          { field: 'Speed', title: 'Speed %' },
+          { field: 'Avg Time (ms)', title: 'Avg Time (ms)' },
+          { field: 'Std Dev (ms)', title: '±Dev' },
+          { field: 'Effective Speed (units/s)', title: 'Speed (u/s)' }
+      ];
+
+      // Find max widths for each column
+      const widths = columns.map(col => {
+          const headerWidth = col.title.length;
+          const contentWidth = Math.max(...data.map(row => String(row[col.field]).length));
+          return Math.max(headerWidth, contentWidth) + 2;
+      });
+
+      // Print header
+      let header = '';
+      columns.forEach((col, i) => {
+          header += col.title.padEnd(widths[i]);
+      });
+      this.config.logger.info('\n' + header);
+      this.config.logger.info('-'.repeat(header.length));
+
+      // Print rows
+      data.forEach(row => {
+          let line = '';
+          columns.forEach((col, i) => {
+              line += String(row[col.field]).padEnd(widths[i]);
+          });
+          this.config.logger.info(line);
+      });
+  }
+
+  calculateSpeedFactor(speedData) {
+      // Calculate average effective speed across all test speeds
+      const speeds = Object.values(speedData);
+      const avgEffectiveSpeed = speeds.reduce((sum, test) => sum + test.effectiveSpeed, 0) / speeds.length;
+      
+      // Speed factor represents how much we need to adjust the speed to achieve desired timing
+      // Higher factor = faster movement to compensate for slow hardware
+      return 100 / avgEffectiveSpeed; // Normalize to target speed of 100 units/s
+  }
+
+  // Utility method for delays
+  delay(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  async testCalibrationMoves(indexes, speed_up = 100, speed_down = 99, resolution = 1) {
+    let moves = [
+      new FaderMove(indexes, 0, 100, resolution),
+      new FaderMove(indexes, 100, speed_up, resolution),
+      new FaderMove(indexes, 0, speed_down, resolution)
     ];
-    
-    for (const move of moves) {
-      await this.moveFaders(move);
-      await new Promise(resolve => setTimeout(resolve, 500));
+    for (let i = 0; i < moves.length; i++) {
+      await this.moveFaders(moves[i], false);
     }
   }
 
@@ -495,15 +931,19 @@ class FaderController extends EventEmitter {
       const avgDuration = durations.reduce((sum, d) => sum + d, 0) / durations.length;
       fader.speedFactor = 1000 / avgDuration;
       result[index] = fader.speedFactor;
-      
+      this.emit('calibration', index, {
+        index,
+        speedFactor: fader.speedFactor,
+        readings
+      });
       return result;
     }, {});
   }
 
   // basic calibration #############################################
   async calibrate(indexes) {
-    this.config.logger.debug('[Fader_Controller] calibrating...');
-    this.testCalibrationMoves(indexes);
+    this.config.logger.debug(`${this.MODULESTR}: Calibrating...`);
+    await this.testCalibrationMoves(indexes);
   }
 
   // ! missing standard time based calibration i.e. give a goal for time needed for a move at speed x
@@ -541,19 +981,20 @@ class FaderController extends EventEmitter {
           throw attemptError;
         }
         
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        await new Promise(resolve => setTimeout(resolve, 5000));
       }
     }
   }
 
-  async start(calibrateOnStart = false) {
+  async start() {
     if (!this.serial?.isOpen) {
       throw new Error('Serial port not initialized');
     }
 
     try {
       await this.checkMIDIDeviceReady();
-      if (calibrateOnStart) await this.calibrate(this.config.faderIndexes);
+      if (this.config.calibrateOnStart) await this.calibrate(this.config.faderIndexes);
+      this.emit('ready');
       this.config.logger.info('FaderController started successfully');
     } catch (error) {
       this.config.logger.error('Startup failed:', error);
@@ -574,7 +1015,7 @@ class FaderController extends EventEmitter {
 
   reset(indexes) {
     return this.moveFaders(
-      new FaderMove(indexes, 0, this.config.speeds[1]),
+      new FaderMove(indexes, 0, this.config.speeds[1], 1),
       true
     );
   }
@@ -610,15 +1051,15 @@ class FaderController extends EventEmitter {
 
   setFaderProgressionMap(index, range) { // make this accept multiple indexes optionally
     const fader = this.getFader(index);
-    if (!fader) throw new Error(`Fader ${index} not found`);
+    if (!fader) throw new Error(`${this.MODULESTR}: Fader ${index} not found`);
     fader.setProgressionMap(range);
   }
 
   setFadersMovementSpeedFactor(index, speedFactor) {
     const fader = this.getFader(index);
-    if (!fader) throw new Error(`Fader ${index} not found`);
-    if (typeof speedFactor !== 'number' || speedFactor <= 0) {
-        this.config.logger.warn(`[Fader_Controller]: Invalid speedFactor for fader ${index}. Resetting to default (1).`);
+    if (!fader) throw new Error(`${this.MODULESTR}: Fader ${index} not found`);
+    if (typeof speedFactor !== 'number' || speedFactor <= 0 || speedFactor === null) {
+        this.config.logger.warn(`${this.MODULESTR}: Invalid speedFactor for fader ${index}. Resetting to default (1).`);
         speedFactor = 1; // Reset to default if invalid
     }
     fader.speedFactor = speedFactor;
@@ -628,7 +1069,7 @@ class FaderController extends EventEmitter {
   getFader(index) {
     try {
       const fader = this.faders[index];
-      if (!fader) throw new Error(`Fader ${index} not found`);
+      if (!fader) throw new Error(`${this.MODULESTR}: Fader ${index} not found`);
       return fader;
     } catch (error) {
       this.emit('error', Object.assign(error, {
@@ -641,10 +1082,13 @@ class FaderController extends EventEmitter {
   }
 
   clearQueue(indexes) {
-    this.midiQueue.queue = this.midiQueue.queue.filter(msg => {
-      const msgIndex = msg[0] & 0x0F;
-      return !indexes.includes(msgIndex);
-    });
+    if (!Array.isArray(indexes)) {
+      indexes = [indexes];
+    }
+    
+    for (const index of indexes) {
+      this.midiQueue.flush(index);
+    }
   }
 
   async closeSerial() {
@@ -670,7 +1114,7 @@ class FaderController extends EventEmitter {
 
       const normalizedIndexes = indexes.map(index => {
         if (typeof index === 'string') {
-          this.logger.warn(`[FaderController]: IndexHandler: Converting string index "${index}" to number.: ${[Number(index)]}`);
+          this.logger.warn(`${this.MODULESTR}: IndexHandler: Converting string index "${index}" to number.: ${[Number(index)]}`);
           return [Number(index)];
         }
         return index;
@@ -687,26 +1131,43 @@ class FaderController extends EventEmitter {
 
   async checkMIDIDeviceReady(maxAttempts = 10) {
     try {
-      let attempts = 0;
-      while (attempts < maxAttempts && !this.midiDeviceReady) {
-        if (this.midiCache.some(msg => 
-          msg[3] === 102 || msg[3] === 116)
-        ) {
-          this.midiDeviceReady = true;
-          return true;
+        let attempts = 0;
+        const READY_SIGNAL_1 = 102;  // 0x66
+        const READY_SIGNAL_2 = 116;  // 0x74
+        
+        while (attempts < maxAttempts && !this.midiDeviceReady) {
+            // Check for specific ready signals in PROGRAM_CHANGE messages
+            const isReady = this.midiCache.some(msg => {
+                // Validate message structure: [0xC0, channel, data1, data2]
+                // For PROGRAM_CHANGE (0xC0), data1 is the program number
+                if (msg[0] === 0xC0 && msg.length >= 4) {
+                    return msg[3] === READY_SIGNAL_1 || msg[3] === READY_SIGNAL_2;
+                }
+                return false;
+            });
+
+            if (isReady) {
+                this.midiDeviceReady = true;
+                this.config.logger.debug(`${this.MODULESTR}: MIDI device ready signal received`);
+                return true;
+            }
+
+            await new Promise(resolve => setTimeout(resolve, 1500));  // Increased timeout
+            attempts++;
+            this.config.logger.debug(`${this.MODULESTR}: Device check attempt ${attempts}/${maxAttempts}`);
         }
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        attempts++;
-      }
-      throw new Error('MIDI device not responding');
+
+        throw new Error(`MIDI device not responding after ${maxAttempts} attempts`);
     } catch (error) {
-      this.emit('error', Object.assign(error, {
-        code: FaderErrors.DEVICE_NOT_READY,
-        attempts: maxAttempts
-      }));
-      throw error;
+        this.emit('error', {
+            ...error,
+            code: FaderErrors.DEVICE_NOT_READY,
+            attempts: maxAttempts,
+            lastMessages: this.midiCache.slice(-5)  // Include recent messages for debugging
+        });
+        throw error;
     }
-  }
+}
 }
 
 module.exports = { FaderController, FaderMove, FaderErrors };

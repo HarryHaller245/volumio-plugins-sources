@@ -471,13 +471,11 @@ class FaderController extends EventEmitter {
     }, {});
   }
 
-  // basic calibration #############################################
+  //* Basic calibration #############################################
   async calibrate(indexes) {
     this.config.logger.debug('[Fader_Controller] calibrating...');
     this.testCalibrationMoves(indexes);
   }
-
-  // ! missing standard time based calibration i.e. give a goal for time needed for a move at speed x
 
   //* Public API #############################################
 
@@ -573,13 +571,13 @@ class FaderController extends EventEmitter {
     );
   }
 
-  setFaderProgressionMap(index, range) { // make this accept multiple indexes optionally
+  setFaderProgressionMap(index, range) { //! make this accept multiple indexes optionally
     const fader = this.getFader(index);
     if (!fader) throw new Error(`Fader ${index} not found`);
     fader.setProgressionMap(range);
   }
 
-  setFadersMovementSpeedFactor(index, speedFactor) { // make this accept multiple indexes optionally
+  setFadersMovementSpeedFactor(index, speedFactor) { //! make this accept multiple indexes optionally
     const fader = this.getFader(index);
     if (!fader) throw new Error(`Fader ${index} not found`);
     if (typeof speedFactor !== 'number' || speedFactor <= 0) {
