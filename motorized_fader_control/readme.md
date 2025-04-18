@@ -63,6 +63,7 @@ supporting real-time feedback and multiple seek modes.
 
 ### TODOs & Next Steps
 - **High Priority**:
+  - Fix speed handling, it is way too high.
   - Implement album/queue seek logic
   - Improve seek position accuracy
   - restructure UI
@@ -82,7 +83,6 @@ supporting real-time feedback and multiple seek modes.
 **Known Issues**:
 - Intermittent WebSocket disconnects
 - Album seek validation false negatives
-- Volume jitter during rapid changes
 - Slow Response on Track Output Seek
 
 **Debugging**:
