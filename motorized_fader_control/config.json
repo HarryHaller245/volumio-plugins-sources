@@ -17,7 +17,7 @@
     },
     "FADER_CONTROLLER_VALUE_LOG": {
       "type": "boolean",
-      "value": true
+      "value": false
     },
     "FADER_CONTROLLER_MOVE_LOG": {
       "type": "boolean",

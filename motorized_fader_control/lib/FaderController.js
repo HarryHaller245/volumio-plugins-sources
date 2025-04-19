@@ -328,7 +328,7 @@ class MIDIQueue {
   flush(faderIndex = null) {
     if (faderIndex === null) {
       // Clear entire queue if no fader specified
-      this.queue = [];
+      this.queue.clear(); // Clear the Map
       for (const [id, { reject, timer }] of this.pendingPromises) {
         clearTimeout(timer);
         reject(new Error('Queue flushed'));
@@ -336,14 +336,13 @@ class MIDIQueue {
       }
     } else {
       // Clear only messages for the specified fader
-      this.queue = this.queue.filter(item => {
-        const msgFaderIndex = item.message[0] & 0x0F; // Extract fader index from message
-        return msgFaderIndex !== faderIndex;
-      });
-      
+      if (this.queue.has(faderIndex)) {
+        this.queue.delete(faderIndex); // Remove the fader's queue
+      }
+  
       // Reject pending promises for the specified fader
       for (const [id, { reject, timer, message }] of this.pendingPromises) {
-        const msgFaderIndex = message[0] & 0x0F;
+        const msgFaderIndex = this.get_index(message);
         if (msgFaderIndex === faderIndex) {
           clearTimeout(timer);
           reject(new Error(`Queue flushed for fader ${faderIndex}`));
@@ -399,6 +398,8 @@ class FaderController extends EventEmitter {
     this.queueMutex = new Mutex();
     this.serial = null;
     this.initMIDIState();
+
+    this.speedMultiplier = 0.5; // Adjust this value to control speed
   }
 
   // INIT CONF AND INSTANCES #############################################
@@ -439,7 +440,7 @@ class FaderController extends EventEmitter {
 
   handleDisconnect() {
     this.emit('error', new Error('Serial port disconnected'));
-    this.reconnectAttempts = 0;
+    this.reconnectAttempts = 10;
     
     const reconnect = () => {
       if(this.reconnectAttempts++ < 5) {
@@ -454,7 +455,10 @@ class FaderController extends EventEmitter {
 
   handleMIDIMessage(message) {
     try {
-      this.config.logger.debug(`${this.MODULESTR}: MIDI HANDLE: ${message.type}`);
+      if (this.MIDILog) {
+      this.config.logger.debug(`${this.MODULESTR}: MIDI HANDLE: ${message.type}`); 
+      }
+      
       switch(message.type) {
         case 'PITCH_BEND':
           this.handleFaderMove(message);
@@ -540,14 +544,22 @@ class FaderController extends EventEmitter {
     });
 
     const positions = this.calculateMovements(movements);
-    
-    if (this.config.ValueLog) {
-        this.config.logger.debug(`${this.MODULESTR}: Generated ${positions.length} positions`);
-        this.config.logger.debug(`${this.MODULESTR}: Positions: ${JSON.stringify(positions)}`);
+    if (this.config.MoveLog) {
+      //log the number of positions per fader
+      const positionsPerFader = positions.reduce((acc, pos) => {
+        acc[pos.index] = (acc[pos.index] || 0) + 1;
+        return acc;
+      }, {});
+      this.config.logger.debug(`${this.MODULESTR}: Generated ${JSON.stringify(positionsPerFader)} positions`);
+    }
+    if (this.config.MoveLog) {
         if (positions.length > 0) {
             this.config.logger.debug(`${this.MODULESTR}: First position: ${positions[0].value}, ` +
                 `Last position: ${positions[positions.length-1].value}`);
         }
+    }
+    if (this.config.ValueLog) {
+      this.config.logger.debug(`${this.MODULESTR}: Positions: ${JSON.stringify(positions)}`);
     }
     
     await this.sendPositions(positions);
@@ -593,7 +605,7 @@ class FaderController extends EventEmitter {
         let numSteps = Math.max(
             2, 
             Math.min(
-                Math.ceil(distance * (1 - speedRatio) * 0.5), // Adjust multiplier as needed
+                Math.ceil(distance * (1 - speedRatio) * this.speedMultiplier), // Adjust multiplier as needed this.speedMultiplier
                 MAX_STEPS // Maximum steps to prevent excessive messages
             )
         );
@@ -667,7 +679,7 @@ class FaderController extends EventEmitter {
    * 
    * @emits error - Emits an 'error' event with the error object and additional details.
    */
-  // Modified sendPositions to better support parallel movements
+  //* Modified sendPositions to better support parallel movements
   async sendPositions(positions) {
     const release = await this.queueMutex.acquire().catch(error => {
       this.emit('error', Object.assign(error, {
@@ -706,12 +718,12 @@ class FaderController extends EventEmitter {
     }
   }
 
-  // Calibration System #############################################
+  //* Calibration System #############################################
   async advancedCalibration(indexes) {
     // Validate input
     if (!Array.isArray(indexes) || indexes.length === 0) {
         const error = new Error('Invalid calibration indexes - must be a non-empty array');
-        this.config.logger.error('CALIBRATION ERROR:', error.message, { indexes });
+        this.config.logger.error(`${this.MODULESTR}: CALIBRATION ERROR: ${error.message}`, { indexes });
         throw Object.assign(error, {
             code: FaderErrors.INVALID_INPUT,
             indexes
@@ -721,25 +733,25 @@ class FaderController extends EventEmitter {
     // Configuration
     const testParams = {
         distance: 100,           // Full range movement (0-100%)
-        testSpeeds: [100, 50, 25],   // Test speeds to evaluate
-        resolutions: [1, 0.5, 0.1],  // Resolution values to test
-        warmupRuns: 2,           // Number of warmup runs per test
-        measureRuns: 3           // Number of measured runs per test
+        testSpeeds: [100],       // Test speeds to evaluate
+        resolutions: [1],        // Resolution values to test
+        warmupRuns: 0,           // Number of warmup runs per test
+        measureRuns: 1           // Number of measured runs per test
     };
 
-    this.config.logger.info('\n=== STARTING CALIBRATION ===');
-    this.config.logger.info(`Faders: ${indexes.join(', ')}`);
-    this.config.logger.info(`Testing speeds: ${testParams.testSpeeds.join(', ')}`);
-    this.config.logger.info(`Testing resolutions: ${testParams.resolutions.join(', ')}`);
+    this.config.logger.info(`${this.MODULESTR}: \n=== STARTING CALIBRATION ===`);
+    this.config.logger.info(`${this.MODULESTR}: Faders: ${indexes.join(', ')}`);
+    this.config.logger.info(`${this.MODULESTR}: Testing speeds: ${testParams.testSpeeds.join(', ')}`);
+    this.config.logger.info(`${this.MODULESTR}: Testing resolutions: ${testParams.resolutions.join(', ')}`);
 
     const calibrationTimeout = setTimeout(() => {
         const error = new Error('Calibration timeout');
-        this.config.logger.error('CALIBRATION TIMEOUT:', error.message);
+        this.config.logger.error(`${this.MODULESTR}: CALIBRATION TIMEOUT: ${error.message}`);
         this.emit('error', Object.assign(error, {
             code: FaderErrors.CALIBRATION_FAILED,
-            timeout: 30000
+            timeout: 300000
         }));
-    }, 30000);
+    }, 300000);
 
     try {
         const calibrationResults = {};
@@ -751,10 +763,10 @@ class FaderController extends EventEmitter {
             
             for (const resolution of testParams.resolutions) {
                 calibrationResults[index][resolution] = {};
-                this.config.logger.info(`\nTesting Fader ${index} at resolution ${resolution}`);
+                this.config.logger.info(`${this.MODULESTR}: Testing Fader ${index} at resolution ${resolution}`);
 
                 for (const speed of testParams.testSpeeds) {
-                    this.config.logger.info(`\nSpeed ${speed}%:`);
+                    this.config.logger.info(`${this.MODULESTR}: Speed ${speed}%:`);
                     const runTimes = [];
 
                     // Warmup runs (discarded)
@@ -767,7 +779,7 @@ class FaderController extends EventEmitter {
                         const duration = await this.runCalibrationMove(index, 0, testParams.distance, speed, resolution);
                         runTimes.push(duration);
                         
-                        this.config.logger.info(`  Run ${i+1}: ${duration}ms`);
+                        this.config.logger.info(`${this.MODULESTR}: Run ${i + 1}: ${duration}ms`);
                     }
 
                     // Calculate statistics
@@ -801,27 +813,27 @@ class FaderController extends EventEmitter {
             fader.speedFactor = optimal.speedFactor;
             fader.optimalResolution = optimal.resolution;
             
-            this.config.logger.info(`\nFader ${index} calibration complete:`);
-            this.config.logger.info(`- Optimal resolution: ${optimal.resolution}`);
-            this.config.logger.info(`- Speed factor: ${optimal.speedFactor.toFixed(2)}`);
+            this.config.logger.info(`${this.MODULESTR}: \nFader ${index} calibration complete:`);
+            this.config.logger.info(`${this.MODULESTR}: - Optimal resolution: ${optimal.resolution}`);
+            this.config.logger.info(`${this.MODULESTR}: - Speed factor: ${optimal.speedFactor.toFixed(2)}`);
         }
 
         // Print summary table
         this.printCalibrationTable(logTable);
         
         this.emit('calibration', calibrationResults);
-        return calibrationResults;
+        return Promise.resolve(calibrationResults);
         
     } catch (error) {
-        this.config.logger.error('CALIBRATION FAILED:', error);
+        this.config.logger.error(`${this.MODULESTR}: CALIBRATION FAILED: ${error}`);
         this.emit('error', Object.assign(error, {
             code: FaderErrors.CALIBRATION_FAILED,
             indexes
         }));
-        throw error;
+        return Promise.reject(error);
     } finally {
         clearTimeout(calibrationTimeout);
-        this.config.logger.info('\n=== CALIBRATION COMPLETE ===');
+        this.config.logger.info(`${this.MODULESTR}: \n=== CALIBRATION COMPLETE ===`);
         await this.reset(indexes);
     }
   }
@@ -880,8 +892,7 @@ class FaderController extends EventEmitter {
       columns.forEach((col, i) => {
           header += col.title.padEnd(widths[i]);
       });
-      this.config.logger.info('\n' + header);
-      this.config.logger.info('-'.repeat(header.length));
+      this.config.logger.info(`${this.MODULESTR}: \n${header}\n${'-'.repeat(header.length)}`);
 
       // Print rows
       data.forEach(row => {
@@ -889,7 +900,7 @@ class FaderController extends EventEmitter {
           columns.forEach((col, i) => {
               line += String(row[col.field]).padEnd(widths[i]);
           });
-          this.config.logger.info(line);
+          this.config.logger.info(this.MODULESTR + line);
       });
   }
 
@@ -908,7 +919,7 @@ class FaderController extends EventEmitter {
       return new Promise(resolve => setTimeout(resolve, ms));
   }
 
-  async testCalibrationMoves(indexes, speed_up = 100, speed_down = 99, resolution = 1) {
+  async testCalibrationMoves(indexes, speed_up = 100, speed_down = 50, resolution = 1) {
     let moves = [
       new FaderMove(indexes, 0, 100, resolution),
       new FaderMove(indexes, 100, speed_up, resolution),
@@ -945,8 +956,6 @@ class FaderController extends EventEmitter {
     this.config.logger.debug(`${this.MODULESTR}: Calibrating...`);
     await this.testCalibrationMoves(indexes);
   }
-
-  // ! missing standard time based calibration i.e. give a goal for time needed for a move at speed x
 
   //* Public API #############################################
 
@@ -995,7 +1004,7 @@ class FaderController extends EventEmitter {
       await this.checkMIDIDeviceReady();
       if (this.config.calibrateOnStart) await this.calibrate(this.config.faderIndexes);
       this.emit('ready');
-      this.config.logger.info('FaderController started successfully');
+      this.config.logger.info(`${this.MODULESTR}: FaderController started successfully`);
     } catch (error) {
       this.config.logger.error('Startup failed:', error);
       throw error;
@@ -1018,11 +1027,6 @@ class FaderController extends EventEmitter {
       new FaderMove(indexes, 0, this.config.speeds[1], 1),
       true
     );
-  }
-
-  async calibrate_timings(indexes, speed, goal) {
-    const calibrationData = await this.advancedCalibration(indexes);
-    //! use speed and timegoal (ms) for a 0-100 move to calibrate movement factor
   }
 
   combineMoves(moves) {
