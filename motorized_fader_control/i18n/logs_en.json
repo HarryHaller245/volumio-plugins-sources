@@ -73,8 +73,12 @@
       },
       "SERVICES" : {
         "BASE": {
-          "START_INTERVAL": "Starting interval for service:",
-          "STOP_INTERVAL": "Stopping interval for service:"
+          "START_INTERVAL": "Starting update interval for fader:",
+          "STOP_INTERVAL": "Stopping update interval for fader:",
+          "BLOCK_INTERVAL": "Blocking update interval for fader:",
+          "UNBLOCK_INTERVAL": "Unblocking update interval for fader:",
+          "BLOCK_HARDWARE": "Blocking service hardware updates for fader:",
+          "UNBLOCK_HARDWARE": "Unblocking service hardware updates for fader:"
         },
         "HANDLE_PLAY": "Handling play state for fader:",
         "UPDATE_POSITION": "Updating position for fader:",

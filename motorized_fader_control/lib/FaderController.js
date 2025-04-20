@@ -10,7 +10,9 @@ const FaderErrors = {
   MOVEMENT_ERROR: 'MOVEMENT_ERROR',
   CALIBRATION_FAILED: 'CALIBRATION_FAILED',
   DEVICE_NOT_READY: 'DEVICE_NOT_READY',
-  QUEUE_OVERFLOW: 'QUEUE_OVERFLOW'
+  QUEUE_OVERFLOW: 'QUEUE_OVERFLOW',
+  SEND_POS_ERROR: 'SEND_POSITIONS_ERROR',
+  QUEUE_CLEAR_ERROR: 'QUEUE_CLEAR_ERROR',
 };
 
 class Fader extends EventEmitter {
@@ -84,6 +86,13 @@ class Fader extends EventEmitter {
 
   progressionToPosition(progression) {
     return Math.round((progression / 100) * 16383);
+  }
+
+  setEchoMode(echo) {
+    this.echoMode = echo;
+    this.emit('configChange', this.index, {
+      echoMode: this.echoMode
+    });
   }
 }
 
@@ -253,14 +262,17 @@ class MIDIQueue {
           }
 
           try {
-            await this.send(nextMessage.message);
+            // Dont send message if the fader at the indexes is being touched
             const index = this.get_index(nextMessage.message);
-            const position = this.get_position(nextMessage.message);
-            this.controller.getFader(index).updatePosition(position);
+            if (!this.faders[index].touch) {
+              await this.send(nextMessage.message);
+              const position = this.get_position(nextMessage.message);
+              this.controller.getFader(index).updatePosition(position);
 
-            this.controller.emit('midi/sent', {
-              message: nextMessage.message
-            });
+              this.controller.emit('midi/sent', {
+                message: nextMessage.message
+              });
+            }
 
             if (this.pendingPromises.has(nextMessage.id)) {
               const { resolve, timer } = this.pendingPromises.get(nextMessage.id);
@@ -326,32 +338,43 @@ class MIDIQueue {
   }
 
   flush(faderIndex = null) {
-    if (faderIndex === null) {
-      // Clear entire queue if no fader specified
-      this.queue.clear(); // Clear the Map
-      for (const [id, { reject, timer }] of this.pendingPromises) {
-        clearTimeout(timer);
-        reject(new Error('Queue flushed'));
-        this.pendingPromises.delete(id);
-      }
-    } else {
-      // Clear only messages for the specified fader
-      if (this.queue.has(faderIndex)) {
-        this.queue.delete(faderIndex); // Remove the fader's queue
-      }
-  
-      // Reject pending promises for the specified fader
-      for (const [id, { reject, timer, message }] of this.pendingPromises) {
-        const msgFaderIndex = this.get_index(message);
-        if (msgFaderIndex === faderIndex) {
+    try {
+      if (faderIndex === null) {
+        // Clear entire queue if no fader specified
+        this.queue.clear(); // Clear the Map
+        for (const [id, { resolve, timer }] of this.pendingPromises) {
           clearTimeout(timer);
-          reject(new Error(`Queue flushed for fader ${faderIndex}`));
+          resolve(); // Fulfill the promise instead of rejecting
           this.pendingPromises.delete(id);
         }
-      }
-    }
-    this.isProcessing = false;
-  }
+            } else {
+        // Clear only messages for the specified fader
+        if (!this.queue.has(faderIndex)) {
+          this.config.logger.info(`Queue is empty for fader ${faderIndex}`);
+          return;
+        }
+        this.queue.delete(faderIndex); // Remove the fader's queue
+
+        // Fulfill pending promises for the specified fader
+        for (const [id, { resolve, timer, message }] of this.pendingPromises) {
+          const msgFaderIndex = this.get_index(message);
+          if (msgFaderIndex === faderIndex) {
+            clearTimeout(timer);
+            resolve(); // Fulfill the promise instead of rejecting
+            this.pendingPromises.delete(id);
+          }
+        }
+            }
+            this.isProcessing = false;
+          } catch (error) {
+            this.controller.emit('error', {
+        ...error,
+        code: FaderErrors.QUEUE_CLEAR_ERROR,
+        faderIndex
+            });
+            throw error;
+          }
+        }
 
   get_index(message) {
     const faderIndex = message[0] & 0x0F;
@@ -399,7 +422,7 @@ class FaderController extends EventEmitter {
     this.serial = null;
     this.initMIDIState();
 
-    this.speedMultiplier = 0.5; // Adjust this value to control speed
+    this.speedMultiplier = 0.1; // Adjust this value to control speed
   }
 
   // INIT CONF AND INSTANCES #############################################
@@ -520,50 +543,61 @@ class FaderController extends EventEmitter {
 
   // Movement Control #############################################
   async moveFaders(move, interrupt = false) {
-    if (interrupt) this.clearQueue(move.indexes);
-    
-    if (this.config.MoveLog) {
-        this.config.logger.debug(`Move: ${JSON.stringify(move)}`);
+    try {
+      if (interrupt) this.clearQueue(move.indexes);
+      
+      if (this.config.MoveLog) {
+          this.config.logger.debug(`Move: ${JSON.stringify(move)}`);
+      }
+
+      const movements = move.indexes.map((index, i) => {
+          const fader = this.getFader(index);
+          const effectiveSpeed = this.calculateEffectiveSpeed(
+              move.speeds[i], 
+              fader.speedFactor,
+              fader.progression,
+              move.targets[i]
+          );
+          
+          if (this.config.MoveLog) {
+              this.config.logger.debug(`Fader ${index} ` +
+                  `speedFactor: ${fader.speedFactor.toFixed(2)}, ` +
+                  `effectiveSpeed: ${effectiveSpeed.toFixed(2)}`);
+          }
+
+          return {
+              index,
+              target: fader.mapProgression(move.targets[i]),
+              speed: effectiveSpeed,
+              resolution: move.resolution
+          };
+      });
+
+      const positions = this.calculateMovements(movements);
+      if (this.config.MoveLog) {
+        //log the number of positions per fader
+        const positionsPerFader = positions.reduce((acc, pos) => {
+          acc[pos.index] = (acc[pos.index] || 0) + 1;
+          return acc;
+        }, {});
+        this.config.logger.debug(`Generated ${JSON.stringify(positionsPerFader)} positions`);
+      }
+      if (this.config.ValueLog) {
+        this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
+      }
+      
+      await this.sendPositions(positions);
+    } catch (error) {
+      this.config.logger.error(`Error in moveFaders: ${error.message}`, {
+        move,
+        error
+      });
+      this.emit('error', Object.assign(error, {
+        code: FaderErrors.MOVEMENT_ERROR,
+        move
+      }));
+      throw error;
     }
-
-    const movements = move.indexes.map((index, i) => {
-        const fader = this.getFader(index);
-        const effectiveSpeed = this.calculateEffectiveSpeed(
-            move.speeds[i], 
-            fader.speedFactor,
-            fader.progression,
-            move.targets[i]
-        );
-        
-        if (this.config.MoveLog) {
-            this.config.logger.debug(`Fader ${index} ` +
-                `speedFactor: ${fader.speedFactor.toFixed(2)}, ` +
-                `effectiveSpeed: ${effectiveSpeed.toFixed(2)}`);
-        }
-
-        return {
-            index,
-            target: fader.mapProgression(move.targets[i]),
-            speed: effectiveSpeed,
-            resolution: move.resolution
-        };
-    });
-
-    const positions = this.calculateMovements(movements);
-    if (this.config.MoveLog) {
-      //log the number of positions per fader
-      const positionsPerFader = positions.reduce((acc, pos) => {
-        acc[pos.index] = (acc[pos.index] || 0) + 1;
-        return acc;
-      }, {});
-      this.config.logger.debug(`Generated ${JSON.stringify(positionsPerFader)} positions`);
-    }
-    if (this.config.ValueLog) {
-      this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
-    }
-    
-    await this.sendPositions(positions);
-
   }
 
   calculateEffectiveSpeed(requestedSpeed, speedFactor, currentPos, targetPos) {
@@ -573,7 +607,7 @@ class FaderController extends EventEmitter {
 
   calculateMovements(movements) {
       const positions = [];
-      const MIN_STEP = 1; // Minimum movement step (1)
+      const MIN_STEP = 20; // Minimum movement step (1)
       const MAX_STEPS = 16383; // Maximum 14-bit value
   
       movements.forEach(move => {
@@ -704,7 +738,7 @@ class FaderController extends EventEmitter {
       }));
     } catch (error) {
       this.emit('error', Object.assign(error, {
-        code: FaderErrors.MOVEMENT_ERROR,
+        code: FaderErrors.SEND_POS_ERROR,
         positions
       }));
       throw error;
@@ -1063,6 +1097,12 @@ class FaderController extends EventEmitter {
     fader.speedFactor = speedFactor;
 }
 
+  setFaderEchoMode(index, echoMode) {
+    const fader = this.getFader(index);
+    if (!fader) throw new Error(`Fader ${index} not found`);
+    fader.setEchoMode(echoMode);
+  }
+
   //* Utilities #############################################
   getFader(index) {
     try {
@@ -1080,12 +1120,20 @@ class FaderController extends EventEmitter {
   }
 
   clearQueue(indexes) {
-    if (!Array.isArray(indexes)) {
-      indexes = [indexes];
-    }
-    
-    for (const index of indexes) {
-      this.midiQueue.flush(index);
+    try {
+      if (!Array.isArray(indexes)) {
+        indexes = [indexes];
+      }
+      
+      for (const index of indexes) {
+        this.midiQueue.flush(index);
+      }
+    } catch (error) {
+      this.config.logger.error(`Error clearing queue for indexes: ${indexes}`, error);
+      this.emit('error', Object.assign(error, {
+        code: FaderErrors.QUEUE_CLEAR_ERROR,
+        indexes
+      }));
     }
   }
 

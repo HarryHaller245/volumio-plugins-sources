@@ -106,9 +106,12 @@ motorizedFaderControl.prototype.onStart = function() {
                 return self.startFaderController();
             })
             .then(() => {
-                self.logger.info(`Starting service connections...`);
+                self.logger.info(`Starting Event connections...`);
                 // self.setupStateValidation();
+                self.setupFaderCommandEvents();
                 self.setupVolumioBridge();
+                self.setupErrorHandling();
+                self.logger.info(`Starting Services connections...`);
                 self.setupServices();
                 self.logger.info(`${self.logs.LOGS.START.SUCCESS}`);
                 defer.resolve();
@@ -118,6 +121,7 @@ motorizedFaderControl.prototype.onStart = function() {
                 defer.reject(new Error(`${self.logs.LOGS.START.ERROR}: ${error.message}}`));
             })
             .finally(() => {
+                self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
                 self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
             });
     } catch (criticalError) {
@@ -681,7 +685,7 @@ motorizedFaderControl.prototype.setupServices = function() {
                 self.logger.warn(`No service found for fader ${FADER_IDX} (control type: ${CONTROL_TYPE})`);
                 return;
             }
-            const serviceLogger = self.createLogger(self.context.logger, 'motorized_fader_control', `SERVICE_${CONTROL_TYPE}`);
+            const serviceLogger = self.createLogger(self.context.logger, 'motorized_fader_control', `${CONTROL_TYPE}Service`);
             const service = new ServiceClass(
                 FADER_IDX,
                 self.eventBus,
@@ -696,13 +700,19 @@ motorizedFaderControl.prototype.setupServices = function() {
 
             // Connect to fader events
             self.eventBus.on(`fader/${FADER_IDX}/move`, data => {
-                if (self.isSeeking) return; //not sure if needed
                 service.handleMove(data);
             });
 
             self.eventBus.on(`fader/${FADER_IDX}/move/end`, data => {
-                if (self.isSeeking) return; //not sure if needed
                 service.handleMoved(data);
+                service.unblockUpdateInterval();
+                service.unblockServiceHardwareUpdates();
+            });
+
+            self.eventBus.on(`fader/${FADER_IDX}/touch`, data => {
+                service.handleTouch(data);
+                service.blockUpdateInterval();
+                service.blockServiceHardwareUpdates();
             });
 
             // Connect to state updates
@@ -763,6 +773,50 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
             self.stateCache.set('queue', 'current', queue);
         });
 
+        self.eventBus.on('command/volumio/seek', (seekPosition) => {
+            // wait on a state response from volumio, if the state is there we can assume the seek was successful
+            const timeout = setTimeout(() => {
+                self.logger.error(`Timeout while waiting for seek response.`);
+                self.eventBus.emit('playback/seek/error', { message: 'Timeout while waiting for seek response.' });
+            }
+            , 1000); // 5-second timeout test this timeout
+            self.socket.once('pushState', (state) => {
+                clearTimeout(timeout);
+                const validState = self.stateCache.cachePlaybackState(state);
+                if (!validState) {
+                    self.logger.error(`Invalid state received from Volumio.`);
+                    self.eventBus.emit('playback/seek/error', { message: 'Invalid state received from Volumio.' });
+                    return;
+                }
+                self.logger.debug(`Received state from Volumio: ${JSON.stringify(validState)}`);
+                self.eventBus.emit('playback/seek', validState);
+            }
+            );
+            // Emit the seek event to Volumio
+            self.socket.emit('seek', seekPosition);
+        });
+
+        self.eventBus.on('command/volumio/getState', () => {
+            const timeout = setTimeout(() => {
+                self.logger.error(`Timeout while waiting for state response.`);
+                self.eventBus.emit('playback/state/error', { message: 'Timeout while waiting for state response.' });
+            }
+            , 5000); // 5-second timeout
+            self.socket.once('pushState', (state) => {
+                clearTimeout(timeout);
+                const validState = self.stateCache.cachePlaybackState(state);
+                if (!validState) {
+                    self.logger.error(`Invalid state received from Volumio.`);
+                    self.eventBus.emit('playback/state/error', { message: 'Invalid state received from Volumio.' });
+                    return;
+                }
+                self.logger.debug(`Received state from Volumio: ${JSON.stringify(validState)}`);
+                self.eventBus.emit('playback/state', validState);
+            }
+            );
+            self.socket.emit('getState');
+        }
+        );
         // Album Info Order Event
         self.eventBus.on('command/volumio/getAlbumInfo', (state) => {
             const timeout = setTimeout(() => {
@@ -925,19 +979,35 @@ motorizedFaderControl.prototype.handleVolumeUpdate = async function(volumeData) 
 
 //* FADER LAYER ########################################################################
 
-motorizedFaderControl.prototype.setupFaderFeedback = function() {
+motorizedFaderControl.prototype.setupFaderCommandEvents = function() {
     const self = this;
     
-    self.eventBus.on('fader/update', ({indexes, targets, speeds, resolution}) => {
+    self.eventBus.on('command/fader/move', ({indexes, targets, speeds, resolution}) => {
         if (self.faderController) {
             // Create FaderMove instance before queuing
             const move = new FaderMove(indexes, targets, speeds, resolution);
             self.queueFaderMove(move);
         }
     });
+
+    self.eventBus.on('command/fader/echo/off', (index) => {
+        if (self.faderController) {
+            self.faderController.setFaderEchoMode(index, false);
+        }
+    }
+    );
+    self.eventBus.on('command/fader/echo/on', (index) => {
+        if (self.faderController) {
+            self.faderController.setFaderEchoMode(index, true);
+        }
+    }
+    );
+
 };
 
 //! maybe put the faderMoveAggrefator and faderMoveQueue in the faderController class
+//* FADER MOVE AGGREGATPR #####################################################################
+
 motorizedFaderControl.prototype.faderMoveAggregatorInitialize = function() {
     const self = this;
     self.faderMoveQueue = [];
@@ -967,7 +1037,7 @@ motorizedFaderControl.prototype.queueFaderMove = function(move) {
     }
 };
 
-motorizedFaderControl.prototype.processFaderMoveQueue = function() {
+motorizedFaderControl.prototype.processFaderMoveQueue = async function() {
     const self = this;
     if (self.faderMoveQueue.length === 0) return;
 
@@ -1016,7 +1086,13 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
         })}`);
 
         const finalMove = new FaderMove(indexes, targets, speeds, resolution);
-        self.faderController.moveFaders(finalMove, true);
+        await self.faderController.moveFaders(finalMove, true).catch(error => {
+            self.logger.error(`Fader move rejected: ${error.message}`);
+            self.eventBus.emit('fader/move/error', {
+                error: error.message,
+                move: finalMove
+            });
+        });
 
     } catch (error) {
         self.logger.error(`Move processing failed: ${error.stack}`);
@@ -1075,7 +1151,6 @@ motorizedFaderControl.prototype.setupFaderController = function() {
 
             // Initialize hardware connections
             self.setupFaderAdapter();
-            self.setupFaderFeedback();
 
             resolve(true);
         } catch (error) {
@@ -1222,7 +1297,7 @@ motorizedFaderControl.prototype.setupErrorHandling = function() {
 
     // Event bus error handling
     self.eventBus.on('error', (error) => {
-        self.logger.error('Event bus error:', error);
+        self.logger.error('error:', error);
     });
 
     // Service error handling

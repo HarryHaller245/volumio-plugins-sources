@@ -8,7 +8,7 @@ class TrackService extends BaseService {
   }
 
   handlePlay(state) {
-    if (this.validateStatePlaying(state)) { 
+    if (this.validateStatePlaying(state)) {
       this.lastValidState = state;
       this.stateCache.set('playback', 'lastValid', {
         ...state,
@@ -49,10 +49,15 @@ class TrackService extends BaseService {
     const faderInfo = data.faderInfo;
     const position = faderInfo.progression;
     let seekPosition = null
+    //* good place to do some feathering if the fader is moved, so we avoid jitter and an immediate jump back
+    //* during a touch the fader is unpowered anyway, but on release its jumping to the last position
+    //* easiest is to turn on echo mode for the fader as long as it is moved
+    this.eventBus.emit('command/fader/echo/on', this.faderIdx);
+
     if (this.config.get('UPDATE_SEEK_ON_MOVE', false)) {
       const state = this.stateCache.get('playback', 'current');
       seekPosition = (position / 100) * state.duration;
-      this.eventBus.emit('command/seek', seekPosition);
+      this.eventBus.emit('command/volumio/seek', seekPosition);
       this.logger.debug(`${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);
     } else {
        //propably not needed we just use the event for move/end
@@ -66,7 +71,16 @@ class TrackService extends BaseService {
     const faderInfo = data.faderInfo;
     const state = this.stateCache.get('playback', 'current');
     const seekPosition = (faderInfo.progression / 100) * state.duration;
-    this.eventBus.emit('command/seek', seekPosition);
+    this.eventBus.emit('command/volumio/seek', seekPosition);
+    //wait for the seek to finish before turning off echo mode
+    setTimeout(() => {
+      this.eventBus.emit('command/fader/echo/off', this.faderIdx);
+    }
+    , 1500); // 1.5 second delay to allow for seek completion
+    this.eventBus.once('playback/seek', () => {
+      this.eventBus.emit('command/fader/echo/off', this.faderIdx);
+    }
+    );
     // this.stateCache.clear('fader', `fader_${faderInfo.index}`);
     if (this.DebugMode) {
       this.logger.debug(`${this.logs.LOGS.SERVICES.HANDLE_SEEK} ${this.faderIdx} -> seek: ${seekPosition}`);

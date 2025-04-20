@@ -19,6 +19,7 @@
  * @method handlePause - To be overridden by child classes to handle pause state.
  * @method handleStop - To be overridden by child classes to handle stop state.
  * @method handleMove - To be overridden by child classes to handle fader movement.
+ * @method handleMove - To be overridden by child classes to handle finished fader movement.
  * @method updateHardware - Sends a command to update the hardware fader position.
  */
 class BaseService {
@@ -40,16 +41,20 @@ class BaseService {
     );
     this.MoveLog = this.config.get('FADER_CONTROLLER_MOVE_LOG', false);
     this.DebugMode = this.config.get('DEBUG_MODE', false);
+
+    this.fader_moving = false;
   }
 
   // Common interval management
   startUpdateInterval() {
-    this.updatePosition()
-    this.stopUpdateInterval();
-    this.updateInterval = setInterval(() => {
-      this.updatePosition();
-    }, this.config.get('FADER_REALTIME_SEEK_INTERVAL'), 100);
-    this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.START_INTERVAL} ${this.faderIdx} with ${this.config.get('FADER_REALTIME_SEEK_INTERVAL')}ms interval`);
+    if (!this.fader_moving) {
+      this.updatePosition()
+      this.stopUpdateInterval();
+      this.updateInterval = setInterval(() => {
+        this.updatePosition();
+      }, this.config.get('FADER_REALTIME_SEEK_INTERVAL'), 100);
+      this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.START_INTERVAL} ${this.faderIdx} with ${this.config.get('FADER_REALTIME_SEEK_INTERVAL')}ms interval`);
+    }
   }
 
   stopUpdateInterval() {
@@ -58,6 +63,27 @@ class BaseService {
       this.updateInterval = null;
       this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.STOP_INTERVAL} ${this.faderIdx}`);
     }
+  }
+
+  blockUpdateInterval() {
+    fader_moving = true;
+    this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.BLOCK_INTERVAL} ${this.faderIdx}`);
+    this.stopUpdateInterval();
+  }
+
+  unblockUpdateInterval() {
+    fader_moving = false;
+    this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.UNBLOCK_INTERVAL} ${this.faderIdx}`);
+  }
+  
+  blockServiceHardwareUpdates() {
+    this.hardware_update_lock = true;
+    this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.BLOCK_HARDWARE} ${this.faderIdx}`);
+  }
+
+  unblockServiceHardwareUpdates() {
+    this.hardware_update_lock = false;
+    this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.UNBLOCK_HARDWARE} ${this.faderIdx}`);
   }
 
   handlePause() {
@@ -78,6 +104,9 @@ class BaseService {
   
   // Common hardware update method
   updateHardware(progression) {
+    if (this.hardware_update_lock) {
+      return;
+    }
     if (this.DebugMode) {
       this.logger.debug(`${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} -> ${progression}`);
     }
@@ -85,7 +114,7 @@ class BaseService {
     const targets = [progression];
     const speeds = [this.config.get('FADER_SPEED_HIGH', 100)];
     const resolution = this.config.get('FADER_RESOLUTION', 1);
-    this.eventBus.emit('fader/update', {indexes, targets, speeds, resolution});
+    this.eventBus.emit('command/fader/move', {indexes, targets, speeds, resolution});
   }
 
   stop() {
@@ -103,10 +132,6 @@ class BaseService {
 
   handleUntouch() { //! deprecated
     this.eventBus.off('fader/untouch', this.handleMoved.bind(this));
-  }
-
-  checkPlaybackPredictable(state) {
-    // checks if random, repeat etc
   }
 
   getServiceName(constructor) {
