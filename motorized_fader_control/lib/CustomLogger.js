@@ -28,8 +28,7 @@ class CustomLogger {
 
     seperator(level = 'info') {
         const separator = '--------------------------------------------------------------------';
-        const formattedSeparator = this.formatMessage(separator);
-        this[level](formattedSeparator);
+        this[level](separator);
     }
 }
 
