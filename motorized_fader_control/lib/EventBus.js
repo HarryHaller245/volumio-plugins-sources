@@ -32,6 +32,15 @@ class EventBus {
     };
   }
 
+  once(event, callback) {
+    const onceWrapper = (data) => {
+      callback(data);
+      this.off(event, onceWrapper);
+    };
+    this.on(event, onceWrapper);
+    this.logger.debug(`${this.logs.LOGS.EVENT.REGISTERED_ONCE} ${event}`);
+  }
+
   off(event, callback) {
     if (!this.listeners[event]) return;
     this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
@@ -39,7 +48,7 @@ class EventBus {
   }
   
   emit(event, data) {
-    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT} ${event}`);
+    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT} ${event}: ${JSON.stringify(data)}`);
     (this.listeners[event] || []).forEach(cb => cb(data));
   }
 
