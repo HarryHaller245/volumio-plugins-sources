@@ -29,8 +29,6 @@ class BaseService {
     this.config = config;
     this.logger = logger;
     this.logs = logs;
-    this.PLUGINSTR = pluginStr;
-    this.SERVICESTR = this.getServiceName(this.constructor);
     this.updateInterval = null;
     this.stopped = false;
     this.subscriptions = [];
@@ -51,14 +49,14 @@ class BaseService {
     this.updateInterval = setInterval(() => {
       this.updatePosition();
     }, this.config.get('FADER_REALTIME_SEEK_INTERVAL'), 100);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.BASE.START_INTERVAL} ${this.faderIdx} with ${this.config.get('FADER_REALTIME_SEEK_INTERVAL')}ms interval`);
+    this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.START_INTERVAL} ${this.faderIdx} with ${this.config.get('FADER_REALTIME_SEEK_INTERVAL')}ms interval`);
   }
 
   stopUpdateInterval() {
     if (this.updateInterval) {
       clearInterval(this.updateInterval);
       this.updateInterval = null;
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.BASE.STOP_INTERVAL} ${this.faderIdx}`);
+      this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.STOP_INTERVAL} ${this.faderIdx}`);
     }
   }
 
@@ -81,7 +79,7 @@ class BaseService {
   // Common hardware update method
   updateHardware(progression) {
     if (this.DebugMode) {
-      this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} -> ${progression}`);
+      this.logger.debug(`${this.logs.LOGS.SERVICES.UPDATE_HARDWARE} ${this.faderIdx} -> ${progression}`);
     }
     const indexes = [this.faderIdx];
     const targets = [progression];

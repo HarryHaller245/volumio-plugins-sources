@@ -23,29 +23,29 @@ class EventBus {
   on(event, callback) {
     if (!this.listeners[event]) this.listeners[event] = [];
     this.listeners[event].push(callback);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.EVENT.REGISTERED} ${event}`);
+    this.logger.debug(`${this.logs.LOGS.EVENT.REGISTERED} ${event}`);
     
     // Return an unsubscribe function
     return () => {
       this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
-      this.logger.debug(`${this.PLUGINSTR}: Unsubscribed from event: ${event}`);
+      this.logger.debug(`Unsubscribed from event: ${event}`);
     };
   }
 
   off(event, callback) {
     if (!this.listeners[event]) return;
     this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
-    this.logger.debug(`${this.PLUGINSTR}: Unsubscribed from event: ${event}`);
+    this.logger.debug(`Unsubscribed from event: ${event}`);
   }
   
   emit(event, data) {
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.EVENT.EMIT} ${event} ${JSON.stringify(data)}`);
+    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT} ${event} ${JSON.stringify(data)}`);
     (this.listeners[event] || []).forEach(cb => cb(data));
   }
 
   emitPlaybackState(state) {
     this.emit('playback/update', state);
-    this.logger.debug(`${this.PLUGINSTR}: ${this.logs.LOGS.EVENT.EMIT_PLAYBACK} ${state.status}`);
+    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT_PLAYBACK} ${state.status}`);
     switch(state.status) {
       case 'play': 
         this.emit('playback/playing', state);
@@ -62,7 +62,7 @@ class EventBus {
   removeAllListeners(event) {
     if (this.listeners[event]) {
       delete this.listeners[event];
-      this.logger.debug(`${this.PLUGINSTR}: Removed all listeners for event: ${event}`);
+      this.logger.debug(`Removed all listeners for event: ${event}`);
     }
   }
 }

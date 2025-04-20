@@ -13,7 +13,8 @@ var {
     EventBus,
     StateCache,
     FaderController,
-    FaderMove
+    FaderMove,
+    CustomLogger
 } = require('./lib');
 
 const io = require('socket.io-client');
@@ -22,18 +23,18 @@ const { get } = require('http');
 const { info } = require('console');
 
 module.exports = motorizedFaderControl;
-
+ 4
 function motorizedFaderControl(context) {
     const self = this;
 
     this.context = context;
     this.commandRouter = this.context.coreCommand;
-    this.logger = this.context.logger;
     this.configManager = this.context.configManager;
     this.config = config;
 
     this.logs = null;
-    this.PLUGINSTR = '[motorized_fader_control]'
+    this.PLUGINSTR = 'motorized_fader_control';
+    this.logger = this.createLogger(this.context.logger, 'motorized_fader_control', 'MAIN');
 
     this.faderController = null;
     this.eventBus = null;
@@ -59,7 +60,7 @@ function motorizedFaderControl(context) {
 
 };
 
-//TODO: Implement and Use i18n logs_en.json: EXAMPLE: self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.HEADER}
+//TODO: Implement and Use i18n logs_en.json: EXAMPLE: self.logger.info(`${self.logs.LOGS.START.HEADER}
 //TODO: Add Logging to services and eventbus
 //TODO: Remove additional LOGS. in logs_en.js and logs
 
@@ -83,31 +84,33 @@ motorizedFaderControl.prototype.onStart = function() {
     try {
         // Initialize logs first
         self.initializeLogs();
-        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
-        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.HEADER}`);
-        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+        self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
+        self.logger.info(`${self.logs.LOGS.START.HEADER}`);
+        self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
 
         // Initialize core components
-        self.logger.info(`${self.PLUGINSTR}: Initializing core components...`);
-        self.eventBus = new EventBus(self.logger, self.logs, self.PLUGINSTR);
-        self.stateCache = new StateCache(self.logger, self.logs, self.PLUGINSTR);
+        self.logger.info(`Initializing core components...`);
+        const eventBusLogger = self.createLogger(self.context.logger, 'motorized_fader_control', 'EVENTBUS');
+        self.eventBus = new EventBus(eventBusLogger, self.logs, self.PLUGINSTR);
+        const stateCacheLogger = self.createLogger(self.context.logger, 'motorized_fader_control', 'STATECACHE');
+        self.stateCache = new StateCache(stateCacheLogger, self.logs, self.PLUGINSTR);
         self.services = new Map();
 
         // Sequential startup procedure
-        self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SETUP}`);
+        self.logger.info(`${self.logs.LOGS.START.SETUP}`);
         
         self.setupFaderController()
             .then(() => {
-                self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.FADER_CONTROLLER}`);
+                self.logger.info(`${self.logs.LOGS.START.FADER_CONTROLLER}`);
                 self.faderMoveAggregatorInitialize()
                 return self.startFaderController();
             })
             .then(() => {
-                self.logger.info(`${self.PLUGINSTR}: Starting service connections...`);
+                self.logger.info(`Starting service connections...`);
                 // self.setupStateValidation();
                 self.setupVolumioBridge();
                 self.setupServices();
-                self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.START.SUCCESS}`);
+                self.logger.info(`${self.logs.LOGS.START.SUCCESS}`);
                 defer.resolve();
             })
             .catch(error => {
@@ -115,10 +118,10 @@ motorizedFaderControl.prototype.onStart = function() {
                 defer.reject(new Error(`${self.logs.LOGS.START.ERROR}: ${error.message}}`));
             })
             .finally(() => {
-                self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+                self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
             });
     } catch (criticalError) {
-        self.logger.error(`${self.PLUGINSTR}: Critical initialization error: ${criticalError.message}`);
+        self.logger.error(`Critical initialization error: ${criticalError.message}`);
         self.logger.error(criticalError.stack);
         defer.reject(new Error(`${self.logs.LOGS.ERRORS.CRITICAL_ERROR}: ${criticalError.message}`));
     }
@@ -129,23 +132,23 @@ motorizedFaderControl.prototype.onStart = function() {
 motorizedFaderControl.prototype.onStop = function() {
     const self = this;
     var defer = libQ.defer();
-    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
-    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.HEADER}`);
-    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+    self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
+    self.logger.info(`${self.logs.LOGS.STOP.HEADER}`);
+    self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
 
     self._stopFaderController()
         .then(() => {
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.FADER_CONTROLLER}`);
+            self.logger.info(`${self.logs.LOGS.STOP.FADER_CONTROLLER}`);
             return self._stopServices();
         })
         .then(() => {
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.SERVICES}`);
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.SUCCESS}`);
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+            self.logger.info(`${self.logs.LOGS.STOP.SERVICES}`);
+            self.logger.info(`${self.logs.LOGS.STOP.SUCCESS}`);
+            self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
             defer.resolve();
         })
         .catch(error => {
-            self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.STOP.ERROR} ${error.message}`);
+            self.logger.error(`${self.logs.LOGS.STOP.ERROR} ${error.message}`);
             defer.reject(error);
         });
 
@@ -156,22 +159,22 @@ motorizedFaderControl.prototype.onRestart = function() {
     const self = this;
     var defer = libQ.defer();
 
-    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
-    self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.HEADER}`);
+    self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
+    self.logger.info(`${self.logs.LOGS.RESTART.HEADER}`);
 
     self.onStop()
         .then(() => {
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.FADER_CONTROLLER}`);
+            self.logger.info(`${self.logs.LOGS.RESTART.FADER_CONTROLLER}`);
             return self.onStart();
         })
         .then(() => {
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.SERVICES}`);
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.SUCCESS}`);
-            self.logger.info(`${self.PLUGINSTR}: ${self.logs.LOGS.SEPARATOR}`);
+            self.logger.info(`${self.logs.LOGS.RESTART.SERVICES}`);
+            self.logger.info(`${self.logs.LOGS.RESTART.SUCCESS}`);
+            self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
             defer.resolve();
         })
         .fail(error => { // Change .catch() to .fail()
-            self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.RESTART.ERROR} ${error.message}`);
+            self.logger.error(`${self.logs.LOGS.RESTART.ERROR} ${error.message}`);
             defer.reject(error);
         });
 
@@ -183,37 +186,37 @@ motorizedFaderControl.prototype._stopFaderController = async function() {
 
     try {
         if (self.faderController == null || self.faderController == false) {
-            self.logger.info(`${self.PLUGINSTR}: Fader Controller not started, skipping stop`);
+            self.logger.info(`Fader Controller not started, skipping stop`);
             return;
         }
 
-        self.logger.info(`${self.PLUGINSTR}: Stopping FaderController...`);
+        self.logger.info(`Stopping FaderController...`);
 
         const stopPromise = self.faderController.stop().catch(error => {
-            self.logger.error(`${self.PLUGINSTR}: Error stopping FaderController: ${error.message}`);
+            self.logger.error(`Error stopping FaderController: ${error.message}`);
             throw error; // Re-throw to propagate the error
         });
 
         const timeoutPromise = new Promise((_, reject) => {
             setTimeout(() => {
-                reject(new Error(`${self.PLUGINSTR}: Fader Controller stop timed out after 10 seconds.`));
+                reject(new Error(`Fader Controller stop timed out after 10 seconds.`));
             }, 5000);
         });
 
         await Promise.race([stopPromise, timeoutPromise]);
         await self.faderController.closeSerial().catch(error => {
-            self.logger.error(`${self.PLUGINSTR}: Error closing serial connection: ${error.message}`);
+            self.logger.error(`Error closing serial connection: ${error.message}`);
             throw error; // Re-throw to propagate the error
         });
 
-        self.logger.info(`${self.PLUGINSTR}: Fader Controller stopped successfully`);
+        self.logger.info(`Fader Controller stopped successfully`);
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Error stopping Fader Controller: ${error.message}`);
+        self.logger.error(`Error stopping Fader Controller: ${error.message}`);
         if (self.faderController) {
             await self.faderController.closeSerial().catch(error => {
-                self.logger.error(`${self.PLUGINSTR}: Error closing serial connection: ${error.message}`);
+                self.logger.error(`Error closing serial connection: ${error.message}`);
             });
-            self.logger.warn(`${self.PLUGINSTR}: An error occurred trying to stop the FaderController. Forced closing serial connection.`);
+            self.logger.warn(`An error occurred trying to stop the FaderController. Forced closing serial connection.`);
         }
         throw error;
     }
@@ -263,7 +266,7 @@ motorizedFaderControl.prototype.getUIConfig = function() {
     const self = this;
     const lang_code = self.commandRouter.sharedVars.get('language_code');
     
-    self.logger.debug(`${self.PLUGINSTR}: Getting UI Config for language code: ` + lang_code);
+    self.logger.debug(`Getting UI Config for language code: ` + lang_code);
 
     // Load the UIConfig from specified i18n and UIConfig files
     self.commandRouter.i18nJson(
@@ -272,11 +275,11 @@ motorizedFaderControl.prototype.getUIConfig = function() {
         __dirname + '/UIConfig.json'
     )
     .then(uiconf => {
-        self.logger.info(`${self.PLUGINSTR}: Successfully loaded UIConfig.`);
+        self.logger.info(`Successfully loaded UIConfig.`);
         
         // Validate sections
         if (!uiconf.sections || uiconf.sections.length === 0) {
-            const errorMsg = `${self.PLUGINSTR}: UIConfig does not contain any sections.`;
+            const errorMsg = `UIConfig does not contain any sections.`;
             self.logger.error(errorMsg);
             defer.reject(new Error(errorMsg));
             return;
@@ -285,26 +288,26 @@ motorizedFaderControl.prototype.getUIConfig = function() {
         // Populate the UIConfig with values from the config
         uiconf.sections.forEach(section => {
             if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`${self.PLUGINSTR}: Processing section: ` + (section.label || 'Unnamed Section'));
+                self.logger.debug(`Processing section: ` + (section.label || 'Unnamed Section'));
             }
             if (section.content) {
                 self.populateSectionContent(section.content);
                 // Additional unpacking for fader settings
                 if (section.id === "section_fader_behavior") {
                     if (self.config.get('DEBUG_MODE', false)) { 
-                        self.logger.debug(`${self.PLUGINSTR}: Unpacking fader config for section: ` + section.id);
+                        self.logger.debug(`Unpacking fader config for section: ` + section.id);
                     }
                     self.unpackFaderConfig(section.content);
                 }
             } else {
-                self.logger.warn(`${self.PLUGINSTR}: No content found in section: ` + (section.label || 'Unnamed Section'));
+                self.logger.warn(`No content found in section: ` + (section.label || 'Unnamed Section'));
             }
         });
 
         defer.resolve(uiconf);
     })
     .fail(error => {
-        const errorMsg = `${self.PLUGINSTR}: Failed to parse UI Configuration page for plugin Motorized Fader Control: ` + error;
+        const errorMsg = `Failed to parse UI Configuration page for plugin Motorized Fader Control: ` + error;
         self.logger.error(errorMsg);
         defer.reject(new Error(errorMsg));
     });
@@ -321,11 +324,11 @@ motorizedFaderControl.prototype.populateSectionContent = function(content) {
                 ? self.getSelectValue(element, configValue)
                 : configValue; // Directly set value for non-select elements
             if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`${self.PLUGINSTR}: Set value for ${element.id}: ${JSON.stringify(element.value)}`);
+                self.logger.debug(`Set value for ${element.id}: ${JSON.stringify(element.value)}`);
             }
         } else {
             if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`${self.PLUGINSTR}: No value found in config for: ${element.id}`);
+                self.logger.debug(`No value found in config for: ${element.id}`);
             }
         }
     });
@@ -358,7 +361,7 @@ motorizedFaderControl.prototype.unpackFaderConfig = function(content) {
             if (faderIdxs.includes(i)) {
                 const fader = faderBehavior.find(f => f.FADER_IDX === i) || { CONTROL_TYPE: "volume" };
                 
-                self.logger.debug(`${self.PLUGINSTR}: Fader ${i} configuration: ${JSON.stringify(fader)}`);
+                self.logger.debug(`Fader ${i} configuration: ${JSON.stringify(fader)}`);
                 
                 // Update configured status
                 self.updateFaderElement(content, `FADER_${i}_CONFIGURED`, true);
@@ -379,7 +382,7 @@ motorizedFaderControl.prototype.unpackFaderConfig = function(content) {
             }
         }
     } catch (error) {
-        const errorMsg = `${self.PLUGINSTR}: Error unpacking fader configuration: ` + error;
+        const errorMsg = `Error unpacking fader configuration: ` + error;
         self.logger.error(errorMsg);
         throw new Error(errorMsg);
     }
@@ -392,16 +395,16 @@ motorizedFaderControl.prototype.updateFaderElement = function(content, elementId
     if (element) {
         if (elementId.includes("TRIM")) {
             element.config.bars[0].value = value; 
-            self.logger.debug(`${self.PLUGINSTR}: ${elementId} updated to : ${JSON.stringify(element.config.bars[0].value)}`);
+            self.logger.debug(`${elementId} updated to : ${JSON.stringify(element.config.bars[0].value)}`);
             return;
         } else {
             element.value = (typeof value === 'string') 
                 ? { value: value, label: self.getLabelForSelect(element.options, value) }
                 : value;
         }
-        self.logger.debug(`${self.PLUGINSTR}: ${elementId} updated to : ${JSON.stringify(element.value)}`);
+        self.logger.debug(`${elementId} updated to : ${JSON.stringify(element.value)}`);
     } else {
-        self.logger.warn(`${self.PLUGINSTR}: ${elementId} not found.`);
+        self.logger.warn(`${elementId} not found.`);
     }
 };
 
@@ -416,7 +419,7 @@ motorizedFaderControl.prototype.saveFaderElement = async function(data) {
     const self = this;
 
     try {
-        self.logger.info(`${self.PLUGINSTR}: Saving fader elements: `);
+        self.logger.info(`Saving fader elements: `);
 
         // Repack fader configuration
         self.repackAndSaveFaderBehaviorConfig(data);
@@ -424,7 +427,7 @@ motorizedFaderControl.prototype.saveFaderElement = async function(data) {
         await self.onRestart();
         self.commandRouter.pushToastMessage('success', 'Fader elements saved and plugin restarted successfully.');
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Error saving fader elements: ${error.message}`);
+        self.logger.error(`Error saving fader elements: ${error.message}`);
         throw error;
     }
 };
@@ -433,7 +436,7 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
     const self = this;
 
     try {
-        self.logger.debug(`${self.PLUGINSTR}: Repacking fader configuration.`);
+        self.logger.debug(`Repacking fader configuration.`);
 
         let faderBehavior = [];
         let faderIdxs = [];
@@ -441,9 +444,9 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
 
         // Iterate over the fader data and repack the information
         for (let i = 0; i < 4; i++) {  // Assuming a maximum of 4 faders
-            self.logger.debug(`${self.PLUGINSTR}: Processing fader ${i}...`);
+            self.logger.debug(`Processing fader ${i}...`);
             // Log the raw data for this fader
-            self.logger.debug(`${self.PLUGINSTR}: Fader ${i} raw data: ${JSON.stringify({
+            self.logger.debug(`Fader ${i} raw data: ${JSON.stringify({
                 configured: data[`FADER_${i}_CONFIGURED`],
                 behavior: data[`FADER_${i}_BEHAVIOR`],
                 trim: data[`FADER_${i}_TRIM`]
@@ -467,41 +470,41 @@ motorizedFaderControl.prototype.repackAndSaveFaderBehaviorConfig = function(data
             if (faderConfigured) {
                 faderTrimMap[i] = faderTrim;
                 faderIdxs.push(i);
-                self.logger.debug(`${self.PLUGINSTR}: Fader ${i} is configured.`);
+                self.logger.debug(`Fader ${i} is configured.`);
             } else {
-                self.logger.debug(`${self.PLUGINSTR}: Fader ${i} is not configured.`);
+                self.logger.debug(`Fader ${i} is not configured.`);
             }
 
             if (self.config.get('DEBUG_MODE', false)) { 
-                self.logger.debug(`${self.PLUGINSTR}: Repacked Fader ${i} configuration: CONTROL_TYPE=${faderBehaviorValue}, CONFIGURED=${faderConfigured}, TRIM=${faderTrim}`);
+                self.logger.debug(`Repacked Fader ${i} configuration: CONTROL_TYPE=${faderBehaviorValue}, CONFIGURED=${faderConfigured}, TRIM=${faderTrim}`);
             }
         }
 
         // Log the final fader behavior array
-        self.logger.debug(`${self.PLUGINSTR}: Final fader behavior array: ${JSON.stringify(faderBehavior)}`);
+        self.logger.debug(`Final fader behavior array: ${JSON.stringify(faderBehavior)}`);
 
         // Log the final fader indexes array
-        self.logger.debug(`${self.PLUGINSTR}: Final fader indexes array: ${JSON.stringify(faderIdxs)}`);
+        self.logger.debug(`Final fader indexes array: ${JSON.stringify(faderIdxs)}`);
 
         // Log the final fader trim map
-        self.logger.debug(`${self.PLUGINSTR}: Final fader trim map: ${JSON.stringify(faderTrimMap)}`);
+        self.logger.debug(`Final fader trim map: ${JSON.stringify(faderTrimMap)}`);
 
         // Save the repacked configuration back to the config
         self.config.set('FADER_BEHAVIOR', JSON.stringify(faderBehavior));
         self.config.set('FADERS_IDXS', JSON.stringify(faderIdxs));
         self.config.set('FADER_TRIM_MAP', JSON.stringify(faderTrimMap));
 
-        self.logger.debug(`${self.PLUGINSTR}: Fader configuration saved successfully.`);
+        self.logger.debug(`Fader configuration saved successfully.`);
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Error repacking fader configuration: ` + error.message);
-        self.logger.error(`${self.PLUGINSTR}: Stack trace: ` + error.stack);
+        self.logger.error(`Error repacking fader configuration: ` + error.message);
+        self.logger.error(`Stack trace: ` + error.stack);
         throw error;
     }
 };
 
 motorizedFaderControl.prototype.saveFaderControllerSettingsRestart = async function(data) {
     const self = this;
-    self.logger.info(`${self.PLUGINSTR}: Saving fader controller settings and restarting...`);
+    self.logger.info(`Saving fader controller settings and restarting...`);
 
     // Update the configuration values based on user input
     for (const key in data) {
@@ -515,12 +518,12 @@ motorizedFaderControl.prototype.saveFaderControllerSettingsRestart = async funct
     }
     self.commandRouter.pushToastMessage('info', 'Restart Required', 'The FaderController will reset to apply the new settings.');
     await self.onRestart();
-    self.logger.info(`${self.PLUGINSTR}: Fader controller settings saved and restarted successfully`);
+    self.logger.info(`Fader controller settings saved and restarted successfully`);
 };
 
 motorizedFaderControl.prototype.saveGeneralSettingsRestart = async function(data) {
     const self = this;
-    self.logger.info(`${self.PLUGINSTR}: Saving general settings and restarting plugin...`);
+    self.logger.info(`Saving general settings and restarting plugin...`);
 
     for (const key in data) {
         if (data.hasOwnProperty(key)) {
@@ -533,7 +536,7 @@ motorizedFaderControl.prototype.saveGeneralSettingsRestart = async function(data
     }
     self.commandRouter.pushToastMessage('info', 'Restart Required', 'The FaderController will reset to apply the new settings.');
     await self.onRestart();
-    self.logger.info(`${self.PLUGINSTR}: Fader controller settings saved and restarted successfully`);
+    self.logger.info(`Fader controller settings saved and restarted successfully`);
 };
 
 motorizedFaderControl.prototype.getConfigurationFiles = function() {
@@ -561,7 +564,7 @@ motorizedFaderControl.prototype.RunManualCalibration = async function() {
         self.commandRouter.pushToastMessage('info', 'Finished Calibration');
         await self.onRestart()
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Error during calibration: ${error.message}`);
+        self.logger.error(`Error during calibration: ${error.message}`);
         self.commandRouter.pushToastMessage('error', 'Calibration Failed', 'Please check logs for details.');
     }
 };
@@ -573,20 +576,19 @@ motorizedFaderControl.prototype.setupLogLevel = function() {
 
     // Ensure config and logger are initialized
     if (!self.config || !self.logger) {
-        console.warn(`${self.PLUGINSTR}: Config or Logger not initialized.`);
+        console.warn(`Config or Logger not initialized.`);
         return;
     }
 
     try {
         // Get log level from configuration, defaulting to 'info'
-        const defaultLogLevel = 'info';
-        self.log_level = self.config.get('LOG_LEVEL', defaultLogLevel);
+        self.log_level = self.config.get('LOG_LEVEL', 'info');
         
         // Cache the current log level and set the new one
         self.cacheLogLevel();
         self.setLogLevel(self.log_level);
     } catch (error) {
-        self.logger.warn(`${self.PLUGINSTR}: Error setting up log level: ${error.message}`);
+        self.logger.error(`Error setting up log level: ${error.message}`);
     }
 };
 
@@ -597,9 +599,9 @@ motorizedFaderControl.prototype.setLogLevel = function(level) {
     if (self.logger && self.logger.transports.length > 0) {
         // Change the log level for the first transport
         self.logger.transports[0].level = level;
-        self.logger.info(`${self.PLUGINSTR}: Log level changed to: ${level}`);
+        self.logger.info(`Log level changed to: ${level}`);
     } else {
-        self.logger.error(`${self.PLUGINSTR}: Logger or console transport not initialized properly.`);
+        self.logger.error(`Logger or console transport not initialized properly.`);
     }
 };
 
@@ -613,7 +615,7 @@ motorizedFaderControl.prototype.cacheLogLevel = function() {
             self.cachedLogLevel = self.logger.transports[0].level;
         }
     } else {
-        console.error(`${self.PLUGINSTR}: Logger not initialized properly or no console transport found.`);
+        console.error(`Logger not initialized properly or no console transport found.`);
     }
 };
 
@@ -625,11 +627,11 @@ motorizedFaderControl.prototype.getLogLevel = function() {
         if (level) {
             return level;
         } else {
-            self.logger.error(`${self.PLUGINSTR}: Retrieved log level is invalid.`);
+            self.logger.error(`Retrieved log level is invalid.`);
             return null;
         }
     } else {
-        self.logger.error(`${self.PLUGINSTR}: Logger or console transport not initialized properly.`);
+        self.logger.error(`Logger or console transport not initialized properly.`);
         return null;
     }
 };
@@ -638,10 +640,10 @@ motorizedFaderControl.prototype.getCachedLogLevel = function() {
     const self = this;
 
     if (self.cachedLogLevel) {
-        self.logger.info(`${self.PLUGINSTR}: Returning cached log level: ${self.cachedLogLevel}`);
+        self.logger.info(`Returning cached log level: ${self.cachedLogLevel}`);
         return self.cachedLogLevel;
     } else {
-        self.logger.warn(`${self.PLUGINSTR}: No cached log level found.`);
+        self.logger.warn(`No cached log level found.`);
         return null;
     }
 };
@@ -655,11 +657,15 @@ motorizedFaderControl.prototype.initializeLogs = function() {
     // Load log-specific i18n file (logs_en.json)
     try {
         self.logs = require(__dirname + '/i18n/logs_en.json');
-        self.logger.info(`${self.PLUGINSTR}: Log messages initialized successfully.`);
+        self.logger.info(`Log messages initialized successfully.`);
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Failed to load log messages: ${error.message}`);
+        self.logger.error(`Failed to load log messages: ${error.message}`);
         throw error; // Stop plugin if logs cannot be loaded
     }
+};
+
+motorizedFaderControl.prototype.createLogger = function(logger, name = this.PLUGINSTR, subname = '') {
+    return new CustomLogger(logger, name, subname);
 };
 
 //* ADAPTER LAYER #####################################################################
@@ -675,13 +681,13 @@ motorizedFaderControl.prototype.setupServices = function() {
                 self.logger.warn(`No service found for fader ${FADER_IDX} (control type: ${CONTROL_TYPE})`);
                 return;
             }
-
+            const serviceLogger = self.createLogger(self.context.logger, 'motorized_fader_control', `SERVICE_${CONTROL_TYPE}`);
             const service = new ServiceClass(
                 FADER_IDX,
                 self.eventBus,
                 self.stateCache,
                 self.config,
-                self.logger,
+                serviceLogger,
                 self.logs,
                 self.PLUGINSTR
             );
@@ -706,7 +712,7 @@ motorizedFaderControl.prototype.setupServices = function() {
 
         });
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: ${self.logs.LOGS.SETUP.SERVICES.ERROR}: ${error.message}`);
+        self.logger.error(`${self.logs.LOGS.SETUP.SERVICES.ERROR}: ${error.message}`);
         throw error; // Rethrow the error
     }
 };
@@ -731,7 +737,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
             reconnectionDelay: 1000
         });
 
-        self.logger.debug(`${self.PLUGINSTR}: Connected to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
+        self.logger.debug(`Connected to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
 
         // Unified State Handler
         const handleStateUpdate = (state) => {
@@ -760,7 +766,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
         // Album Info Order Event
         self.eventBus.on('command/volumio/getAlbumInfo', (state) => {
             const timeout = setTimeout(() => {
-                self.logger.error(`${self.PLUGINSTR}: Timeout while waiting for album info response.`);
+                self.logger.error(`Timeout while waiting for album info response.`);
                 self.eventBus.emit('album/info/error', { message: 'Timeout while waiting for album info response.' });
             }, 5000); // 5-second timeout
 
@@ -782,7 +788,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
                     const stateWithAlbumInfo = { ...state, albumInfo };
                     self.eventBus.emit('album/info', stateWithAlbumInfo);
                 } else {
-                    self.logger.error(`${self.PLUGINSTR}: Received unexpected response for album info.`);
+                    self.logger.error(`Received unexpected response for album info.`);
                     self.eventBus.emit('album/info/error', { message: 'Unexpected response for album info.' });
                 }
             });
@@ -792,7 +798,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
         //Queue Info Order Event
         self.eventBus.on('command/volumio/getQueueInfo', (state) => {
             const timeout = setTimeout(() => {
-                self.logger.error(`${self.PLUGINSTR}: Timeout while waiting for queue info response.`);
+                self.logger.error(`Timeout while waiting for queue info response.`);
                 self.eventBus.emit('queue/info/error', { message: 'Timeout while waiting for queue info response.' });
             }, 5000); // 5-second timeout
 
@@ -808,7 +814,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
                     const stateWithQueueInfo = { ...state, queueInfo };
                     self.eventBus.emit('queue/info', stateWithQueueInfo);
                 } else {
-                    self.logger.error(`${self.PLUGINSTR}: Received unexpected response for queue info.`);
+                    self.logger.error(`Received unexpected response for queue info.`);
                     self.eventBus.emit('queue/info/error', { message: 'Unexpected response for queue info.' });
                 }
             });
@@ -820,7 +826,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
         // Initial state sync
         self.socket.emit('getState');
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Error setting up Volumio bridge: ${error.message}`);
+        self.logger.error(`Error setting up Volumio bridge: ${error.message}`);
         throw error;
     }
 };
@@ -876,11 +882,11 @@ motorizedFaderControl.prototype.validateState = function(state) {
                 const duration = state.duration * 1000; // convert to ms
 
                 // Log the seek and duration values
-                this.logger.debug(`${self.PLUGINSTR}: validateState: Checking seek and duration: seek=${seek}, duration=${duration}`);
+                this.logger.debug(`validateState: Checking seek and duration: seek=${seek}, duration=${duration}`);
 
                 // Check if seek is larger than duration
                 if (seek > duration) {
-                    this.logger.warn(`${self.PLUGINSTR}: validateState: Invalid state: seek (${seek} ms) is larger than duration (${duration} ms)`);
+                    this.logger.warn(`validateState: Invalid state: seek (${seek} ms) is larger than duration (${duration} ms)`);
                     return false;
                 }
             }
@@ -945,7 +951,7 @@ motorizedFaderControl.prototype.faderMoveAggregatorInitialize = function() {
 motorizedFaderControl.prototype.queueFaderMove = function(move) {
     const self = this;
     if (!(move instanceof FaderMove)) {
-        self.logger.error(`${self.PLUGINSTR}: Invalid move object queued`);
+        self.logger.error(`Invalid move object queued`);
         return;
     }
     
@@ -972,12 +978,12 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
         // Process moves in order (newest last)
         self.faderMoveQueue.forEach(({move}) => {
             if (!(move instanceof FaderMove)) {
-                self.logger.error(`${self.PLUGINSTR}: Invalid move object in queue`);
+                self.logger.error(`Invalid move object in queue`);
                 return;
             }
 
             // DEBUG: Log original move data
-            self.logger.debug(`${self.PLUGINSTR}: Original move data: ${JSON.stringify({
+            self.logger.debug(`Original move data: ${JSON.stringify({
                 indexes: move.indexes,
                 targets: move.targets,
                 speeds: move.speeds,
@@ -1002,7 +1008,7 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
         const resolution = Math.max(...indexes.map(i => faderData.get(i).resolution));
 
         // DEBUG: Log before creating FaderMove
-        self.logger.debug(`${self.PLUGINSTR}: Creating FaderMove with: ${JSON.stringify({
+        self.logger.debug(`Creating FaderMove with: ${JSON.stringify({
             indexes,
             targets,
             speeds,
@@ -1013,7 +1019,7 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
         self.faderController.moveFaders(finalMove, true);
 
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Move processing failed: ${error.stack}`);
+        self.logger.error(`Move processing failed: ${error.stack}`);
     } finally {
         self.faderMoveQueue = [];
         clearTimeout(self.aggregationTimeout);
@@ -1025,12 +1031,12 @@ motorizedFaderControl.prototype.processFaderMoveQueue = function() {
 
 motorizedFaderControl.prototype.setupFaderController = function() {
     const self = this;
-    self.logger.info(`${self.PLUGINSTR}: Initializing FaderController...`);
+    self.logger.info(`Initializing FaderController...`);
 
     return new Promise(async (resolve, reject) => {
         try {
             const controllerConfig = {
-                logger: self.logger,
+                logger: self.createLogger(this.context.logger, 'motorized_fader_control', 'FaderController'),
                 MIDILog: self.config.get('FADER_CONTROLLER_MIDI_LOG', false),
                 ValueLog: self.config.get('FADER_CONTROLLER_VALUE_LOG', false),
                 MoveLog: self.config.get('FADER_CONTROLLER_MOVE_LOG', false),
@@ -1050,7 +1056,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
 
             if (!controllerConfig.faderIndexes?.length) {
                 const errorMsg = 'No valid fader indexes configured';
-                self.logger.warn(`${self.PLUGINSTR}: ${errorMsg}`);
+                self.logger.warn(`${errorMsg}`);
                 self.commandRouter.pushToastMessage('warning', 'Configuration Error', 'No faders enabled');
                 return reject(new Error(errorMsg));
             }
@@ -1073,7 +1079,7 @@ motorizedFaderControl.prototype.setupFaderController = function() {
 
             resolve(true);
         } catch (error) {
-            self.logger.error(`${self.PLUGINSTR}: Controller setup failed: ${error.message}`);
+            self.logger.error(`Controller setup failed: ${error.message}`);
             reject(error);
         }
     });
@@ -1097,7 +1103,7 @@ motorizedFaderControl.prototype._configurePackedFaderSettings = async function(t
             );
         });
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Configuration error: ${error.message}`);
+        self.logger.error(`Configuration error: ${error.message}`);
         throw error;
     }
 };
@@ -1118,10 +1124,10 @@ motorizedFaderControl.prototype.startFaderController = async function() {
         // Start with calibration flag from config
         await self.faderController.start();
         
-        self.logger.info(`${self.PLUGINSTR}: FaderController started successfully`);
+        self.logger.info(`FaderController started successfully`);
 
     } catch (error) {
-        self.logger.error(`${self.PLUGINSTR}: Startup failed: ${error.message}`);
+        self.logger.error(`Startup failed: ${error.message}`);
         throw error;
     }
 };
@@ -1203,9 +1209,9 @@ motorizedFaderControl.prototype.setupErrorHandling = function() {
 
     //Fader Controller Errors:
     self.faderController.on('error', (error) => {
-        self.logger.error(`${self.PLUGINSTR}: FaderController error: ${error.message}`);
+        self.logger.error(`FaderController error: ${error.message}`);
         if (error.details) {
-            self.logger.error(`${self.PLUGINSTR}: FaderController error details: ${error.details}`);
+            self.logger.error(`FaderController error details: ${error.details}`);
         }
     });
 

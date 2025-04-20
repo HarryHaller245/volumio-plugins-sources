@@ -114,7 +114,7 @@ class MIDIHandler {
     this.parser.on('data', data => {
       const message = this.parseMessage(data);
       if (this.controller.config.MIDILog) {
-        this.controller.config.logger.debug(`[FaderController] ${this.MODULESTR}: MIDI RECV: ${JSON.stringify(message)}`);
+        this.controller.config.logger.debug(`[FaderController] MIDI RECV: ${JSON.stringify(message)}`);
       }
       this.controller.handleMIDIMessage(message);
     });
@@ -391,7 +391,7 @@ class FaderController extends EventEmitter {
       calibrateOnStart: true,
       ...config
     };
-    this.MODULESTR = `[${this.constructor.name}]`;
+    this.MODULESTR = `[${this.constructor.name}]`; //! deprecated
     this.faders = this.createFaders();
     this.midiHandler = null;
     this.midiQueue = null;
@@ -409,7 +409,7 @@ class FaderController extends EventEmitter {
     if (this.config.logger) {
       for (const [key, value] of Object.entries(this.config)) {
         if (key !== 'logger') {
-          this.config.logger.debug(`${this.MODULESTR}: ${key}: ${value}`);
+          this.config.logger.debug(`${key}: ${value}`);
         }
       }
     }
@@ -425,7 +425,7 @@ class FaderController extends EventEmitter {
       ['touch', 'move', 'untouch', 'configChange'].forEach(evt => {
         fader.on(evt, (index, info) => {
           this.emit(evt, index, info);
-          this.config.logger.debug(`${this.MODULESTR}: emitting ${evt} for fader ${index}`);
+          this.config.logger.debug(`emitting ${evt} for fader ${index}`);
         });
       });
       return fader;
@@ -440,7 +440,7 @@ class FaderController extends EventEmitter {
 
   handleDisconnect() {
     this.emit('error', new Error('Serial port disconnected'));
-    this.reconnectAttempts = 10;
+    this.reconnectAttempts = 5;
     
     const reconnect = () => {
       if(this.reconnectAttempts++ < 5) {
@@ -456,7 +456,7 @@ class FaderController extends EventEmitter {
   handleMIDIMessage(message) {
     try {
       if (this.MIDILog) {
-      this.config.logger.debug(`${this.MODULESTR}: MIDI HANDLE: ${message.type}`); 
+      this.config.logger.debug(`MIDI HANDLE: ${message.type}`); 
       }
       
       switch(message.type) {
@@ -517,7 +517,7 @@ class FaderController extends EventEmitter {
     if (interrupt) this.clearQueue(move.indexes);
     
     if (this.config.MoveLog) {
-        this.config.logger.debug(`${this.MODULESTR}: Move: ${JSON.stringify(move)}`);
+        this.config.logger.debug(`Move: ${JSON.stringify(move)}`);
     }
 
     const movements = move.indexes.map((index, i) => {
@@ -530,7 +530,7 @@ class FaderController extends EventEmitter {
         );
         
         if (this.config.MoveLog) {
-            this.config.logger.debug(`${this.MODULESTR}: Fader ${index} ` +
+            this.config.logger.debug(`Fader ${index} ` +
                 `speedFactor: ${fader.speedFactor.toFixed(2)}, ` +
                 `effectiveSpeed: ${effectiveSpeed.toFixed(2)}`);
         }
@@ -550,16 +550,16 @@ class FaderController extends EventEmitter {
         acc[pos.index] = (acc[pos.index] || 0) + 1;
         return acc;
       }, {});
-      this.config.logger.debug(`${this.MODULESTR}: Generated ${JSON.stringify(positionsPerFader)} positions`);
+      this.config.logger.debug(`Generated ${JSON.stringify(positionsPerFader)} positions`);
     }
     if (this.config.MoveLog) {
         if (positions.length > 0) {
-            this.config.logger.debug(`${this.MODULESTR}: First position: ${positions[0].value}, ` +
+            this.config.logger.debug(`First position: ${positions[0].value}, ` +
                 `Last position: ${positions[positions.length-1].value}`);
         }
     }
     if (this.config.ValueLog) {
-      this.config.logger.debug(`${this.MODULESTR}: Positions: ${JSON.stringify(positions)}`);
+      this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
     }
     
     await this.sendPositions(positions);
@@ -572,71 +572,66 @@ class FaderController extends EventEmitter {
   }
 
   calculateMovements(movements) {
-    const positions = [];
-    const MIN_STEP = 1; // Minimum movement step (1)
-    const MAX_STEPS = 16383;  // Maximum 14-bit value
-    
-    movements.forEach(move => {
-        // Validate input
-        if (typeof move.speed !== 'number' || move.speed <= 0 || move.speed > 100) {
-            throw new Error(`${this.MODULESTR}: Invalid speed ${move.speed} for fader ${move.index} - must be >0 and <=100`);
-        }
+      const positions = [];
+      const MIN_STEP = 1; // Minimum movement step (1)
+      const MAX_STEPS = 16383; // Maximum 14-bit value
   
-        const fader = this.getFader(move.index);
-        const currentPos = fader.position;
-        const targetPos = fader.progressionToPosition(move.target);
-        
-        if (Math.abs(currentPos - targetPos) <= MIN_STEP) {
-            // Already at target (or very close)
-            positions.push({
-                index: move.index,
-                value: targetPos
-            });
-            return;
-        }
+      movements.forEach(move => {
+          // Validate input
+          if (typeof move.speed !== 'number' || move.speed <= 0 || move.speed > 100) {
+              throw new Error(`Invalid speed ${move.speed} for fader ${move.index} - must be >0 and <=100`);
+          }
   
-        // Calculate number of steps based on speed
-        // Faster speeds = fewer steps, slower speeds = more steps
-        const distance = Math.abs(targetPos - currentPos);
-        const speedRatio = move.speed / 100; // Normalize speed to 0-1 range
-        
-        // Base number of steps scales inversely with speed
-        // Minimum 2 steps (start + end), maximum based on distance
-        let numSteps = Math.max(
-            2, 
-            Math.min(
-                Math.ceil(distance * (1 - speedRatio) * this.speedMultiplier), // Adjust multiplier as needed this.speedMultiplier
-                MAX_STEPS // Maximum steps to prevent excessive messages
-            )
-        );
+          const fader = this.getFader(move.index);
+          const currentPos = fader.position;
+          const targetPos = fader.progressionToPosition(move.target);
   
-        // Generate intermediate positions
-        const stepSize = (targetPos - currentPos) / (numSteps - 1);
-        for (let i = 0; i < numSteps; i++) {
-            const value = Math.round(currentPos + (stepSize * i));
-            positions.push({
-                index: move.index,
-                value: value
-            });
-        }
+          if (Math.abs(currentPos - targetPos) <= MIN_STEP) {
+              // Already at target (or very close)
+              positions.push({
+                  index: move.index,
+                  value: targetPos
+              });
+              return;
+          }
   
-        // Apply resolution filter
-        const filteredSteps = this.applyResolutionFilter(
-            positions.filter(p => p.index === move.index),
-            move.resolution,
-            currentPos,
-            targetPos
-        );
+          // Calculate number of steps based on speed and speedMultiplier
+          const speedRatio = move.speed / 100; // Normalize speed to 0-1 range
+          const numSteps = Math.max(
+              2, // Minimum 2 steps (start + end)
+              Math.min(
+                  Math.ceil((1 - speedRatio) * this.speedMultiplier * 100), // Steps based on speed and multiplier
+                  MAX_STEPS // Maximum steps to prevent excessive messages
+              )
+          );
   
-        // Replace positions for this fader with filtered ones
-        positions.splice(
-            positions.findIndex(p => p.index === move.index),
-            positions.filter(p => p.index === move.index).length,
-            ...filteredSteps
-        );
-    });
+          // Generate intermediate positions
+          const stepSize = (targetPos - currentPos) / (numSteps - 1);
+          for (let i = 0; i < numSteps; i++) {
+              const value = Math.round(currentPos + (stepSize * i));
+              positions.push({
+                  index: move.index,
+                  value: value
+              });
+          }
   
-    return positions;
+          // Apply resolution filter
+          const filteredSteps = this.applyResolutionFilter(
+              positions.filter(p => p.index === move.index),
+              move.resolution,
+              currentPos,
+              targetPos
+          );
+  
+          // Replace positions for this fader with filtered ones
+          positions.splice(
+              positions.findIndex(p => p.index === move.index),
+              positions.filter(p => p.index === move.index).length,
+              ...filteredSteps
+          );
+      });
+  
+      return positions;
   }
 
   applyResolutionFilter(steps, resolution, startPos, endPos) {
@@ -723,7 +718,7 @@ class FaderController extends EventEmitter {
     // Validate input
     if (!Array.isArray(indexes) || indexes.length === 0) {
         const error = new Error('Invalid calibration indexes - must be a non-empty array');
-        this.config.logger.error(`${this.MODULESTR}: CALIBRATION ERROR: ${error.message}`, { indexes });
+        this.config.logger.error(`CALIBRATION ERROR: ${error.message}`, { indexes });
         throw Object.assign(error, {
             code: FaderErrors.INVALID_INPUT,
             indexes
@@ -732,26 +727,26 @@ class FaderController extends EventEmitter {
 
     // Configuration
     const testParams = {
-        distance: 100,           // Full range movement (0-100%)
-        testSpeeds: [100],       // Test speeds to evaluate
-        resolutions: [1],        // Resolution values to test
-        warmupRuns: 0,           // Number of warmup runs per test
-        measureRuns: 1           // Number of measured runs per test
+      distance: 100,               // Full range movement (0-100%)
+      testSpeeds: [100, 90, 80, 70, 50, 30, 10], // Test a broader range of speeds
+      resolutions: [1, 0.8, 0.5, 0.2],           // Test different resolution values
+      warmupRuns: 1,               // Include one warmup run to stabilize the system
+      measureRuns: 3               // Increase measured runs for better statistical accuracy
     };
 
-    this.config.logger.info(`${this.MODULESTR}: \n=== STARTING CALIBRATION ===`);
-    this.config.logger.info(`${this.MODULESTR}: Faders: ${indexes.join(', ')}`);
-    this.config.logger.info(`${this.MODULESTR}: Testing speeds: ${testParams.testSpeeds.join(', ')}`);
-    this.config.logger.info(`${this.MODULESTR}: Testing resolutions: ${testParams.resolutions.join(', ')}`);
+    this.config.logger.info(`=== STARTING CALIBRATION ===`);
+    this.config.logger.info(`Faders: ${indexes.join(', ')}`);
+    this.config.logger.info(`Testing speeds: ${testParams.testSpeeds.join(', ')}`);
+    this.config.logger.info(`Testing resolutions: ${testParams.resolutions.join(', ')}`);
 
     const calibrationTimeout = setTimeout(() => {
         const error = new Error('Calibration timeout');
-        this.config.logger.error(`${this.MODULESTR}: CALIBRATION TIMEOUT: ${error.message}`);
+        this.config.logger.error(`CALIBRATION TIMEOUT: ${error.message}`);
         this.emit('error', Object.assign(error, {
             code: FaderErrors.CALIBRATION_FAILED,
-            timeout: 300000
+            timeout: 300000000
         }));
-    }, 300000);
+    }, 300000000);
 
     try {
         const calibrationResults = {};
@@ -763,10 +758,10 @@ class FaderController extends EventEmitter {
             
             for (const resolution of testParams.resolutions) {
                 calibrationResults[index][resolution] = {};
-                this.config.logger.info(`${this.MODULESTR}: Testing Fader ${index} at resolution ${resolution}`);
+                this.config.logger.info(`Testing Fader ${index} at resolution ${resolution}`);
 
                 for (const speed of testParams.testSpeeds) {
-                    this.config.logger.info(`${this.MODULESTR}: Speed ${speed}%:`);
+                    this.config.logger.info(`Speed ${speed}%:`);
                     const runTimes = [];
 
                     // Warmup runs (discarded)
@@ -779,7 +774,7 @@ class FaderController extends EventEmitter {
                         const duration = await this.runCalibrationMove(index, 0, testParams.distance, speed, resolution);
                         runTimes.push(duration);
                         
-                        this.config.logger.info(`${this.MODULESTR}: Run ${i + 1}: ${duration}ms`);
+                        this.config.logger.info(`Run ${i + 1}: ${duration}ms`);
                     }
 
                     // Calculate statistics
@@ -813,9 +808,9 @@ class FaderController extends EventEmitter {
             fader.speedFactor = optimal.speedFactor;
             fader.optimalResolution = optimal.resolution;
             
-            this.config.logger.info(`${this.MODULESTR}: \nFader ${index} calibration complete:`);
-            this.config.logger.info(`${this.MODULESTR}: - Optimal resolution: ${optimal.resolution}`);
-            this.config.logger.info(`${this.MODULESTR}: - Speed factor: ${optimal.speedFactor.toFixed(2)}`);
+            this.config.logger.info(`Fader ${index} calibration complete:`);
+            this.config.logger.info(`- Optimal resolution: ${optimal.resolution}`);
+            this.config.logger.info(`- Speed factor: ${optimal.speedFactor.toFixed(2)}`);
         }
 
         // Print summary table
@@ -825,7 +820,7 @@ class FaderController extends EventEmitter {
         return Promise.resolve(calibrationResults);
         
     } catch (error) {
-        this.config.logger.error(`${this.MODULESTR}: CALIBRATION FAILED: ${error}`);
+        this.config.logger.error(`CALIBRATION FAILED: ${error}`);
         this.emit('error', Object.assign(error, {
             code: FaderErrors.CALIBRATION_FAILED,
             indexes
@@ -833,7 +828,7 @@ class FaderController extends EventEmitter {
         return Promise.reject(error);
     } finally {
         clearTimeout(calibrationTimeout);
-        this.config.logger.info(`${this.MODULESTR}: \n=== CALIBRATION COMPLETE ===`);
+        this.config.logger.info(`\n=== CALIBRATION COMPLETE ===`);
         await this.reset(indexes);
     }
   }
@@ -871,37 +866,38 @@ class FaderController extends EventEmitter {
   }
 
   printCalibrationTable(data) {
-      const columns = [
-          { field: 'Fader', title: 'Fader' },
-          { field: 'Resolution', title: 'Resolution' },
-          { field: 'Speed', title: 'Speed %' },
-          { field: 'Avg Time (ms)', title: 'Avg Time (ms)' },
-          { field: 'Std Dev (ms)', title: '±Dev' },
-          { field: 'Effective Speed (units/s)', title: 'Speed (u/s)' }
-      ];
+    const columns = [
+        { field: 'Fader', title: 'Fader' },
+        { field: 'Resolution', title: 'Resolution' },
+        { field: 'Speed', title: 'Speed %' },
+        { field: 'Avg Time (ms)', title: 'Avg Time (ms)' },
+        { field: 'Std Dev (ms)', title: '±Dev' },
+        { field: 'Effective Speed (units/s)', title: 'Speed (u/s)' }
+    ];
 
-      // Find max widths for each column
-      const widths = columns.map(col => {
-          const headerWidth = col.title.length;
-          const contentWidth = Math.max(...data.map(row => String(row[col.field]).length));
-          return Math.max(headerWidth, contentWidth) + 2;
-      });
+    // Find max widths for each column
+    const widths = columns.map(col => {
+        const headerWidth = col.title.length;
+        const contentWidth = Math.max(...data.map(row => String(row[col.field]).length));
+        return Math.max(headerWidth, contentWidth) + 2; // Add padding for readability
+    });
 
-      // Print header
-      let header = '';
-      columns.forEach((col, i) => {
-          header += col.title.padEnd(widths[i]);
-      });
-      this.config.logger.info(`${this.MODULESTR}: \n${header}\n${'-'.repeat(header.length)}`);
+    // Print header
+    let header = '';
+    columns.forEach((col, i) => {
+        header += col.title.padEnd(widths[i]);
+    });
+    this.config.logger.info(`${header}`);
+    this.config.logger.info(`${'-'.repeat(header.length)}`);
 
-      // Print rows
-      data.forEach(row => {
-          let line = '';
-          columns.forEach((col, i) => {
-              line += String(row[col.field]).padEnd(widths[i]);
-          });
-          this.config.logger.info(this.MODULESTR + line);
-      });
+    // Print rows
+    data.forEach(row => {
+        let line = '';
+        columns.forEach((col, i) => {
+            line += String(row[col.field]).padEnd(widths[i]);
+        });
+        this.config.logger.info(`${line}`);
+    });
   }
 
   calculateSpeedFactor(speedData) {
@@ -909,8 +905,6 @@ class FaderController extends EventEmitter {
       const speeds = Object.values(speedData);
       const avgEffectiveSpeed = speeds.reduce((sum, test) => sum + test.effectiveSpeed, 0) / speeds.length;
       
-      // Speed factor represents how much we need to adjust the speed to achieve desired timing
-      // Higher factor = faster movement to compensate for slow hardware
       return 100 / avgEffectiveSpeed; // Normalize to target speed of 100 units/s
   }
 
@@ -951,10 +945,10 @@ class FaderController extends EventEmitter {
     }, {});
   }
 
-  // basic calibration #############################################
+  //* basic calibration #############################################
   async calibrate(indexes) {
-    this.config.logger.debug(`${this.MODULESTR}: Calibrating...`);
-    await this.testCalibrationMoves(indexes);
+    this.config.logger.debug(`Calibrating...`);
+    return await this.testCalibrationMoves(indexes);
   }
 
   //* Public API #############################################
@@ -1004,7 +998,7 @@ class FaderController extends EventEmitter {
       await this.checkMIDIDeviceReady();
       if (this.config.calibrateOnStart) await this.calibrate(this.config.faderIndexes);
       this.emit('ready');
-      this.config.logger.info(`${this.MODULESTR}: FaderController started successfully`);
+      this.config.logger.info(`FaderController started successfully`);
     } catch (error) {
       this.config.logger.error('Startup failed:', error);
       throw error;
@@ -1055,25 +1049,25 @@ class FaderController extends EventEmitter {
 
   setFaderProgressionMap(index, range) { // make this accept multiple indexes optionally
     const fader = this.getFader(index);
-    if (!fader) throw new Error(`${this.MODULESTR}: Fader ${index} not found`);
+    if (!fader) throw new Error(`Fader ${index} not found`);
     fader.setProgressionMap(range);
   }
 
   setFadersMovementSpeedFactor(index, speedFactor) {
     const fader = this.getFader(index);
-    if (!fader) throw new Error(`${this.MODULESTR}: Fader ${index} not found`);
+    if (!fader) throw new Error(`Fader ${index} not found`);
     if (typeof speedFactor !== 'number' || speedFactor <= 0 || speedFactor === null) {
-        this.config.logger.warn(`${this.MODULESTR}: Invalid speedFactor for fader ${index}. Resetting to default (1).`);
+        this.config.logger.warn(`Invalid speedFactor for fader ${index}. Resetting to default (1).`);
         speedFactor = 1; // Reset to default if invalid
     }
     fader.speedFactor = speedFactor;
 }
 
-  // Utilities #############################################
+  //* Utilities #############################################
   getFader(index) {
     try {
       const fader = this.faders[index];
-      if (!fader) throw new Error(`${this.MODULESTR}: Fader ${index} not found`);
+      if (!fader) throw new Error(`Fader ${index} not found`);
       return fader;
     } catch (error) {
       this.emit('error', Object.assign(error, {
@@ -1118,7 +1112,7 @@ class FaderController extends EventEmitter {
 
       const normalizedIndexes = indexes.map(index => {
         if (typeof index === 'string') {
-          this.logger.warn(`${this.MODULESTR}: IndexHandler: Converting string index "${index}" to number.: ${[Number(index)]}`);
+          this.logger.warn(`IndexHandler: Converting string index "${index}" to number.: ${[Number(index)]}`);
           return [Number(index)];
         }
         return index;
@@ -1152,13 +1146,13 @@ class FaderController extends EventEmitter {
 
             if (isReady) {
                 this.midiDeviceReady = true;
-                this.config.logger.debug(`${this.MODULESTR}: MIDI device ready signal received`);
+                this.config.logger.debug(`MIDI device ready signal received`);
                 return true;
             }
 
             await new Promise(resolve => setTimeout(resolve, 1500));  // Increased timeout
             attempts++;
-            this.config.logger.debug(`${this.MODULESTR}: Device check attempt ${attempts}/${maxAttempts}`);
+            this.config.logger.debug(`Device check attempt ${attempts}/${maxAttempts}`);
         }
 
         throw new Error(`MIDI device not responding after ${maxAttempts} attempts`);

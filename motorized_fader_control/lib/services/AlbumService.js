@@ -9,8 +9,6 @@ class AlbumService extends BaseService {
     this.eventBus.on('album/info', stateWithAlbumInfo => {
       this.handleAlbumInfo(stateWithAlbumInfo);
     });
-
-    this.SERVICESTR = this.getServiceName(this.constructor);
   }
 
   async handlePlay(state) {
@@ -24,11 +22,11 @@ class AlbumService extends BaseService {
 
     const currentAlbum = this.stateCache.get('album', 'current');
     if (this.validateAlbumCurrent(state, currentAlbum)) {
-      this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.ALBUM_INFO} ${this.faderIdx} -> albumInfo: ${JSON.stringify(currentAlbum)}`);
+      this.logger.debug(`${this.logs.LOGS.SERVICES.ALBUM_INFO} ${this.faderIdx} -> albumInfo: ${JSON.stringify(currentAlbum)}`);
       this.startUpdateInterval();
     } else {
       this.orderAlbumInfo(state);
-      this.logger.info(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
+      this.logger.info(`${this.logs.LOGS.SERVICES.HANDLE_PLAY} ${this.faderIdx}`);
     }
   }
 
@@ -50,7 +48,7 @@ class AlbumService extends BaseService {
     
     this.lastAlbumUri = state.uri;
     this.eventBus.emit('command/volumio/getAlbumInfo', state);
-    this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.FETCH_ALBUM_INFO} ${this.faderIdx} -> uri: ${state.uri}`);
+    this.logger.debug(`${this.logs.LOGS.SERVICES.FETCH_ALBUM_INFO} ${this.faderIdx} -> uri: ${state.uri}`);
   }
 
   handleAlbumInfo(stateWithAlbumInfo) {
@@ -64,7 +62,7 @@ class AlbumService extends BaseService {
       timestamp: Date.now()
     });
 
-    this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: ${this.logs.LOGS.SERVICES.ALBUM_INFO} ${this.faderIdx} -> albumInfo: ${JSON.stringify(albumInfo)}`);
+    this.logger.debug(`${this.logs.LOGS.SERVICES.ALBUM_INFO} ${this.faderIdx} -> albumInfo: ${JSON.stringify(albumInfo)}`);
     
     // Only trigger handlePlay if we have valid state
     if (stateWithAlbumInfo.state) {
@@ -77,7 +75,7 @@ class AlbumService extends BaseService {
 
     const trackIndex = currentAlbum.songs.findIndex(song => song.uri === state.uri);
     if (trackIndex === -1) {
-      this.logger.warn(`${this.PLUGINSTR}: Track not found in album`);
+      this.logger.warn(`Track not found in album`);
       return 0;
     }
 
@@ -99,7 +97,7 @@ class AlbumService extends BaseService {
     const progression = (currentPosition / totalAlbumDuration) * 100;
 
     if (this.config.get("DEBUG_MODE", false)) {
-      this.logger.debug(`${this.PLUGINSTR} ${this.SERVICESTR}: Album progression: ${progression}%`);
+      this.logger.debug(`Album progression: ${progression}%`);
     }
 
     return Math.min(100, Math.max(0, progression)); // Clamp between 0-100
@@ -118,7 +116,7 @@ class AlbumService extends BaseService {
       this.updateHardware(progression);
 
     } catch (error) {
-      this.logger.error(`${this.PLUGINSTR} ${this.SERVICESTR}: Position update failed - ${error.message}`);
+      this.logger.error(`Position update failed - ${error.message}`);
       this.eventBus.emit('error', error);
     }
   }
