@@ -66,13 +66,13 @@ class BaseService {
   }
 
   blockUpdateInterval() {
-    fader_moving = true;
+    this.fader_moving = true;
     this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.BLOCK_INTERVAL} ${this.faderIdx}`);
     this.stopUpdateInterval();
   }
 
   unblockUpdateInterval() {
-    fader_moving = false;
+    this.fader_moving = false;
     this.logger.debug(`${this.logs.LOGS.SERVICES.BASE.UNBLOCK_INTERVAL} ${this.faderIdx}`);
   }
   
