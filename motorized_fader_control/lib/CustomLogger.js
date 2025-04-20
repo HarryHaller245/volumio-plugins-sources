@@ -25,6 +25,12 @@ class CustomLogger {
     error(message) {
         this.logger.error(this.formatMessage(message));
     }
+
+    seperator(level = 'info') {
+        const separator = '--------------------------------------------------------------------';
+        const formattedSeparator = this.formatMessage(separator);
+        this[level](formattedSeparator);
+    }
 }
 
 module.exports = CustomLogger;

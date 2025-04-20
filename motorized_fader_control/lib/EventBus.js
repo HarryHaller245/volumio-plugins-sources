@@ -39,13 +39,13 @@ class EventBus {
   }
   
   emit(event, data) {
-    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT} ${event} ${JSON.stringify(data)}`);
+    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT} ${event}`);
     (this.listeners[event] || []).forEach(cb => cb(data));
   }
 
   emitPlaybackState(state) {
     this.emit('playback/update', state);
-    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT_PLAYBACK} ${state.status}`);
+    this.logger.debug(`${this.logs.LOGS.EVENT.EMIT_PLAYBACK}`);
     switch(state.status) {
       case 'play': 
         this.emit('playback/playing', state);

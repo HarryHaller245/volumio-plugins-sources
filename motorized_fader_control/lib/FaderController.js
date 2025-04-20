@@ -22,7 +22,7 @@ class Fader extends EventEmitter {
     this.touch = false;
     this.echoMode = false;
     this.progressionMap = [0, 100];
-    this.speedFactor = 1;
+    this.speedFactor = 0.5;
   }
 
   setProgressionMap([min, max]) {
@@ -407,11 +407,17 @@ class FaderController extends EventEmitter {
   logConfig() {
     //loop through config and log the values
     if (this.config.logger) {
+      this.config.logger.seperator('debug');
       for (const [key, value] of Object.entries(this.config)) {
         if (key !== 'logger') {
           this.config.logger.debug(`${key}: ${value}`);
         }
       }
+      // also log fader infos for each fader
+      this.faders.forEach(fader => {
+        this.config.logger.debug(`Fader ${fader.index}: ${JSON.stringify(fader.info)}`);
+      });
+      this.config.logger.seperator('debug');
     }
   }
 
