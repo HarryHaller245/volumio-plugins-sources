@@ -22,7 +22,7 @@ class Fader extends EventEmitter {
     this.touch = false;
     this.echoMode = false;
     this.progressionMap = [0, 100];
-    this.speedFactor = 0.5;
+    this.speedFactor = 0.1;
   }
 
   setProgressionMap([min, max]) {
@@ -558,12 +558,6 @@ class FaderController extends EventEmitter {
       }, {});
       this.config.logger.debug(`Generated ${JSON.stringify(positionsPerFader)} positions`);
     }
-    if (this.config.MoveLog) {
-        if (positions.length > 0) {
-            this.config.logger.debug(`First position: ${positions[0].value}, ` +
-                `Last position: ${positions[positions.length-1].value}`);
-        }
-    }
     if (this.config.ValueLog) {
       this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
     }
@@ -610,10 +604,10 @@ class FaderController extends EventEmitter {
                   MAX_STEPS // Maximum steps to prevent excessive messages
               )
           );
-  
-          // Generate intermediate positions
+          
+          // Generate intermediate positions (excluding the first position)
           const stepSize = (targetPos - currentPos) / (numSteps - 1);
-          for (let i = 0; i < numSteps; i++) {
+          for (let i = 1; i < numSteps; i++) { // Start from 1 to skip the first position
               const value = Math.round(currentPos + (stepSize * i));
               positions.push({
                   index: move.index,
