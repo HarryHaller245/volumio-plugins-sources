@@ -85,7 +85,7 @@
     },
     "CALIBRATION_COUNT": {
       "type": "number",
-      "value": 20
+      "value": 5
     },
     "CALIBRATION_START_SPEED": {
       "type": "number",
@@ -93,11 +93,19 @@
     },
     "CALIBRATION_END_SPEED": {
       "type": "number",
-      "value": 100
+      "value": 50
+    },
+    "CALIBRATION_WARMUP_RUNS": {
+      "type": "number",
+      "value": 1
+    },
+    "CALIBRATION_MEASURE_RUNS": {
+      "type": "number",
+      "value": 2
     },
     "CALIBRATION_TIME_GOAL": {
       "type": "number",
-      "value": 100
+      "value": 10
     },
     "CALIBRATION_TOLERANCE": {
       "type": "number",

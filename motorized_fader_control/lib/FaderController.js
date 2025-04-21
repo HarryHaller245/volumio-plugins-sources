@@ -403,6 +403,25 @@ class MIDIQueue {
 class FaderController extends EventEmitter {
   constructor(config = {}) {
     super();
+
+    // Default configuration
+    const defaultCalibrationConfig = {
+      startProgression: 0,
+      endProgression: 100,
+      calibrationCount: 20,
+      startSpeed: 10,
+      endSpeed: 100,
+      resolutions: [1, 0.8, 0.5, 0.2], // Default resolutions
+      warmupRuns: 1, // Default warmup runs
+      measureRuns: 2 // Default measure runs
+    };
+
+    // Merge provided calibration config with defaults
+    this.calibrationConfig = {
+      ...defaultCalibrationConfig,
+      ...(config.calibrationConfig || {})
+    };
+
     this.config = {
       logger: console,
       MIDILog: false,
@@ -420,10 +439,11 @@ class FaderController extends EventEmitter {
     this.midiHandler = null;
     this.midiQueue = null;
     this.queueMutex = new Mutex();
+    this.reconnectAttempts = 5;
     this.serial = null;
     this.initMIDIState();
 
-    this.speedMultiplier = 0.1; // Adjust this value to control speed
+    this.speedMultiplier = 1; // Adjust this value to control speed
   }
 
   // INIT CONF AND INSTANCES #############################################
@@ -470,7 +490,6 @@ class FaderController extends EventEmitter {
 
   handleDisconnect() {
     this.emit('error', new Error('Serial port disconnected'));
-    this.reconnectAttempts = 5;
     
     const reconnect = () => {
       if(this.reconnectAttempts++ < 5) {
@@ -709,7 +728,6 @@ class FaderController extends EventEmitter {
    * 
    * @emits error - Emits an 'error' event with the error object and additional details.
    */
-  //* Modified sendPositions to better support parallel movements
   async sendPositions(positions) {
     const release = await this.queueMutex.acquire().catch(error => {
       this.emit('error', Object.assign(error, {
@@ -760,18 +778,18 @@ class FaderController extends EventEmitter {
         });
     }
 
-    // Configuration
-    const testParams = {
-      distance: 100,               // Full range movement (0-100%)
-      testSpeeds: [100, 90, 80, 70, 50, 30, 10], // Test a broader range of speeds
-      resolutions: [1, 0.8, 0.5, 0.2],           // Test different resolution values
-      warmupRuns: 0,               // Include one warmup run to stabilize the system
-      measureRuns: 2               // Increase measured runs for better statistical accuracy
-    };
+    // Configuration from parameters
+    const testParams = this.config.calibrationConfig;
+
+    // Generate test speeds based on start and end speed
+    const speedStep = (testParams.endSpeed - testParams.startSpeed) / (testParams.calibrationCount - 1);
+    const testSpeeds = Array.from({ length: testParams.calibrationCount }, (_, i) =>
+        Math.round(testParams.startSpeed + i * speedStep)
+    );
 
     this.config.logger.info(`=== STARTING CALIBRATION ===`);
     this.config.logger.info(`Faders: ${indexes.join(', ')}`);
-    this.config.logger.info(`Testing speeds: ${testParams.testSpeeds.join(', ')}`);
+    this.config.logger.info(`Testing speeds: ${testSpeeds.join(', ')}`);
     this.config.logger.info(`Testing resolutions: ${testParams.resolutions.join(', ')}`);
 
     const calibrationTimeout = setTimeout(() => {
@@ -790,25 +808,37 @@ class FaderController extends EventEmitter {
         for (const index of indexes) {
             calibrationResults[index] = {};
             const fader = this.getFader(index);
-            
+
             for (const resolution of testParams.resolutions) {
                 calibrationResults[index][resolution] = {};
                 this.config.logger.info(`Testing Fader ${index} at resolution ${resolution}`);
 
-                for (const speed of testParams.testSpeeds) {
+                for (const speed of testSpeeds) {
                     this.config.logger.info(`Speed ${speed}%:`);
                     const runTimes = [];
 
                     // Warmup runs (discarded)
                     for (let i = 0; i < testParams.warmupRuns; i++) {
-                        await this.runCalibrationMove(index, 0, testParams.distance, speed, resolution);
+                        await this.runCalibrationMove(
+                            index,
+                            testParams.startProgression,
+                            testParams.endProgression,
+                            speed,
+                            resolution
+                        );
                     }
 
                     // Measured runs
                     for (let i = 0; i < testParams.measureRuns; i++) {
-                        const duration = await this.runCalibrationMove(index, 0, testParams.distance, speed, resolution);
+                        const duration = await this.runCalibrationMove(
+                            index,
+                            testParams.startProgression,
+                            testParams.endProgression,
+                            speed,
+                            resolution
+                        );
                         runTimes.push(duration);
-                        
+
                         this.config.logger.info(`Run ${i + 1}: ${duration}ms`);
                     }
 
@@ -816,7 +846,7 @@ class FaderController extends EventEmitter {
                     const avgTime = runTimes.reduce((a, b) => a + b, 0) / runTimes.length;
                     const variance = runTimes.reduce((a, b) => a + Math.pow(b - avgTime, 2), 0) / runTimes.length;
                     const stdDev = Math.sqrt(variance);
-                    const effectiveSpeed = testParams.distance / (avgTime / 1000);
+                    const effectiveSpeed = (testParams.endProgression - testParams.startProgression) / (avgTime / 1000);
 
                     // Store results
                     calibrationResults[index][resolution][speed] = {
@@ -842,7 +872,7 @@ class FaderController extends EventEmitter {
             const optimal = this.calculateOptimalSettings(calibrationResults[index]);
             fader.speedFactor = optimal.speedFactor;
             fader.optimalResolution = optimal.resolution;
-            
+
             this.config.logger.info(`Fader ${index} calibration complete:`);
             this.config.logger.info(`- Optimal resolution: ${optimal.resolution}`);
             this.config.logger.info(`- Speed factor: ${optimal.speedFactor.toFixed(2)}`);
@@ -850,10 +880,10 @@ class FaderController extends EventEmitter {
 
         // Print summary table
         this.printCalibrationTable(logTable);
-        
+
         this.emit('calibration', calibrationResults);
         return Promise.resolve(calibrationResults);
-        
+
     } catch (error) {
         this.config.logger.error(`CALIBRATION FAILED: ${error}`);
         this.emit('error', Object.assign(error, {
@@ -866,7 +896,7 @@ class FaderController extends EventEmitter {
         this.config.logger.info(`\n=== CALIBRATION COMPLETE ===`);
         await this.reset(indexes);
     }
-  }
+}
 
   async runCalibrationMove(index, start, end, speed, resolution) {
       const startTime = Date.now();
@@ -1141,38 +1171,6 @@ class FaderController extends EventEmitter {
   async closeSerial() {
     if (this.serial?.isOpen) {
       await new Promise(resolve => this.serial.close(resolve));
-    }
-  }
-
-  /**
-   * Normalizes the indexes array.
-   *
-   * @param {Array<number>|number|string|Array<string>} indexes - The indexes to normalize.
-   * @returns {Array<number>} The normalized indexes array.
-   */
-  normalizeAndFitIndexes(indexes) {  
-    if (indexes === undefined) {
-      const allIndexes = this.faders.map(fader => fader.index);
-      return allIndexes;
-    } else {
-      if (!Array.isArray(indexes)) {
-        indexes = [indexes];
-      }
-
-      const normalizedIndexes = indexes.map(index => {
-        if (typeof index === 'string') {
-          this.logger.warn(`IndexHandler: Converting string index "${index}" to number.: ${[Number(index)]}`);
-          return [Number(index)];
-        }
-        return index;
-      });
-  
-      const validIndexes = normalizedIndexes.filter(index => {
-        const fader = this.findFaderByIndex(index);
-        return fader !== null;
-      });
-
-      return validIndexes;
     }
   }
 

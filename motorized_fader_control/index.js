@@ -1148,6 +1148,16 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                 MoveLog: self.config.get('FADER_CONTROLLER_MOVE_LOG', false),
                 calibrateOnStart: self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true),
                 queueOverflow: self.config.get('FADER_CONTROLLER_QUEUE_OVERFLOW', 16383),
+                calibrationConfig: {
+                    startProgression: self.config.get('CALIBRATION_START_PROGRESSION', 0),
+                    endProgression: self.config.get('CALIBRATION_END_PROGRESSION', 100),
+                    calibrationCount: self.config.get('CALIBRATION_COUNT', 20),
+                    startSpeed: self.config.get('CALIBRATION_START_SPEED', 10),
+                    endSpeed: self.config.get('CALIBRATION_END_SPEED', 100),
+                    resolutions: [1, 0.8, 0.5, 0.2], // Default resolutions
+                    warmupRuns: self.config.get('CALIBRATION_WARMUP_RUNS', 1), // New warmup runs parameter
+                    measureRuns: self.config.get('CALIBRATION_MEASURE_RUNS', 2) // New measure runs parameter
+                }
             };
 
             if (!controllerConfig.faderIndexes?.length) {
