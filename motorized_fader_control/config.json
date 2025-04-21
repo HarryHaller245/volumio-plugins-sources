@@ -5,7 +5,7 @@
     },
     "FADER_CONTROLLER_MESSAGE_DELAY": {
       "type": "number",
-      "value": 0.1
+      "value": 0.001
     },
     "FADER_CONTROLLER_QUEUE_OVERFLOW": {
       "type": "number",
@@ -13,7 +13,7 @@
     },
     "FADER_CONTROLLER_MIDI_LOG": {
       "type": "boolean",
-      "value": true
+      "value": false
     },
     "FADER_CONTROLLER_VALUE_LOG": {
       "type": "boolean",

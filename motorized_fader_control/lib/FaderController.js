@@ -93,6 +93,9 @@ class Fader extends EventEmitter {
     this.emit('configChange', this.index, {
       echoMode: this.echoMode
     });
+    this.emit(echo ? 'echo/on' : 'echo/off', this.index, {
+      echoMode: this.echoMode
+    });
   }
 }
 
@@ -131,35 +134,32 @@ class MIDIHandler {
 
   parseMessage(buffer) {
     try {
-        if (!buffer || buffer.length < 1) return null;
-        
-        // Handle real-time messages
-        if (buffer[0] >= 0xF8) {
-            return {
-                raw: buffer,
-                type: 'REALTIME',
-                data: buffer[0]
-            };
-        }
+      //MIDI PARSER in the module is already parsing messages to
+      // const buffer = Buffer.from([this.type, this.channel, this.data1, this.data2]);
+      if (!buffer || buffer.length < 3) return null;
 
-        // Handle different message lengths
-        const message = {
-            raw: buffer,
-            type: this.parser.translateStatusByte(buffer[0]),
-            channel: (buffer[0] & 0x0F) + 1, // MIDI channels 1-16
-            data1: buffer.length > 1 ? buffer[1] : 0,
-            data2: buffer.length > 2 ? buffer[2] : 0
-        };
+      const message = {
+          raw: buffer,
+          type: this.parser.translateStatusByte(buffer[0]),
+          channel: buffer[1],
+          data1: buffer[2],
+          data2: buffer[3]
+      };
 
-        // Special handling for different message types
-        switch(message.type) {
-            case 'PROGRAM_CHANGE':
-            case 'CHANNEL_AFTERTOUCH':
-                message.data2 = undefined;
-                break;
-        }
+      // Special handling for different message types
+      switch(message.type) {
+          case 'PROGRAM_CHANGE':
+          case 'NOTE_ON':
+              // Note on off messages parse the channel differently
+              message.channel = buffer[2] - 104;
+          case 'NOTE_OFF':
+              message.channel = buffer[2] - 104;
+          case 'CHANNEL_AFTERTOUCH':
+              message.data2 = undefined;
+              break;
+      }
 
-        return message;
+      return message;
     } catch (error) {
         this.controller.emit('error', {
             ...error,
@@ -452,10 +452,10 @@ class FaderController extends EventEmitter {
   createFaders() {
     return this.config.faderIndexes.map(index => {
       const fader = new Fader(index);
-      ['touch', 'move', 'untouch', 'configChange'].forEach(evt => {
+      ['touch', 'move', 'untouch', 'configChange', 'echo/on', 'echo/off'].forEach(evt => {
         fader.on(evt, (index, info) => {
           this.emit(evt, index, info);
-          this.config.logger.debug(`emitting ${evt} for fader ${index}`);
+          this.config.logger.debug(`emitting ${evt} for fader ${index}: ${JSON.stringify(info)}`);
         });
       });
       return fader;
@@ -518,7 +518,7 @@ class FaderController extends EventEmitter {
             // Use mapped position for echo
             const mappedPos = fader.mapPosition(position);
             this.midiQueue.add([
-                0xE0 | (message.channel - 1), // MIDI channels 0-15
+                message.channel, // MIDI channels 0-15
                 mappedPos & 0x7F,             // LSB
                 (mappedPos >> 7) & 0x7F       // MSB
             ]);

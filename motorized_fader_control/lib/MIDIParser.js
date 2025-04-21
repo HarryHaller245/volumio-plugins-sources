@@ -273,6 +273,10 @@ class MIDIParser extends Transform {
         return midiMessageArr[2] - 104;
     }
     
+    getChannelNoteMessageBuffer(buffer) {
+        return buffer[3] - 104;
+    }
+
     /**
      * Formats a MIDI message array into a readable string for logging.
      * @param {Array} midiMessageArr - The MIDI message array.
