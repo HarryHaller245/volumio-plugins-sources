@@ -1,0 +1,14 @@
+{
+  "totalMoves": 4,
+  "totalEchoes": 696,
+  "averageResponseTime": 29,
+  "maxResponseTime": 50,
+  "averageCompletionTime": 772,
+  "maxCompletionTime": 1090,
+  "averagePositionError": 2.25,
+  "maxPositionError": 9,
+  "averageUnitsPerSecond": 20029.567499999997,
+  "maxUnitsPerSecond": 44232.43,
+  "discrepancies": 1,
+  "successRate": 100
+}
