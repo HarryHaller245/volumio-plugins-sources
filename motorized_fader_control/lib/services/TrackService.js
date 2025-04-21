@@ -48,11 +48,7 @@ class TrackService extends BaseService {
   handleMove(data) {
     const faderInfo = data.faderInfo;
     const position = faderInfo.progression;
-    let seekPosition = null
-    //* good place to do some feathering if the fader is moved, so we avoid jitter and an immediate jump back
-    //* during a touch the fader is unpowered anyway, but on release its jumping to the last position
-    //* easiest is to turn on echo mode for the fader as long as it is moved
-    this.eventBus.emit('command/fader/echo/on', this.faderIdx);
+    let seekPosition = null;
 
     if (this.config.get('UPDATE_SEEK_ON_MOVE', false)) {
       const state = this.stateCache.get('playback', 'current');

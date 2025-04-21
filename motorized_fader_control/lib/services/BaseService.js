@@ -43,6 +43,7 @@ class BaseService {
     this.DebugMode = this.config.get('DEBUG_MODE', false);
 
     this.fader_moving = false;
+    this.hardware_update_lock = false;
   }
 
   // Common interval management
@@ -126,12 +127,12 @@ class BaseService {
     //dont know if needed
   }
 
-  handleTouch() { //! deprecated
-    this.eventBus.on('fader/untouch', this.handleMoved.bind(this));
+  handleTouch(data) {
+    this.eventBus.emit('command/fader/echo/on', this.faderIdx);
   }
 
-  handleUntouch() { //! deprecated
-    this.eventBus.off('fader/untouch', this.handleMoved.bind(this));
+  handleUntouch(data) {
+    // let the services handle feathering until anything is done or unblock is allowed
   }
 
   getServiceName(constructor) {

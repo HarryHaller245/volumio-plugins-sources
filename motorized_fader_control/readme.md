@@ -21,6 +21,7 @@ supporting real-time feedback and multiple seek modes.
 
 ### TODOs & Next Steps
 - **High Priority**:
+  - FIX something is wrong with touch callbacks and indexing/channel parsing on recv ? 
   - Implement album/queue seek logic
 
 - **Enhancements**:

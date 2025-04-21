@@ -56,6 +56,8 @@
       },
       "EVENT": {
         "REGISTERED": "Event registered:",
+        "UNREGISTERED": "Event unregistered:",
+        "REGISTERED_ONCE": "Event registered once:",
         "EMIT": "Event triggered:",
         "EMIT_PLAYBACK": "Playback event emitted:"
       },

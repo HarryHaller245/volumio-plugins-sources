@@ -715,6 +715,12 @@ motorizedFaderControl.prototype.setupServices = function() {
                 service.blockServiceHardwareUpdates();
             });
 
+            self.eventBus.on(`fader/${FADER_IDX}/untouch`, data => {
+                // service.handleUntouch(data);
+                service.unblockUpdateInterval();
+                service.unblockServiceHardwareUpdates();
+            });
+
             // Connect to state updates
             self.eventBus.on('validated/state', state => {
                 service.handleStateUpdate(state);
@@ -1013,9 +1019,10 @@ motorizedFaderControl.prototype.faderMoveAggregatorInitialize = function() {
     self.faderMoveQueue = [];
     self.aggregationTimeout = null;
     self.aggregationDelay = Math.max(
-        self.config.get('FADER_CONTROLLER_MESSAGE_DELAY') || 0.001, 
+        self.config.get('FADER_AGGREGATION_DELAY') || 0.001, 
         0.001 // Minimum 1ms delay
     ) * 1000; // Convert seconds to ms
+    self.disableAggregation = self.config.get('DISABLE_FADER_AGGREGATION', false); // New setting
 };
 
 motorizedFaderControl.prototype.queueFaderMove = function(move) {
@@ -1024,12 +1031,25 @@ motorizedFaderControl.prototype.queueFaderMove = function(move) {
         self.logger.error(`Invalid move object queued`);
         return;
     }
-    
+
+    if (self.disableAggregation) {
+        // If aggregation is disabled, send the move immediately
+        self.logger.debug(`Aggregation disabled, sending move immediately: ${JSON.stringify(move)}`);
+        self.faderController.moveFaders(move, false).catch(error => {
+            self.logger.error(`Fader move rejected: ${error.message}`);
+            self.eventBus.emit('fader/move/error', {
+                error: error.message,
+                move: move
+            });
+        });
+        return;
+    }
+
     self.faderMoveQueue.push({
         move,
         timestamp: Date.now()
     });
-    
+
     if (!self.aggregationTimeout) {
         self.aggregationTimeout = setTimeout(() => {
             self.processFaderMoveQueue();
@@ -1215,7 +1235,7 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
         self.eventBus.emit(`fader/${index}/${eventType}`, {
             timestamp: Date.now(),
             state: {
-                touched: eventType === 'touch',
+                touched: eventType === 'touch'|| eventType === 'move',
                 moving: eventType === 'move'
             },
             faderInfo: info

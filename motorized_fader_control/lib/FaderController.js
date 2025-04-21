@@ -24,7 +24,7 @@ class Fader extends EventEmitter {
     this.touch = false;
     this.echoMode = false;
     this.progressionMap = [0, 100];
-    this.speedFactor = 0.1;
+    this.speedFactor = 1;
   }
 
   setProgressionMap([min, max]) {
@@ -186,11 +186,12 @@ class MIDIQueue {
     this.delay = delay;
     this.isProcessing = false;
     this.controller = controller;
+    this.config = controller.config;
     this.pendingPromises = new Map();
     this.timeout = timeout;
     this.faders = controller.faders;
     this.sequenceCounters = new Map(); // Track sequence numbers per fader
-    this.batchSize = 2; // Number of faders to process in parallel
+    this.max_batchSize = 4; // Number of faders to process in parallel
     this.currentBatch = new Set(); // Currently processing faders
   }
 
@@ -239,7 +240,7 @@ class MIDIQueue {
       for (const [faderIndex, messages] of this.queue) {
         if (!this.currentBatch.has(faderIndex) && messages.length > 0) {
           availableFaders.push(faderIndex);
-          if (availableFaders.length >= this.batchSize) break;
+          if (availableFaders.length >= this.max_batchSize) break;
         }
       }
 
@@ -607,7 +608,7 @@ class FaderController extends EventEmitter {
 
   calculateMovements(movements) {
       const positions = [];
-      const MIN_STEP = 20; // Minimum movement step (1)
+      const MIN_STEP = 10; // Minimum movement step (1)
       const MAX_STEPS = 16383; // Maximum 14-bit value
   
       movements.forEach(move => {
@@ -764,8 +765,8 @@ class FaderController extends EventEmitter {
       distance: 100,               // Full range movement (0-100%)
       testSpeeds: [100, 90, 80, 70, 50, 30, 10], // Test a broader range of speeds
       resolutions: [1, 0.8, 0.5, 0.2],           // Test different resolution values
-      warmupRuns: 1,               // Include one warmup run to stabilize the system
-      measureRuns: 3               // Increase measured runs for better statistical accuracy
+      warmupRuns: 0,               // Include one warmup run to stabilize the system
+      measureRuns: 2               // Increase measured runs for better statistical accuracy
     };
 
     this.config.logger.info(`=== STARTING CALIBRATION ===`);

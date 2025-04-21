@@ -44,7 +44,7 @@ class EventBus {
   off(event, callback) {
     if (!this.listeners[event]) return;
     this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
-    this.logger.debug(`Unsubscribed from event: ${event}`);
+    this.logger.debug(`${this.logs.LOGS.EVENT.UNREGISTERED} ${event}`);
   }
   
   emit(event, data) {
