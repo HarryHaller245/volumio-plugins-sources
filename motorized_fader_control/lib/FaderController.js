@@ -15,6 +15,13 @@ const FaderErrors = {
   QUEUE_CLEAR_ERROR: 'QUEUE_CLEAR_ERROR',
 };
 
+const SerialErrors = {
+  SERIAL_PORT_NOT_OPEN: 'SERIAL_PORT_NOT_OPEN',
+  SERIAL_PORT_NOT_FOUND: 'SERIAL_PORT_NOT_FOUND',
+  SERIAL_PORT_NOT_CLOSED: 'SERIAL_PORT_NOT_CLOSED',
+  SERIAL_PORT_DISCONNECTED: 'SERIAL_PORT_DISCONNECTED'
+};
+
 class Fader extends EventEmitter {
   constructor(index) {
     super();
@@ -119,14 +126,13 @@ class MIDIHandler {
     this.controller = controller;
     this.parser = new MIDIParser();
     this.setupHandlers();
-    this.MODULESTR = `[${this.constructor.name}]`;
   }
 
   setupHandlers() {
     this.parser.on('data', data => {
       const message = this.parseMessage(data);
       if (this.controller.config.MIDILog) {
-        this.controller.config.logger.debug(`[FaderController] MIDI RECV: ${JSON.stringify(message)}`);
+        this.controller.config.logger.debug(`MIDI RECV: ${JSON.stringify(message)}`);
       }
       this.controller.handleMIDIMessage(message);
     });
@@ -489,8 +495,9 @@ class FaderController extends EventEmitter {
   }
 
   handleDisconnect() {
-    this.emit('error', new Error('Serial port disconnected'));
-    
+    this.emit('error', Object.assign(error, {
+      code: SerialErrors.SERIAL_PORT_DISCONNECTED
+    }));
     const reconnect = () => {
       if(this.reconnectAttempts++ < 5) {
         this.setupSerial(this.lastSerialConfig).catch(() => 
@@ -1072,7 +1079,7 @@ class FaderController extends EventEmitter {
 
   async stop() {
     try {
-      await this.reset(this.config.faderIndexes);
+      // await this.reset(this.config.faderIndexes);
       await this.closeSerial();
       this.config.logger.info('FaderController stopped successfully');
     } catch (error) {

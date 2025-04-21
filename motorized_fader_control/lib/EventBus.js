@@ -27,6 +27,7 @@ class EventBus {
     
     // Return an unsubscribe function
     return () => {
+      if (!this.listeners[event]) return;
       this.listeners[event] = this.listeners[event].filter(cb => cb !== callback);
       this.logger.debug(`Unsubscribed from event: ${event}`);
     };
@@ -68,10 +69,20 @@ class EventBus {
     }
   }
 
+  clear() {
+    this.listeners = {};
+    this.logger.debug(`${this.logs.LOGS.EVENT.CLEARED}`);
+  }
+
   removeAllListeners(event) {
     if (this.listeners[event]) {
       delete this.listeners[event];
       this.logger.debug(`Removed all listeners for event: ${event}`);
+    }
+    // If no event is specified, clear all listeners
+    else {
+      this.listeners = {};
+      this.logger.debug(`Removed all listeners for all events`);
     }
   }
 }

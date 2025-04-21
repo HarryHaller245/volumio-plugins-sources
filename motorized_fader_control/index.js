@@ -109,6 +109,7 @@ motorizedFaderControl.prototype.onStart = function() {
                 self.logger.info(`Starting Event connections...`);
                 // self.setupStateValidation();
                 self.setupFaderCommandEvents();
+                self.registerVolumeUpdateCallback();
                 self.setupVolumioBridge();
                 self.setupErrorHandling();
                 self.logger.info(`Starting Services connections...`);
@@ -116,8 +117,8 @@ motorizedFaderControl.prototype.onStart = function() {
                 self.logger.info(`${self.logs.LOGS.START.SUCCESS}`);
                 defer.resolve();
             })
-            .catch(error => {
-                self.logger.error(error.stack);
+            .catch(criticalError => {
+                self.logger.error(criticalError.stack);
                 defer.reject(new Error(`${self.logs.LOGS.START.ERROR}: ${error.message}}`));
             })
             .finally(() => {
@@ -135,17 +136,29 @@ motorizedFaderControl.prototype.onStart = function() {
 
 motorizedFaderControl.prototype.onStop = function() {
     const self = this;
-    var defer = libQ.defer();
+    const defer = libQ.defer();
+
     self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
     self.logger.info(`${self.logs.LOGS.STOP.HEADER}`);
     self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
 
-    self._stopFaderController()
+    self._stopServices()
         .then(() => {
-            self.logger.info(`${self.logs.LOGS.STOP.FADER_CONTROLLER}`);
-            return self._stopServices();
+            return self._stopFaderController();
         })
         .then(() => {
+            self.logger.info(`${self.logs.LOGS.STOP.FADER_CONTROLLER}`);
+
+            // Remove error handlers
+            self.logger.info(`Removing error handlers...`);
+            process.removeAllListeners('unhandledRejection');
+
+            // Clear any remaining intervals or timeouts
+            if (self.aggregationTimeout) {
+                clearTimeout(self.aggregationTimeout);
+                self.aggregationTimeout = null;
+            }
+
             self.logger.info(`${self.logs.LOGS.STOP.SERVICES}`);
             self.logger.info(`${self.logs.LOGS.STOP.SUCCESS}`);
             self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
@@ -189,39 +202,35 @@ motorizedFaderControl.prototype._stopFaderController = async function() {
     const self = this;
 
     try {
-        if (self.faderController == null || self.faderController == false) {
+        if (!self.faderController) {
             self.logger.info(`Fader Controller not started, skipping stop`);
             return;
         }
 
         self.logger.info(`Stopping FaderController...`);
 
-        const stopPromise = self.faderController.stop().catch(error => {
-            self.logger.error(`Error stopping FaderController: ${error.message}`);
-            throw error; // Re-throw to propagate the error
-        });
-
-        const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => {
-                reject(new Error(`Fader Controller stop timed out after 10 seconds.`));
-            }, 5000);
-        });
-
-        await Promise.race([stopPromise, timeoutPromise]);
-        await self.faderController.closeSerial().catch(error => {
-            self.logger.error(`Error closing serial connection: ${error.message}`);
-            throw error; // Re-throw to propagate the error
-        });
-
-        self.logger.info(`Fader Controller stopped successfully`);
-    } catch (error) {
-        self.logger.error(`Error stopping Fader Controller: ${error.message}`);
-        if (self.faderController) {
-            await self.faderController.closeSerial().catch(error => {
-                self.logger.error(`Error closing serial connection: ${error.message}`);
-            });
-            self.logger.warn(`An error occurred trying to stop the FaderController. Forced closing serial connection.`);
+        try {
+            await self.faderController.stop();
+            self.logger.info(`Fader Controller stopped successfully`);
+        } catch (stopError) {
+            self.logger.error(`Error stopping FaderController: ${stopError.message}`);
+            throw stopError; // Re-throw to propagate the error
         }
+
+    } catch (error) {
+        self.logger.error(`Error during FaderController stop process: ${error.message}`);
+
+        // Attempt to close the serial connection as a fallback
+        if (self.faderController) {
+            try {
+                await self.faderController.closeSerial();
+                self.logger.warn(`Serial connection closed as part of fallback cleanup.`);
+            } catch (closeError) {
+                self.logger.error(`Error closing serial connection: ${closeError.message}`);
+            }
+        }
+
+        // Re-throw the original error to propagate it
         throw error;
     }
 };
@@ -243,6 +252,7 @@ motorizedFaderControl.prototype._stopServices = function() {
             // Clear event bus listeners
             if (self.eventBus) {
                 self.eventBus.removeAllListeners();
+                self.eventBus.clear();
                 self.eventBus = null;
             }
 
@@ -756,6 +766,7 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
         self.logger.debug(`Connected to Volumio at ${self.config.get('VOLUMIO_VOLUMIO_HOST')}:${self.config.get('VOLUMIO_VOLUMIO_PORT')}`);
 
         // Unified State Handler
+
         const handleStateUpdate = (state) => {
             const validState = self.stateCache.cachePlaybackState(state);
 
@@ -894,20 +905,45 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
 motorizedFaderControl.prototype.unregisterVolumeUpdateCallback = function() {
     const self = this;
 
-    // Check if the callback exists
-    if (self.volumeUpdateCallback) {
-        const callbacks = self.commandRouter.callbacks['volumioupdatevolume'];
-        if (callbacks) {
-            const oldCount = callbacks.length;
-            self.logger.debug(`[motorized_fader_control]: Removing Volumio callbacks for 'volumioupdatevolume'. Current count: ${oldCount}`);
-            
-            // Filter out the callback
-            self.commandRouter.callbacks['volumioupdatevolume'] = callbacks.filter((listener) => listener !== self.volumeUpdateCallback);
-            const newCount = self.commandRouter.callbacks['volumioupdatevolume'].length;
-            self.logger.debug(`[motorized_fader_control]: Removed ${oldCount - newCount} Volumio callbacks for 'volumioupdatevolume'.`);
+    try {
+        // Check if the callback exists
+        if (self.volumeUpdateCallback) {
+            const callbacks = self.commandRouter.callbacks['volumioupdatevolume'];
+            if (callbacks) {
+                const oldCount = callbacks.length;
+                self.logger.debug(`Rmoving Volumio callbacks for 'volumioupdatevolume'. Current count: ${oldCount}`);
+                
+                // Filter out the callback
+                self.commandRouter.callbacks['volumioupdatevolume'] = callbacks.filter((listener) => listener !== self.volumeUpdateCallback);
+                const newCount = self.commandRouter.callbacks['volumioupdatevolume'].length;
+                self.logger.debug(`Removed ${oldCount - newCount} Volumio callbacks for 'volumioupdatevolume'.`);
+            }
         }
+    } catch (error) {
+        self.logger.error(`Error while unregistering volume update callback: ${error.message}`);
     }
 };
+
+motorizedFaderControl.prototype.registerVolumeUpdateCallback = function() {
+    const self = this;
+    try {
+        // Check if the callback already exists
+        if (self.volumeUpdateCallback) {
+            self.logger.warn(`Volume update callback already registered.`);
+            return;
+        }
+        // Register the callback
+        self.volumeUpdateCallback = (data) => {
+            self.logger.debug(`Volume update callback triggered with data: ${JSON.stringify(data)}`);
+            self.handleVolumeUpdate(data);
+        };
+        self.commandRouter.onVolumioUpdateVolume(self.volumeUpdateCallback);
+        self.logger.debug(`Registered volume update callback.`);
+    }
+    catch (error) {
+        self.logger.error(`Error while registering volume update callback: ${error.message}`);
+    }
+}
 
 // State Validation Middleware //! deprecated, there is a validation in cachePlaybackState
 //* avoid unnecesary state updates
@@ -1318,11 +1354,13 @@ motorizedFaderControl.prototype.setupErrorHandling = function() {
         if (error.details) {
             self.logger.error(`FaderController error details: ${error.details}`);
         }
+        //TODO add specific error handling
     });
 
     // Global error handler
     process.on('unhandledRejection', (error) => {
         self.logger.error('Unhandled rejection:', error);
+        self.onStop()
     });
 
     // Event bus error handling
@@ -1339,4 +1377,6 @@ motorizedFaderControl.prototype.setupErrorHandling = function() {
         }
     });
 };
+
+
 
