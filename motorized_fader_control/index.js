@@ -938,7 +938,7 @@ motorizedFaderControl.prototype.registerVolumeUpdateCallback = function() {
             self.logger.debug(`Volume update callback triggered with data: ${JSON.stringify(data)}`);
             self.handleVolumeUpdate(data);
         };
-        self.commandRouter.onVolumioUpdateVolume(self.volumeUpdateCallback);
+        self.commandRouter.addCallback('volumioupdatevolume', self.volumeUpdateCallback.bind(self));;
         self.logger.debug(`Registered volume update callback.`);
     }
     catch (error) {
