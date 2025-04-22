@@ -13,6 +13,10 @@ const FaderErrors = {
   QUEUE_OVERFLOW: 'QUEUE_OVERFLOW',
   SEND_POS_ERROR: 'SEND_POSITIONS_ERROR',
   QUEUE_CLEAR_ERROR: 'QUEUE_CLEAR_ERROR',
+  MIDI_FEEDBACK_ERROR: 'MIDI_FEEDBACK_ERROR',
+  MIDI_INDEX_ERROR: 'MIDI_INDEX_ERROR',
+  MIDI_POSITION_ERROR: 'MIDI_POSITION_ERROR',
+  MIDI_SEND_ERROR: 'MIDI_SEND_ERROR',
 };
 
 const SerialErrors = {
@@ -69,13 +73,31 @@ class Fader extends EventEmitter {
     }
   }
 
-  updatePosition(position) {
+  updatePositionUser(position) {
     this.position = position;
     this.progression = (position / 16383) * 100;
     if (this.touch) {
       this.emit('move', this.index, this.info);
     }
   }
+
+  updatePositionFeedback(position) {
+    this.position = position;
+    this.progression = (position / 16383) * 100;
+  }
+  
+  emitMoveComplete(statistics) {
+    // ad the statistics to the info object
+    this.info.statistics = statistics;
+    this.emit('move/complete', this.index, this.info);
+  }
+
+  emitMoveStart(targetPosition, startTime) {
+    this.info.targetPosition = targetPosition;
+    this.info.startTime = startTime;
+    this.emit('move/start', this.index, this.info);
+  }
+
 
   get info() {
     return {
@@ -129,6 +151,7 @@ class MIDIHandler {
   }
 
   setupHandlers() {
+    // add handlers for MIDI messages
     this.parser.on('data', data => {
       const message = this.parseMessage(data);
       if (this.controller.config.MIDILog) {
@@ -188,7 +211,7 @@ class MIDIHandler {
 class MIDIQueue {
   constructor(serial, controller, delay = 0.01, timeout = 500000) {
     this.serial = serial;
-    this.queue = new Map(); // Using Map to track sequences per fader
+    this.queue = new Map();
     this.delay = delay;
     this.isProcessing = false;
     this.controller = controller;
@@ -196,52 +219,159 @@ class MIDIQueue {
     this.pendingPromises = new Map();
     this.timeout = timeout;
     this.faders = controller.faders;
-    this.sequenceCounters = new Map(); // Track sequence numbers per fader
-    this.max_batchSize = 4; // Number of faders to process in parallel
-    this.currentBatch = new Set(); // Currently processing faders
+    this.sequenceCounters = new Map();
+    this.max_batchSize = 4;
+    this.currentBatch = new Set();
+    this.feedbackTracking = new Map(); // Track feedback for each fader
+    this.feedbackStatistics = new Map(); // Track statistics for each fader
   }
 
-  add(message) {
+  add(message, options = {}) {
     return new Promise((resolve, reject) => {
-      const id = Symbol();
-      const timer = setTimeout(() => {
-        this.pendingPromises.delete(id);
-        reject(new Error('MIDI send timeout'));
-      }, this.timeout);
+      try {
+        const id = Symbol();
+        const timer = setTimeout(() => {
+          this.pendingPromises.delete(id);
+          reject(new Error('MIDI send timeout'));
+        }, this.timeout);
 
-      const faderIndex = this.get_index(message);
-      
-      // Initialize sequence counter if not exists
-      if (!this.sequenceCounters.has(faderIndex)) {
-        this.sequenceCounters.set(faderIndex, 0);
+        const faderIndex = this.get_index(message);
+
+        if (!this.sequenceCounters.has(faderIndex)) {
+          this.sequenceCounters.set(faderIndex, 0);
+        }
+
+        const sequenceNumber = this.sequenceCounters.get(faderIndex);
+        this.sequenceCounters.set(faderIndex, sequenceNumber + 1);
+
+        if (!this.queue.has(faderIndex)) {
+          this.queue.set(faderIndex, []);
+        }
+
+        this.queue.get(faderIndex).push({
+          message,
+          id,
+          sequenceNumber
+        });
+
+        this.pendingPromises.set(id, { resolve, reject, timer });
+
+        // Track target position if feedback is enabled and not disabled for this move
+        if (this.config.feedback_midi && !options.disableFeedback) {
+          const targetPosition = this.get_position(message);
+          this.feedbackTracking.set(faderIndex, targetPosition);
+          this.trackFeedbackStart(faderIndex, targetPosition);
+        }
+
+        this.process(options);
+      } catch (error) {
+        this.controller.emit('error', {
+          ...error,
+          code: 'MIDI_ADD_ERROR',
+          message: 'Failed to add message to the queue',
+          details: { message, options }
+        });
+        reject(error);
       }
-      
-      const sequenceNumber = this.sequenceCounters.get(faderIndex);
-      this.sequenceCounters.set(faderIndex, sequenceNumber + 1);
-
-      // Initialize queue for fader if not exists
-      if (!this.queue.has(faderIndex)) {
-        this.queue.set(faderIndex, []);
-      }
-
-      this.queue.get(faderIndex).push({ 
-        message, 
-        id,
-        sequenceNumber 
-      });
-
-      this.pendingPromises.set(id, { resolve, reject, timer });
-      this.process();
     });
   }
 
-  async process() {
+  isTrackingFeedback(faderIndex) {
+    return this.feedbackTracking.has(faderIndex);
+  }
+
+  getTargetPosition(faderIndex) {
+    return this.feedbackTracking.get(faderIndex);
+  }
+
+  trackFeedbackStart(faderIndex, targetPosition) {
+    try {
+      if (!this.feedbackStatistics.has(faderIndex)) {
+        this.feedbackStatistics.set(faderIndex, []);
+      }
+      this.feedbackStatistics.get(faderIndex).push({
+        targetPosition,
+        startTime: Date.now(),
+        completed: false,
+      });
+
+      // Emit move/start event
+      this.controller.getFader(faderIndex).emitMoveStart(targetPosition, Date.now());
+
+      // Set a timeout for the first feedback message
+      setTimeout(() => {
+        if (this.feedbackTracking.has(faderIndex)) {
+          this.controller.emit('error', {
+            code: 'MIDI_FEEDBACK_ERROR',
+            message: `Feedback timeout for fader ${faderIndex}`,
+            faderIndex,
+            targetPosition
+          });
+
+          // Disable feedback watching and continue
+          this.markMovementComplete(faderIndex);
+          this.config.feedback_midi = false;
+          this.controller.config.logger.warn(`Disabling feedback watching due to timeout for fader ${faderIndex}`);
+        }
+      }, 500); // 500ms timeout
+    } catch (error) {
+      this.controller.emit('error', {
+        ...error,
+        code: 'MIDI_FEEDBACK_TRACK_ERROR',
+        message: `Failed to track feedback for fader ${faderIndex}`,
+        details: { faderIndex, targetPosition }
+      });
+    }
+  }
+
+  markMovementComplete(faderIndex) {
+    try {
+      if (this.feedbackTracking.has(faderIndex)) {
+        const { targetPosition, feedbackTimeout } = this.feedbackTracking.get(faderIndex);
+        clearTimeout(feedbackTimeout); // Clear the timeout
+        this.feedbackTracking.delete(faderIndex);
+  
+        // Update statistics
+        const stats = this.feedbackStatistics.get(faderIndex);
+        if (stats) {
+          const currentStat = stats.find(stat => stat.targetPosition === targetPosition && !stat.completed);
+          if (currentStat) {
+            currentStat.completed = true;
+            currentStat.endTime = Date.now();
+            currentStat.duration = currentStat.endTime - currentStat.startTime;
+            currentStat.unitsPerSecond = Math.abs(targetPosition - this.controller.getFader(faderIndex).position) / (currentStat.duration / 1000);
+          }
+        }
+  
+        this.controller.getFader(faderIndex).emitMoveComplete(this.getFeedbackStatistics(faderIndex));
+  
+        // Resolve any pending promises for this fader
+        for (const [id, { resolve, timer }] of this.pendingPromises) {
+          clearTimeout(timer);
+          resolve();
+          this.pendingPromises.delete(id);
+        }
+      }
+    } catch (error) {
+      this.controller.emit('error', {
+        ...error,
+        code: 'MIDI_MARK_COMPLETE_ERROR',
+        message: `Failed to mark movement complete for fader ${faderIndex}`,
+        details: { faderIndex }
+      });
+    }
+  }
+
+  getFeedbackStatistics(faderIndex) {
+    return this.feedbackStatistics.get(faderIndex) || [];
+  }
+
+  async process(options = {}) {
     if (this.isProcessing || this.queue.size === 0) return;
-    
+
     this.isProcessing = true;
 
     try {
-      // Find available faders for parallel processing
       const availableFaders = [];
       for (const [faderIndex, messages] of this.queue) {
         if (!this.currentBatch.has(faderIndex) && messages.length > 0) {
@@ -255,37 +385,42 @@ class MIDIQueue {
         return;
       }
 
-      // Process messages in parallel
       await Promise.all(availableFaders.map(async faderIndex => {
         this.currentBatch.add(faderIndex);
         const messages = this.queue.get(faderIndex);
-        
+
         if (messages && messages.length > 0) {
-          // Get the next message in sequence for this fader
           const nextMessage = messages.shift();
-          
+
           if (messages.length === 0) {
             this.queue.delete(faderIndex);
           }
 
           try {
-            // Dont send message if the fader at the indexes is being touched
             const index = this.get_index(nextMessage.message);
             if (!this.faders[index].touch) {
-              await this.send(nextMessage.message);
               const position = this.get_position(nextMessage.message);
-              this.controller.getFader(index).updatePosition(position);
+              if (!this.config.feedback_midi || !this.isTrackingFeedback(index) || options.disableFeedback) {
+                this.faders[index].emitMoveStart(position, Date.now());
+              }
+              await this.send(nextMessage.message);
+
+              if (!this.config.feedback_midi || !this.isTrackingFeedback(index) || options.disableFeedback) {
+                this.controller.getFader(index).updatePositionFeedback(position);
+                this.controller.getFader(index).emitMoveComplete(this.getFeedbackStatistics(index));
+              }
 
               this.controller.emit('midi/sent', {
                 message: nextMessage.message
               });
-            }
 
-            if (this.pendingPromises.has(nextMessage.id)) {
-              const { resolve, timer } = this.pendingPromises.get(nextMessage.id);
-              clearTimeout(timer);
-              resolve();
-              this.pendingPromises.delete(nextMessage.id);
+              if (!this.config.feedback_midi || !this.isTrackingFeedback(index) || options.disableFeedback) 
+                if (this.pendingPromises.has(nextMessage.id)) {
+                  const { resolve, timer } = this.pendingPromises.get(nextMessage.id);
+                  clearTimeout(timer);
+                  resolve();
+                  this.pendingPromises.delete(nextMessage.id);
+                }
             }
           } catch (error) {
             if (this.pendingPromises.has(nextMessage.id)) {
@@ -297,14 +432,21 @@ class MIDIQueue {
             this.controller.emit('error', {
               ...error,
               code: 'MIDI_SEND_ERROR',
-              message: nextMessage.message
+              message: 'Failed to send MIDI message',
+              details: { message: nextMessage.message }
             });
           }
         }
-        
+
         this.currentBatch.delete(faderIndex);
       }));
-
+    } catch (error) {
+      this.controller.emit('error', {
+        ...error,
+        code: 'MIDI_PROCESS_ERROR',
+        message: 'Error occurred during MIDI queue processing',
+        details: { queueSize: this.queue.size }
+      });
     } finally {
       setTimeout(() => {
         this.isProcessing = false;
@@ -315,84 +457,110 @@ class MIDIQueue {
 
   send(message) {
     return new Promise((resolve, reject) => {
-      const buffer = Buffer.from(message);
-  
-      if (this.controller.config.MIDILog) {
-        this.controller.config.logger.debug(`[FaderController]: MIDI SEND: ${JSON.stringify(message)}`);
-      }
-  
-      if (!this.serial.isOpen) {
-        const err = new Error('Serial port not open');
-        this.controller.emit('error', {
-          ...err,
-          code: FaderErrors.CONNECTION_FAILED
-        });
-        return reject(err);
-      }
-  
-      this.serial.write(buffer, (err) => {
-        if (err) {
+      try {
+        const buffer = Buffer.from(message);
+
+        if (this.controller.config.MIDILog) {
+          this.controller.config.logger.debug(`[FaderController]: MIDI SEND: ${JSON.stringify(message)}`);
+        }
+
+        if (!this.serial.isOpen) {
+          const err = new Error('Serial port not open');
           this.controller.emit('error', {
             ...err,
             code: FaderErrors.CONNECTION_FAILED
           });
-          reject(err);
-        } else {
-          resolve();
+          return reject(err);
         }
-      });
+
+        this.serial.write(buffer, (err) => {
+          if (err) {
+            this.controller.emit('error', {
+              ...err,
+              code: FaderErrors.CONNECTION_FAILED
+            });
+            reject(err);
+          } else {
+            resolve();
+          }
+        });
+      } catch (error) {
+        this.controller.emit('error', {
+          ...error,
+          code: 'MIDI_SEND_ERROR',
+          message: 'Failed to send MIDI message',
+          details: { message }
+        });
+        reject(error);
+      }
     });
   }
 
   flush(faderIndex = null) {
     try {
       if (faderIndex === null) {
-        // Clear entire queue if no fader specified
-        this.queue.clear(); // Clear the Map
+        this.queue.clear();
         for (const [id, { resolve, timer }] of this.pendingPromises) {
           clearTimeout(timer);
-          resolve(); // Fulfill the promise instead of rejecting
+          resolve();
           this.pendingPromises.delete(id);
         }
-            } else {
-        // Clear only messages for the specified fader
+      } else {
         if (!this.queue.has(faderIndex)) {
-          this.config.logger.info(`Queue is empty for fader ${faderIndex}`);
           return;
         }
-        this.queue.delete(faderIndex); // Remove the fader's queue
+        this.queue.delete(faderIndex);
 
-        // Fulfill pending promises for the specified fader
         for (const [id, { resolve, timer, message }] of this.pendingPromises) {
           const msgFaderIndex = this.get_index(message);
           if (msgFaderIndex === faderIndex) {
             clearTimeout(timer);
-            resolve(); // Fulfill the promise instead of rejecting
+            resolve();
             this.pendingPromises.delete(id);
           }
         }
-            }
-            this.isProcessing = false;
-          } catch (error) {
-            this.controller.emit('error', {
+      }
+      this.isProcessing = false;
+    } catch (error) {
+      this.controller.emit('error', {
         ...error,
         code: FaderErrors.QUEUE_CLEAR_ERROR,
-        faderIndex
-            });
-            throw error;
-          }
-        }
+        message: 'Failed to clear MIDI queue',
+        details: { faderIndex }
+      });
+      throw error;
+    }
+  }
 
   get_index(message) {
-    const faderIndex = message[0] & 0x0F;
-    return faderIndex;
+    try {
+      const faderIndex = message[0] & 0x0F;
+      return faderIndex;
+    } catch (error) {
+      this.controller.emit('error', {
+        ...error,
+        code: 'MIDI_INDEX_ERROR',
+        message: 'Failed to extract fader index from MIDI message',
+        details: { message }
+      });
+      throw error;
+    }
   }
 
   get_position(message) {
-    const position = (message[1] << 7) | message[2];
-    return position;
+    try {
+      const position = (message[1] << 7) | message[2];
+      return position;
+    } catch (error) {
+      this.controller.emit('error', {
+        ...error,
+        code: 'MIDI_POSITION_ERROR',
+        message: 'Failed to extract position from MIDI message',
+        details: { message }
+      });
+      throw error;
+    }
   }
-
 }
 
 /**
@@ -410,7 +578,7 @@ class FaderController extends EventEmitter {
   constructor(config = {}) {
     super();
 
-    // Default configuration
+    // Default calibration configuration
     const defaultCalibrationConfig = {
       startProgression: 0,
       endProgression: 100,
@@ -438,9 +606,11 @@ class FaderController extends EventEmitter {
       faderIndexes: [0, 1, 2, 3],
       queueOverflow: 16383,
       calibrateOnStart: true,
+      feedback_midi: true, // enable if midi device supports feedback
+      feedback_tolerance: 10, // tolerance for feedback
       ...config
     };
-    this.MODULESTR = `[${this.constructor.name}]`; //! deprecated
+
     this.faders = this.createFaders();
     this.midiHandler = null;
     this.midiQueue = null;
@@ -449,7 +619,7 @@ class FaderController extends EventEmitter {
     this.serial = null;
     this.initMIDIState();
 
-    this.speedMultiplier = 1; // Adjust this value to control speed
+    this.speedMultiplier = 1; //! Adjust this value to control speed
   }
 
   // INIT CONF AND INSTANCES #############################################
@@ -478,7 +648,7 @@ class FaderController extends EventEmitter {
   createFaders() {
     return this.config.faderIndexes.map(index => {
       const fader = new Fader(index);
-      ['touch', 'move', 'untouch', 'configChange', 'echo/on', 'echo/off'].forEach(evt => {
+      ['touch', 'move', 'untouch', 'configChange', 'echo/on', 'echo/off', 'move/complete', 'move/start'].forEach(evt => {
         fader.on(evt, (index, info) => {
           this.emit(evt, index, info);
           this.config.logger.debug(`emitting ${evt} for fader ${index}: ${JSON.stringify(info)}`);
@@ -532,25 +702,40 @@ class FaderController extends EventEmitter {
     }
   }
 
+  getFeedbackStatistics(faderIndex) {
+    return this.midiQueue.getFeedbackStatistics(faderIndex);
+  }
+
   handleFaderMove(message) {
-    // MIDI pitch bend uses 14-bit value (0-16383)
-    // LSB is first data byte, MSB is second data byte
     const position = (message.data2 << 7) | message.data1;
     const fader = this.getFader(message.channel);
-    
+  
     if (fader) {
-        fader.updatePosition(position);
-        if (fader.echoMode) {
-            // Use mapped position for echo
-            const mappedPos = fader.mapPosition(position);
-            this.midiQueue.add([
-                message.channel, // MIDI channels 0-15
-                mappedPos & 0x7F,             // LSB
-                (mappedPos >> 7) & 0x7F       // MSB
-            ]);
+      // Check if this is feedback for a software-driven movement
+      if (!fader.touch && this.midiQueue.isTrackingFeedback(message.channel)) {
+        const targetPosition = this.midiQueue.getTargetPosition(message.channel);
+        const tolerance = this.config.feedback_tolerance || 10;
+
+        fader.updatePositionFeedback(position);
+
+        if (Math.abs(position - targetPosition) <= tolerance) {
+          this.midiQueue.markMovementComplete(message.channel);
+          this.config.logger.debug(`Fader ${message.channel} reached target position: ${position}`);
         }
+      } else {
+        // Handle user-driven movement
+        fader.updatePositionUser(position);
+        if (fader.echoMode) {
+          const mappedPos = fader.mapPosition(position);
+          this.midiQueue.add([
+            message.channel,
+            mappedPos & 0x7F,
+            (mappedPos >> 7) & 0x7F
+          ]);
+        }
+      }
     }
-}
+  }
 
   handleTouch(message) {
     const fader = this.getFader(message.channel);
@@ -569,7 +754,7 @@ class FaderController extends EventEmitter {
   }
 
   // Movement Control #############################################
-  async moveFaders(move, interrupt = false) {
+  async moveFaders(move, interrupt = false, disableFeedback = true) {
     try {
       if (interrupt) this.clearQueue(move.indexes);
       
@@ -613,7 +798,7 @@ class FaderController extends EventEmitter {
         this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
       }
       
-      await this.sendPositions(positions);
+      await this.sendPositions(positions, { disableFeedback: disableFeedback });
     } catch (error) {
       this.config.logger.error(`Error in moveFaders: ${error.message}`, {
         move,
@@ -735,7 +920,7 @@ class FaderController extends EventEmitter {
    * 
    * @emits error - Emits an 'error' event with the error object and additional details.
    */
-  async sendPositions(positions) {
+  async sendPositions(positions, options = {}) {
     const release = await this.queueMutex.acquire().catch(error => {
       this.emit('error', Object.assign(error, {
         code: 'QUEUE_LOCK_ERROR',
@@ -745,22 +930,21 @@ class FaderController extends EventEmitter {
     });
   
     try {
-
       if (positions.length > this.config.queueOverflow) {
         this.emit('error', new Error('Queue overflow'), {
           code: FaderErrors.QUEUE_OVERFLOW,
-          count: positionGroups.length
+          count: positions.length
         });
         positions.splice(this.config.queueOverflow);
       }
-
+  
       await Promise.all(positions.map(pos => {
         const message = [
           0xE0 | pos.index,
           pos.value & 0x7F,
           (pos.value >> 7) & 0x7F
         ];
-        return this.midiQueue.add(message);
+        return this.midiQueue.add(message, options); // Pass options here
       }));
     } catch (error) {
       this.emit('error', Object.assign(error, {
@@ -986,13 +1170,28 @@ class FaderController extends EventEmitter {
   }
 
   async testCalibrationMoves(indexes, speed_up = 100, speed_down = 50, resolution = 1) {
-    let moves = [
-      new FaderMove(indexes, 0, 100, resolution),
-      new FaderMove(indexes, 100, speed_up, resolution),
-      new FaderMove(indexes, 0, speed_down, resolution)
-    ];
-    for (let i = 0; i < moves.length; i++) {
-      await this.moveFaders(moves[i], false);
+    try {
+      let moves = [
+        new FaderMove(indexes, 100, speed_up, resolution),
+        new FaderMove(indexes, 0, speed_down, resolution)
+      ];
+      for (let i = 0; i < moves.length; i++) {
+        await this.reset(indexes);
+        await this.moveFaders(moves[i], false, true);
+      }
+    } catch (error) {
+      this.config.logger.error(`Error during testCalibrationMoves: ${error.message}`, {
+        indexes,
+        speed_up,
+        speed_down,
+        resolution,
+        error
+      });
+      this.emit('error', Object.assign(error, {
+        code: FaderErrors.CALIBRATION_FAILED,
+        details: { indexes, speed_up, speed_down, resolution }
+      }));
+      throw error;
     }
   }
 
@@ -1089,10 +1288,7 @@ class FaderController extends EventEmitter {
   }
 
   reset(indexes) {
-    return this.moveFaders(
-      new FaderMove(indexes, 0, this.config.speeds[1], 1),
-      true
-    );
+    return this.moveFaders(new FaderMove(indexes, 0, this.config.speeds[1], 1), true, true);
   }
 
   combineMoves(moves) {
