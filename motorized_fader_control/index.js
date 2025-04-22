@@ -21,6 +21,7 @@ const io = require('socket.io-client');
 const { stat } = require('fs');
 const { get } = require('http');
 const { info } = require('console');
+const { create } = require('domain');
 
 module.exports = motorizedFaderControl;
  4
@@ -1289,6 +1290,7 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
 
         // Additional handling for touch release
         if (eventType === 'untouch') {
+            // put this in the fader controller
             self.eventBus.emit(`fader/${index}/move/end`, {
                 timestamp: Date.now(),
                 state: {
@@ -1305,6 +1307,7 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
         touch: createEventHandler('touch'),
         untouch: createEventHandler('untouch'),
         move: createEventHandler('move'),
+        moveComplete: createEventHandler('move/complete'), // New event for move completion
         error: (error) => { //think this is done in event 
             self.eventBus.emit('FaderController/error', {
                 message: error.message,
