@@ -256,11 +256,28 @@ class MIDIQueue {
 
         this.pendingPromises.set(id, { resolve, reject, timer });
 
+        // Log the added message
+        if (this.config.MIDILog) {
+          this.config.logger.debug(`Added MIDI message to queue for fader ${faderIndex}:, ${JSON.stringify({
+            message,
+            id,
+            sequenceNumber,
+            options
+          })}`);
+        }
+
         // Track target position if feedback is enabled and not disabled for this move
         if (this.config.feedback_midi && !options.disableFeedback) {
           const targetPosition = this.get_position(message);
           this.feedbackTracking.set(faderIndex, targetPosition);
           this.trackFeedbackStart(faderIndex, targetPosition);
+
+          // Log feedback tracking
+          if (this.config.MIDILog) {
+            this.config.logger.debug(`Tracking feedback for fader ${faderIndex}:`, {
+              targetPosition
+            });
+          }
         }
 
         this.process(options);
@@ -271,6 +288,16 @@ class MIDIQueue {
           message: 'Failed to add message to the queue',
           details: { message, options }
         });
+
+        // Log the error
+        if (this.config.logger) {
+          this.config.logger.error('Error adding MIDI message to queue:', {
+            error,
+            message,
+            options
+          });
+        }
+
         reject(error);
       }
     });
@@ -313,7 +340,7 @@ class MIDIQueue {
           this.config.feedback_midi = false;
           this.controller.config.logger.warn(`Disabling feedback watching due to timeout for fader ${faderIndex}`);
         }
-      }, 500); // 500ms timeout
+      }, 1000); // 500ms timeout
     } catch (error) {
       this.controller.emit('error', {
         ...error,
@@ -461,7 +488,7 @@ class MIDIQueue {
         const buffer = Buffer.from(message);
 
         if (this.controller.config.MIDILog) {
-          this.controller.config.logger.debug(`[FaderController]: MIDI SEND: ${JSON.stringify(message)}`);
+          this.controller.config.logger.debug(`MIDI SEND: ${JSON.stringify(message)}`);
         }
 
         if (!this.serial.isOpen) {
@@ -754,7 +781,7 @@ class FaderController extends EventEmitter {
   }
 
   // Movement Control #############################################
-  async moveFaders(move, interrupt = false, disableFeedback = true) {
+  async moveFaders(move, interrupt = false, disableFeedback = false) {
     try {
       if (interrupt) this.clearQueue(move.indexes);
       
@@ -797,8 +824,11 @@ class FaderController extends EventEmitter {
       if (this.config.ValueLog) {
         this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
       }
-      
-      await this.sendPositions(positions, { disableFeedback: disableFeedback });
+      const options = {
+        "disableFeedback": disableFeedback || this.config.feedback_midi
+      }
+
+      await this.sendPositions(positions, options);
     } catch (error) {
       this.config.logger.error(`Error in moveFaders: ${error.message}`, {
         move,
@@ -961,139 +991,163 @@ class FaderController extends EventEmitter {
   async advancedCalibration(indexes) {
     // Validate input
     if (!Array.isArray(indexes) || indexes.length === 0) {
-        const error = new Error('Invalid calibration indexes - must be a non-empty array');
-        this.config.logger.error(`CALIBRATION ERROR: ${error.message}`, { indexes });
-        throw Object.assign(error, {
-            code: FaderErrors.INVALID_INPUT,
-            indexes
-        });
+      const error = new Error('Invalid calibration indexes - must be a non-empty array');
+      this.config.logger.error(`CALIBRATION ERROR: ${error.message}`, { indexes });
+      throw Object.assign(error, {
+        code: FaderErrors.INVALID_INPUT,
+        indexes
+      });
     }
-
+  
     // Configuration from parameters
     const testParams = this.config.calibrationConfig;
-
+  
     // Generate test speeds based on start and end speed
     const speedStep = (testParams.endSpeed - testParams.startSpeed) / (testParams.calibrationCount - 1);
     const testSpeeds = Array.from({ length: testParams.calibrationCount }, (_, i) =>
-        Math.round(testParams.startSpeed + i * speedStep)
+      Math.round(testParams.startSpeed + i * speedStep)
     );
-
+  
     this.config.logger.info(`=== STARTING CALIBRATION ===`);
     this.config.logger.info(`Faders: ${indexes.join(', ')}`);
     this.config.logger.info(`Testing speeds: ${testSpeeds.join(', ')}`);
     this.config.logger.info(`Testing resolutions: ${testParams.resolutions.join(', ')}`);
-
+  
     const calibrationTimeout = setTimeout(() => {
-        const error = new Error('Calibration timeout');
-        this.config.logger.error(`CALIBRATION TIMEOUT: ${error.message}`);
-        this.emit('error', Object.assign(error, {
-            code: FaderErrors.CALIBRATION_FAILED,
-            timeout: 300000000
-        }));
+      const error = new Error('Calibration timeout');
+      this.config.logger.error(`CALIBRATION TIMEOUT: ${error.message}`);
+      this.emit('error', Object.assign(error, {
+        code: FaderErrors.CALIBRATION_FAILED,
+        timeout: 300000000
+      }));
     }, 300000000);
-
+  
     try {
-        const calibrationResults = {};
-        const logTable = [];
+      const calibrationResults = {};
+      const logTable = [];
+  
+      for (const index of indexes) {
+        calibrationResults[index] = {};
+        const fader = this.getFader(index);
+  
+        for (const resolution of testParams.resolutions) {
+          calibrationResults[index][resolution] = {};
+          this.config.logger.info(`Testing Fader ${index} at resolution ${resolution}`);
+  
+          for (const speed of testSpeeds) {
+            this.config.logger.info(`Speed ${speed}%:`);
+            const runTimes = [];
+            const statistics = [];
+  
+            // Listen for move/complete events to collect statistics
+            const onMoveComplete = (faderIndex, info) => {
+              if (faderIndex === index && info.statistics) {
+                statistics.push(...info.statistics);
+              }
+            };
+            this.on('move/complete', onMoveComplete);
+  
+            try {
+              // Warmup runs (discarded)
+              for (let i = 0; i < testParams.warmupRuns; i++) {
+                await this.runCalibrationMove(
+                  index,
+                  testParams.startProgression,
+                  testParams.endProgression,
+                  speed,
+                  resolution
+                );
+              }
+  
+              // Measured runs
+              for (let i = 0; i < testParams.measureRuns; i++) {
+                const duration = await this.runCalibrationMove(
+                  index,
+                  testParams.startProgression,
+                  testParams.endProgression,
+                  speed,
+                  resolution
+                );
+                runTimes.push(duration);
+  
+                this.config.logger.info(`Run ${i + 1}: ${duration}ms`);
+              }
+              
+              // Log the collected statistics
+              this.config.logger.info(`Statistics for Fader ${index}, Resolution ${resolution}, Speed ${speed}%:`);
+              this.config.logger.info(JSON.stringify(statistics, null, 2));
 
-        for (const index of indexes) {
-            calibrationResults[index] = {};
-            const fader = this.getFader(index);
-
-            for (const resolution of testParams.resolutions) {
-                calibrationResults[index][resolution] = {};
-                this.config.logger.info(`Testing Fader ${index} at resolution ${resolution}`);
-
-                for (const speed of testSpeeds) {
-                    this.config.logger.info(`Speed ${speed}%:`);
-                    const runTimes = [];
-
-                    // Warmup runs (discarded)
-                    for (let i = 0; i < testParams.warmupRuns; i++) {
-                        await this.runCalibrationMove(
-                            index,
-                            testParams.startProgression,
-                            testParams.endProgression,
-                            speed,
-                            resolution
-                        );
-                    }
-
-                    // Measured runs
-                    for (let i = 0; i < testParams.measureRuns; i++) {
-                        const duration = await this.runCalibrationMove(
-                            index,
-                            testParams.startProgression,
-                            testParams.endProgression,
-                            speed,
-                            resolution
-                        );
-                        runTimes.push(duration);
-
-                        this.config.logger.info(`Run ${i + 1}: ${duration}ms`);
-                    }
-
-                    // Calculate statistics
-                    const avgTime = runTimes.reduce((a, b) => a + b, 0) / runTimes.length;
-                    const variance = runTimes.reduce((a, b) => a + Math.pow(b - avgTime, 2), 0) / runTimes.length;
-                    const stdDev = Math.sqrt(variance);
-                    const effectiveSpeed = (testParams.endProgression - testParams.startProgression) / (avgTime / 1000);
-
-                    // Store results
-                    calibrationResults[index][resolution][speed] = {
-                        runTimes,
-                        avgTime,
-                        stdDev,
-                        effectiveSpeed
-                    };
-
-                    // Add to log table
-                    logTable.push({
-                        Fader: index,
-                        Resolution: resolution,
-                        Speed: speed,
-                        'Avg Time (ms)': Math.round(avgTime),
-                        'Std Dev (ms)': stdDev.toFixed(1),
-                        'Effective Speed (units/s)': effectiveSpeed.toFixed(1)
-                    });
-                }
+              // Calculate statistics
+              const avgTime = runTimes.reduce((a, b) => a + b, 0) / runTimes.length;
+              const variance = runTimes.reduce((a, b) => a + Math.pow(b - avgTime, 2), 0) / runTimes.length;
+              const stdDev = Math.sqrt(variance);
+              const effectiveSpeed = (testParams.endProgression - testParams.startProgression) / (avgTime / 1000);
+  
+              // Store results
+              calibrationResults[index][resolution][speed] = {
+                runTimes,
+                avgTime,
+                stdDev,
+                effectiveSpeed,
+                statistics
+              };
+  
+              // Add to log table
+              logTable.push({
+                Fader: index,
+                Resolution: resolution,
+                Speed: speed,
+                'Avg Time (ms)': Math.round(avgTime),
+                'Std Dev (ms)': stdDev.toFixed(1),
+                'Effective Speed (units/s)': effectiveSpeed.toFixed(1)
+              });
+            } finally {
+              // Remove the event listener after the runs
+              this.off('move/complete', onMoveComplete);
             }
-
-            // Calculate optimal resolution and speed factor
-            const optimal = this.calculateOptimalSettings(calibrationResults[index]);
-            fader.speedFactor = optimal.speedFactor;
-            fader.optimalResolution = optimal.resolution;
-
-            this.config.logger.info(`Fader ${index} calibration complete:`);
-            this.config.logger.info(`- Optimal resolution: ${optimal.resolution}`);
-            this.config.logger.info(`- Speed factor: ${optimal.speedFactor.toFixed(2)}`);
+          }
         }
-
-        // Print summary table
-        this.printCalibrationTable(logTable);
-
-        this.emit('calibration', calibrationResults);
-        return Promise.resolve(calibrationResults);
-
+  
+        // Calculate optimal resolution and speed factor
+        const optimal = this.calculateOptimalSettings(calibrationResults[index]);
+        fader.speedFactor = optimal.speedFactor;
+        fader.optimalResolution = optimal.resolution;
+  
+        this.config.logger.info(`Fader ${index} calibration complete:`);
+        this.config.logger.info(`- Optimal resolution: ${optimal.resolution}`);
+        this.config.logger.info(`- Speed factor: ${optimal.speedFactor.toFixed(2)}`);
+      }
+  
+      // Print summary table
+      this.printCalibrationTable(logTable);
+  
+      this.emit('calibration', calibrationResults);
+      return Promise.resolve(calibrationResults);
+  
     } catch (error) {
-        this.config.logger.error(`CALIBRATION FAILED: ${error}`);
-        this.emit('error', Object.assign(error, {
-            code: FaderErrors.CALIBRATION_FAILED,
-            indexes
-        }));
-        return Promise.reject(error);
+      this.config.logger.error(`CALIBRATION FAILED: ${error}`);
+      this.emit('error', Object.assign(error, {
+        code: FaderErrors.CALIBRATION_FAILED,
+        indexes
+      }));
+      return Promise.reject(error);
     } finally {
-        clearTimeout(calibrationTimeout);
-        this.config.logger.info(`\n=== CALIBRATION COMPLETE ===`);
-        await this.reset(indexes);
+      clearTimeout(calibrationTimeout);
+      this.config.logger.info(`\n=== CALIBRATION COMPLETE ===`);
+      await this.reset(indexes);
     }
-}
+  }
 
   async runCalibrationMove(index, start, end, speed, resolution) {
-      const startTime = Date.now();
-      await this.moveFaders(new FaderMove(index, start, speed), true); // Move to start
-      await this.moveFaders(new FaderMove(index, end, speed, resolution), true); // Timed move
-      return Date.now() - startTime;
+    const startTime = Date.now();
+  
+    // Move to the start position
+    await this.moveFaders(new FaderMove(index, start, speed), true, false);
+  
+    // Move to the end position and wait for completion
+    await this.moveFaders(new FaderMove(index, end, speed, resolution), true, false);
+  
+    return Date.now() - startTime;
   }
 
   calculateOptimalSettings(faderData) {
@@ -1175,9 +1229,9 @@ class FaderController extends EventEmitter {
         new FaderMove(indexes, 100, speed_up, resolution),
         new FaderMove(indexes, 0, speed_down, resolution)
       ];
+      await this.reset(indexes);
       for (let i = 0; i < moves.length; i++) {
-        await this.reset(indexes);
-        await this.moveFaders(moves[i], false, true);
+        await this.moveFaders(moves[i], false, false);
       }
     } catch (error) {
       this.config.logger.error(`Error during testCalibrationMoves: ${error.message}`, {

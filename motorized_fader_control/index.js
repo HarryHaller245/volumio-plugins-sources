@@ -1072,7 +1072,7 @@ motorizedFaderControl.prototype.queueFaderMove = function(move) {
     if (self.disableAggregation) {
         // If aggregation is disabled, send the move immediately
         self.logger.debug(`Aggregation disabled, sending move immediately: ${JSON.stringify(move)}`);
-        self.faderController.moveFaders(move, false).catch(error => {
+        self.faderController.moveFaders(move, false, false).catch(error => {
             self.logger.error(`Fader move rejected: ${error.message}`);
             self.eventBus.emit('fader/move/error', {
                 error: error.message,
@@ -1143,7 +1143,7 @@ motorizedFaderControl.prototype.processFaderMoveQueue = async function() {
         })}`);
 
         const finalMove = new FaderMove(indexes, targets, speeds, resolution);
-        await self.faderController.moveFaders(finalMove, true).catch(error => {
+        await self.faderController.moveFaders(finalMove, false).catch(error => {
             self.logger.error(`Fader move rejected: ${error.message}`);
             self.eventBus.emit('fader/move/error', {
                 error: error.message,
@@ -1185,6 +1185,8 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                 MoveLog: self.config.get('FADER_CONTROLLER_MOVE_LOG', false),
                 calibrateOnStart: self.config.get('FADER_CONTROLLER_CALIBRATION_ON_START', true),
                 queueOverflow: self.config.get('FADER_CONTROLLER_QUEUE_OVERFLOW', 16383),
+                feedback_midi: self.config.get('FADER_CONTROLLER_FEEDBACK_MIDI', true),
+                feedback_tolerance: self.config.get('FADER_CONTROLLER_FEEDBACK_TOLERANCE', 10),
                 calibrationConfig: {
                     startProgression: self.config.get('CALIBRATION_START_PROGRESSION', 0),
                     endProgression: self.config.get('CALIBRATION_END_PROGRESSION', 100),
