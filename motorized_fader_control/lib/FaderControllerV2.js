@@ -1,5 +1,5 @@
 const SerialPort = require('serialport');
-const MIDIParser = require('./MIDIParser');
+const MIDIParser = require('./faderController/MIDIParser');
 const EventEmitter = require('events');
 const Mutex = require('async-mutex').Mutex;
 
