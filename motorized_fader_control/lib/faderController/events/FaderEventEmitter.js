@@ -1,7 +1,7 @@
 const EventEmitter = require('events');
 
 class FaderEventEmitter extends EventEmitter {
-  constructor(logger = console) {
+  constructor(logger) {
     super();
     this.logger = logger;
   }
@@ -18,7 +18,7 @@ class FaderEventEmitter extends EventEmitter {
         const error = args[0];
         this.logger.error(`Error emitted: ${error.message}`, error);
       } else {
-        this.logger.debug(`Event emitted: ${event}`, ...args);
+        this.logger.debug(`Event emitted: ${event} args: ${JSON.stringify(args)}`, ...args);
       }
       return super.emit(event, ...args);
     } catch (err) {

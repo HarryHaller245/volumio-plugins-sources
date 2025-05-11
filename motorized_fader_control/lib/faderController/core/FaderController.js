@@ -144,7 +144,7 @@ class FaderController extends FaderEventEmitter {
     fader.setEchoMode(echoMode);
   }
 
-  listenFaders(faders) {
+  listenFaders(faders) { // pass events of faders
     faders.forEach(fader => {
       fader.on('touch', (index, info) => this.emit('touch', index, info));
       fader.on('untouch', (index, info) => this.emit('untouch', index, info));
@@ -226,14 +226,14 @@ class FaderController extends FaderEventEmitter {
   
     if (fader) {
       // Check if this is feedback for a software-driven movement
-      if (!fader.touch && this.midiQueue.isTrackingFeedback(message.channel)) {
-        const targetPosition = this.midiQueue.getTargetPosition(message.channel);
+      if (!fader.touch && this.midiQueue.feedbackTracker.isTrackingFeedback(message.channel)) { //! not sure about this
+        const targetPosition = this.midiQueue.get_position(message.channel);
         const tolerance = this.config.feedback_tolerance || 10;
 
         fader.updatePositionFeedback(position);
 
         if (Math.abs(position - targetPosition) <= tolerance) {
-          this.midiQueue.markMovementComplete(message.channel);
+          this.midiQueue.feedbackTracker.markMovementComplete(message.channel);
           this.config.logger.debug(`Fader ${message.channel} reached target position: ${position}`);
         }
       } else {
@@ -241,11 +241,14 @@ class FaderController extends FaderEventEmitter {
         fader.updatePositionUser(position);
         if (fader.echoMode) {
           const mappedPos = fader.mapPosition(position);
+          const options = {
+            disableFeedback: true
+          };
           this.midiQueue.add([
             message.channel,
             mappedPos & 0x7F,
             (mappedPos >> 7) & 0x7F
-          ]);
+          ], options);
         }
       }
     }
@@ -312,9 +315,9 @@ class FaderController extends FaderEventEmitter {
         this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
       }
       const options = {
-        "disableFeedback": disableFeedback || this.config.feedback_midi
+        disableFeedback: disableFeedback
       }
-
+      this.config.logger.debug(`moveFaders: disableFeedback=${disableFeedback}`);
       await this.sendPositions(positions, options);
     } catch (error) {
       this.config.logger.error(`Error in moveFaders: ${error.message}`, {
@@ -628,4 +631,4 @@ class FaderController extends FaderEventEmitter {
 }
 }
 
-module.exports = { FaderController, FaderMove, FaderErrors };
+module.exports = FaderController;

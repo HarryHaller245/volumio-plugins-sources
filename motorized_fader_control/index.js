@@ -1307,8 +1307,8 @@ motorizedFaderControl.prototype.setupFaderAdapter = function() {
     const eventMapping = {
         touch: createEventHandler('touch'),
         untouch: createEventHandler('untouch'),
-        move: createEventHandler('move'),
-        moveComplete: createEventHandler('move/complete'), // New event for move completion
+        // move: createEventHandler('move'),
+        // moveComplete: createEventHandler('move/complete'), // New event for move completion
         error: (error) => { //think this is done in event 
             self.eventBus.emit('FaderController/error', {
                 message: error.message,

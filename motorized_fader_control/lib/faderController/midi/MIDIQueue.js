@@ -11,6 +11,7 @@ class MIDIQueue extends FaderEventEmitter {
     this.isProcessing = false;
     this.controller = controller;
     this.config = controller.config;
+    this.logger = controller.config.logger;
     this.pendingPromises = new Map();
     this.timeout = timeout;
     this.faders = controller.faders;
@@ -68,8 +69,11 @@ class MIDIQueue extends FaderEventEmitter {
 
         // Track target position if feedback is enabled
         if (this.config.feedback_midi && !options.disableFeedback) {
+          this.logger.debug(`Starting feedbackTracker for fader ${faderIndex}`);
           const targetPosition = this.get_position(message);
           this.feedbackTracker.trackFeedbackStart(faderIndex, targetPosition);
+        } else {
+          this.controller.getFader(faderIndex).emitMoveStart(targetPosition, Date.now());
         }
 
         this.process(options);
@@ -123,17 +127,16 @@ class MIDIQueue extends FaderEventEmitter {
                 this.logger.debug(`- config.feedback_midi: ${this.config.feedback_midi}`);
                 this.logger.debug(`- options.disableFeedback: ${options.disableFeedback}`);
                 this.logger.debug(`- feedbackTracker.isTrackingFeedback: ${this.feedbackTracker.isTrackingFeedback(index)}`);
+                this.logger.debug(`- process: options=${JSON.stringify(options)}`);
                 this.faders[index].emitMoveStepStart(position, Date.now()); // use new moveStepStart event
               }
               await this.send(nextMessage.message);
 
               if (!this.config.feedback_midi || !this.feedbackTracker.isTrackingFeedback(index) || options.disableFeedback) {
-
+                // if no feedback just immediately emit moveComplete, however this here is a step
                 this.controller.getFader(index).updatePositionFeedback(position);
                 this.controller.getFader(index).emitMoveStepComplete(this.feedbackTracker.getFeedbackStatistics(index));// use new moveStepStop event
               }
-
-              this.emit('midi/sent', { message: nextMessage.message });
 
               if (this.pendingPromises.has(nextMessage.id)) {
                 const { resolve, timer } = this.pendingPromises.get(nextMessage.id);
@@ -154,7 +157,7 @@ class MIDIQueue extends FaderEventEmitter {
     } finally {
       setTimeout(() => {
         this.isProcessing = false;
-        this.process();
+        this.process(options);
       }, this.delay);
     }
   }
@@ -185,6 +188,7 @@ class MIDIQueue extends FaderEventEmitter {
             this.handleError(error, { message });
             reject(error);
           } else {
+            this.emit('midi/sent', { message: message });
             resolve();
           }
         });

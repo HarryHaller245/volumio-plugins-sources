@@ -23,6 +23,7 @@ class MIDIFeedbackTracker {
 
   trackFeedbackStart(faderIndex, targetPosition) {
     try {
+      // Initialize statistics for the fader if not already present
       if (!this.feedbackStatistics.has(faderIndex)) {
         this.feedbackStatistics.set(faderIndex, []);
       }
@@ -31,10 +32,14 @@ class MIDIFeedbackTracker {
         startTime: Date.now(),
         completed: false,
       });
+  
+      // Track feedback for the fader
+      this.feedbackTracking.set(faderIndex, { targetPosition });
+  
+      // Emit move/step/start event
 
-      // Emit move/start event
-      this.controller.getFader(faderIndex).emitMoveStepStart(targetPosition, Date.now()); //use emitMoveStepStart
-
+      this.controller.getFader(faderIndex).emitMoveStart(targetPosition, Date.now());
+  
       // Set a timeout for the first feedback message
       setTimeout(() => {
         if (this.feedbackTracking.has(faderIndex)) {
@@ -44,13 +49,13 @@ class MIDIFeedbackTracker {
             faderIndex,
             targetPosition
           });
-
+  
           // Disable feedback watching and continue
           this.markMovementComplete(faderIndex);
-          this.controller.config.feedback_midi = false;
+          this.controller.config.feedback_midi = true;
           this.controller.config.logger.warn(`Disabling feedback watching due to timeout for fader ${faderIndex}`);
         }
-      }, 1000); // 1-second timeout
+      }, 5000); 
     } catch (error) {
       this.controller.emit('error', {
         ...error,
@@ -79,7 +84,7 @@ class MIDIFeedbackTracker {
           }
         }
 
-        this.controller.getFader(faderIndex).emitMoveStepComplete(this.getFeedbackStatistics(faderIndex));
+        this.controller.getFader(faderIndex).emitMoveComplete(this.getFeedbackStatistics(faderIndex));
       }
     } catch (error) {
       this.controller.emit('error', {
@@ -92,7 +97,7 @@ class MIDIFeedbackTracker {
   }
 
   getFeedbackStatistics(faderIndex) {
-    return this.feedbackStatistics.get(faderIndex) || [];
+    return this.feedbackStatistics.get(faderIndex) || [false];
   }
 
 }

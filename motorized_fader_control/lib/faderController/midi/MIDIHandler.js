@@ -6,6 +6,7 @@ class MIDIHandler extends FaderEventEmitter {
   constructor(controller) {
     super(controller.config.logger); // Pass the logger to FaderEventEmitter
     this.controller = controller;
+    this.logger = controller.config.logger;
     this.parser = new MIDIParser();
     this.setupHandlers();
   }
@@ -21,7 +22,7 @@ class MIDIHandler extends FaderEventEmitter {
           if (this.controller.config.MIDILog) {
             this.logger.debug(`MIDI RECV: ${JSON.stringify(message)}`);
           }
-          this.emit('midi', message); // Emit the parsed MIDI message
+          // this.emit('midi/message/revieved', message); // Emit the parsed MIDI message //! not sure this is even needed
           this.controller.handleMIDIMessage(message); // Delegate to the controller
         }
       } catch (error) {

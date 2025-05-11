@@ -1,5 +1,5 @@
-const FaderController = require('.core/faderController');
-const FaderMove = require('.core/FaderMove');
+const FaderController = require('./core/FaderController');
+const FaderMove = require('./core/FaderMove');
 
 module.exports = {
   FaderController,

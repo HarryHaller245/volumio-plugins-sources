@@ -25,11 +25,11 @@
     },
     "FADER_CONTROLLER_VALUE_LOG": {
       "type": "boolean",
-      "value": false
+      "value": true
     },
     "FADER_CONTROLLER_MOVE_LOG": {
       "type": "boolean",
-      "value": false
+      "value": true
     },
     "FADER_CONTROLLER_CALIBRATION_ON_START": {
       "type": "boolean",
