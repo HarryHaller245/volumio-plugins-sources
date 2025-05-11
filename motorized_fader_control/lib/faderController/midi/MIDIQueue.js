@@ -1,6 +1,6 @@
 const MIDIFeedbackTracker = require('./MIDIFeedbackTracker.js');
-const FaderEventEmitter = require('../events/FaderEventEmitter'); // Centralized event emitter
-const MIDIQueueError = require('../errors');
+const FaderEventEmitter = require('../events/FaderEventEmitter.js'); // Centralized event emitter
+const MIDIQueueError = require('../errors.js');
 
 class MIDIQueue extends FaderEventEmitter {
   constructor(serial, controller, delay = 0.01, timeout = 500000) {
