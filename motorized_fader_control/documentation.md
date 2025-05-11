@@ -1,14 +1,35 @@
 # Developer Documentation: Motorized Fader Control Plugin
 
+## Introduction
+
+The **Motorized Fader Control Plugin** for Volumio bridges the gap between physical motorized faders and Volumio's digital audio controls. By leveraging MIDI over serial communication, the plugin allows users to control playback progression, volume, and other audio features using physical faders. 
+
+This plugin is designed to provide real-time feedback, ensuring that the physical position of the faders reflects the current state of Volumio. It also supports advanced calibration and multiple seek modes, making it a versatile tool for audio enthusiasts and developers.
+
+This document serves as a comprehensive guide for developers who wish to understand, maintain, or extend the plugin.
+
+---
+
+## Chapters
+
+1. [Overview](#overview)
+2. [Code Structure](#code-structure)
+3. [Extending the Plugin](#extending-the-plugin)
+4. [Debugging](#debugging)
+5. [Known Issues](#known-issues)
+6. [Hardware Compatibility](#hardware-compatibility)
+7. [Firmware Requirements](#firmware-requirements)
+8. [Additional Notes](#additional-notes)
+
+---
+
 ## Overview
 
-This document provides an in-depth explanation of the code structure, key components, and functionality of the **Motorized Fader Control Plugin** for Volumio. It is intended for developers who want to understand, maintain, or extend the plugin.
+The plugin integrates motorized faders with Volumio's audio controls, enabling physical faders to control volume, playback progression, and other features via MIDI over serial communication. It supports real-time feedback, calibration, and multiple seek modes.
 
 ---
 
 ## Code Structure
-
-The plugin is organized into the following key files and directories:
 
 ### 1. **`index.js`**
    - **Purpose**: The main entry point of the plugin. It initializes the plugin, sets up configurations, and handles the core logic for fader control.
@@ -16,100 +37,32 @@ The plugin is organized into the following key files and directories:
      - `setupFaderController`: Initializes the `FaderController` and its dependencies.
      - `queueFaderMove`: Adds fader movement commands to a queue for processing.
      - `processFaderMoveQueue`: Processes the queued fader movements and sends commands to the hardware.
-     - `setupStateValidation`: Middleware to validate Volumio's playback state and avoid unnecessary updates.
+     - `setupVolumioBridge`: Establishes communication with Volumio's WebSocket API.
+     - `setupServices`: Initializes service classes for handling playback and state updates.
+     - `registerVolumeUpdateCallback`: Registers a callback to synchronize fader movements with Volumio's volume changes.
 
-   - **Core Logic**:
-     - Handles fader movement aggregation and prioritization.
-     - Interfaces with the `FaderController` for hardware communication.
-     - Manages plugin lifecycle events (e.g., startup, shutdown).
-
----
-
-### 2. **`lib/FaderControllerV2.js`**
-   - **Purpose**: Implements the `FaderController` class, which manages the motorized faders and their interactions with the hardware.
-   - **Key Classes**:
-     - `Fader`: Represents an individual fader, including its position, progression, and touch state.
-     - `FaderMove`: Encapsulates movement commands for one or more faders.
-     - `MIDIHandler`: Handles MIDI message parsing and communication.
-     - `MIDIQueue`: Manages a queue of MIDI messages for serial communication.
-
-   - **Core Methods**:
-     - `setProgressionMap`: Configures the mapping of fader progression to physical positions.
-     - `updatePosition`: Updates the fader's position and emits events for movement.
-     - `progressionToPosition`: Converts progression percentages to hardware positions.
-     - `setupSerial`: Initializes the serial port for communication with the fader hardware.
-
----
+### 2. **`lib/faderController/`**
+   - **Purpose**: Handles the core fader logic for motorized fader control, including MIDI communication, fader calibration, and movement processing.
+   - **Key Components**:
+     - `FaderController`: Manages fader operations, including movement, calibration, and MIDI handling.
+     - `CalibrationEngine`: Provides advanced calibration functionality for faders.
+     - `MIDIHandler`: Parses and processes incoming MIDI messages.
+     - `MIDIQueue`: Manages the queue of MIDI messages to ensure smooth communication with the hardware.
 
 ### 3. **`lib/services/`**
-   - **Purpose**: Contains service classes for interacting with Volumio's playback state and other subsystems.
+   - **Purpose**: Contains service classes to handle specific playback and state-related operations.
    - **Key Services**:
-     - `BaseService`: A base class for shared functionality across services.
-     - `VolumeService`: Handles volume-related operations.
-     - `TrackService`: Manages track-related operations.
-     - `AlbumService`: Provides album-level operations.
+     - `BaseService`: A base class providing common functionality for all services.
+     - `TrackService`: Handles track-related operations, such as seeking and playback state updates.
+     - `AlbumService`: Manages album-related operations, such as fetching album information.
+     - `VolumeService`: Synchronizes fader movements with Volumio's volume control.
 
----
-
-### 4. **`lib/EventBus.js`**
-   - **Purpose**: Implements an event bus for inter-component communication.
-   - **Key Features**:
-     - Allows components to subscribe to and emit events.
-     - Used for decoupling logic between the fader controller and Volumio state updates.
-
----
-
-### 5. **`lib/StateCache.js`**
-   - **Purpose**: Caches Volumio's playback state to reduce redundant updates.
-   - **Key Features**:
-     - Tracks the current playback state.
-     - Provides middleware for validating state changes.
-
----
-
-### 6. **`config.json`**
-   - **Purpose**: Defines the plugin's configuration options.
-   - **Key Settings**:
-     - `SERIAL_PORT`: Specifies the serial port for the fader hardware.
-     - `BAUD_RATE`: Configures the baud rate for serial communication.
-     - `FADER_CONTROLLER_SPEED_HIGH`, `MEDIUM`, `LOW`: Defines movement speeds for the faders.
-     - `FADER_BEHAVIOR`: Maps fader indexes to specific behaviors (e.g., volume, seek).
-
----
-
-## Key Concepts
-
-### 1. **Fader Movement Aggregation**
-   - The `processFaderMoveQueue` function aggregates fader movement commands to prioritize the latest commands and avoid redundant updates.
-   - Uses a `Map` to store the latest move for each fader.
-
-### 2. **MIDI Communication**
-   - The `MIDIHandler` class parses incoming MIDI messages and translates them into fader commands.
-   - The `MIDIQueue` ensures that MIDI messages are sent to the hardware in a controlled manner, avoiding overflows.
-
-### 3. **Touch and Untouch Events**
-   - The `Fader` class tracks the touch state of each fader.
-   - Emits `touch` and `untouch` events when the state changes, allowing for real-time feedback.
-
-### 4. **Calibration**
-   - The plugin supports automatic calibration of faders during startup.
-   - Calibration ensures that fader positions are mapped accurately to progression percentages.
-
----
-
-## Plugin Lifecycle
-
-1. **Startup**:
-   - The `index.js` file initializes the plugin and sets up the `FaderController`.
-   - Serial communication is established with the hardware.
-
-2. **Runtime**:
-   - Fader movements are queued and processed in real-time.
-   - Playback state changes are validated and synchronized with the faders.
-
-3. **Shutdown**:
-   - Serial communication is closed.
-   - All active timers and event listeners are cleared.
+### 4. **`config.json`**
+   - **Purpose**: Stores plugin configuration, including fader behaviors, MIDI settings, and calibration parameters.
+   - **Key Configuration Options**:
+     - `FADER_BEHAVIOR`: Defines the behavior of each fader (e.g., volume, track seek).
+     - `FADER_SPEED_FACTOR`: Specifies the speed factors for fader movements.
+     - `CALIBRATION_*`: Parameters for fader calibration, such as start/end progression and speed.
 
 ---
 
@@ -117,12 +70,18 @@ The plugin is organized into the following key files and directories:
 
 ### Adding a New Fader Behavior
 1. Update the `FADER_BEHAVIOR` configuration in `config.json` to define the new behavior.
-2. Modify the `processFaderMoveQueue` function in `index.js` to handle the new behavior.
-3. Add any necessary logic to the `FaderController` or `services` directory.
+2. Modify the `setupServices` function in `index.js` to assign the Service used for the new behavior.
+3. Add any necessary logic to the `services` directory. Such as a new Service for example `PlaylistService`
+4. Update `UIConfig.json` and `strings_en.json`
 
 ### Supporting Additional MIDI Messages
-1. Extend the `MIDIHandler` class in `lib/FaderControllerV2.js` to parse the new message type.
-2. Update the `process` method in `MIDIQueue` to handle the new message.
+1. Extend the `MIDIHandler` modules in `lib/faderController/` to parse the new message type.
+2. Update the `process` method in `lib/midi/MIDIQueue` to handle the new message.
+
+### Adding a New Service
+1. Create a new service class in the `lib/services/` directory by extending the `BaseService` class.
+2. Implement the required methods, such as `handlePlay`, `handlePause`, and `updatePosition`.
+3. Register the new service in the `setupServices` method in `index.js`.
 
 ---
 
@@ -132,3 +91,46 @@ The plugin is organized into the following key files and directories:
 Run the following command to view plugin logs:
 ```bash
 journalctl -u volumio -f | grep motorized_fader_control
+or
+journalctl -f | grep -e motorized_fader_control -e FaderController
+```
+
+### Common Debugging Scenarios
+- **Fader Not Responding**: Check the serial connection and ensure the correct port is configured in `config.json`.
+- **MIDI Messages Not Processed**: Verify that the MIDI device is properly connected and recognized by the system.
+- **Calibration Issues**: Ensure the calibration parameters in `config.json` are correctly set and the hardware is functioning as expected.
+
+---
+
+## Known Issues
+
+- **Album Seek Validation**: False negatives may occur during album seek validation.
+- **Slow Response**: Track output seek may experience delays under certain conditions.
+
+---
+
+## Hardware Compatibility
+
+The plugin has been tested with the following hardware:
+- Arduino Nano running: [Harry Haller's Control Surface Motor Fader Firmware](https://github.com/HarryHaller245/Control-Surface-Motor-Fader)
+- Hardware built using: [Control Theory Motor Fader Guide](https://tttapa.github.io/Pages/Arduino/Control-Theory/Motor-Fader/)
+- Open Source PCB Board using Arduino Nano: [Old Version](https://github.com/tttapa/Control-Surface-Motor-Fader/discussions/20#discussioncomment-8327277)
+
+---
+
+## Firmware Requirements
+
+For precise calibration and full MIDI echo support, the plugin requires the firmware provided by [Harry Haller's Control Surface Motor Fader](https://github.com/HarryHaller245/Control-Surface-Motor-Fader). This firmware ensures that the MIDI device reports back the actual physical position of the faders, enabling accurate synchronization and calibration.
+
+### Key Features of the Firmware:
+- **MIDI Echo Support**: Reports the physical position of the faders back to the plugin.
+- **Real-Time Feedback**: Ensures that the fader positions are always in sync with Volumio's state.
+- **Advanced Calibration**: Supports precise calibration for smooth and accurate fader movements.
+
+---
+
+## Additional Notes
+
+- **Logging**: The plugin uses a extended logging system to provide detailed debug information. Logs can be configured in `config.json` using the `LOG_LEVEL` parameter.
+- **Event Handling**: The plugin uses an `EventBus` to manage communication between components. Events are emitted for fader movements, playback state changes, and errors.
+- **Calibration**: Advanced calibration features are available to fine-tune fader movements. Use the `RunManualCalibration` method in `index.js` to initiate calibration. For now reading the console log is the way to access those results.
