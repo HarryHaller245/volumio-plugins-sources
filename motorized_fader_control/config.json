@@ -21,7 +21,7 @@
     },
     "FADER_CONTROLLER_MIDI_LOG": {
       "type": "boolean",
-      "value": true
+      "value": false
     },
     "FADER_CONTROLLER_VALUE_LOG": {
       "type": "boolean",
@@ -29,7 +29,7 @@
     },
     "FADER_CONTROLLER_MOVE_LOG": {
       "type": "boolean",
-      "value": true
+      "value": false
     },
     "FADER_CONTROLLER_CALIBRATION_ON_START": {
       "type": "boolean",
