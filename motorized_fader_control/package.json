@@ -1,6 +1,6 @@
 {
 	"name": "motorized_fader_control",
-	"version": "0.0.1",
+	"version": "0.0.2",
 	"description": "A volumio plugin enabling the use of a motorized fader as a playback controller.",
 	"main": "index.js",
 	"scripts": {
@@ -11,7 +11,7 @@
 	"repository": "https://github.com/HarryHaller245/volumio-plugins-sources.git",
 	"volumio_info": {
 		"prettyName": "motorized_fader_control",
-		"icon": "fa-lightbulb-o",
+		"icon": "fa-sliders-h",
 		"plugin_type": "system_hardware",
 		"architectures": [
 			"amd64",

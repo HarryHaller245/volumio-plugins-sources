@@ -90,13 +90,11 @@ The plugin integrates motorized faders with Volumio's audio controls, enabling p
 ### Viewing Logs
 Run the following command to view plugin logs:
 ```bash
-journalctl -u volumio -f | grep motorized_fader_control
-or
 journalctl -f | grep -e motorized_fader_control -e FaderController
 ```
 
 ### Common Debugging Scenarios
-- **Fader Not Responding**: Check the serial connection and ensure the correct port is configured in `config.json`.
+- **Fader Not Responding**: Check the serial connection and ensure the correct port & baurdrate is configured in `config.json`.
 - **MIDI Messages Not Processed**: Verify that the MIDI device is properly connected and recognized by the system.
 - **Calibration Issues**: Ensure the calibration parameters in `config.json` are correctly set and the hardware is functioning as expected.
 
@@ -104,7 +102,6 @@ journalctl -f | grep -e motorized_fader_control -e FaderController
 
 ## Known Issues
 
-- **Album Seek Validation**: False negatives may occur during album seek validation.
 - **Slow Response**: Track output seek may experience delays under certain conditions.
 
 ---
@@ -115,6 +112,7 @@ The plugin has been tested with the following hardware:
 - Arduino Nano running: [Harry Haller's Control Surface Motor Fader Firmware](https://github.com/HarryHaller245/Control-Surface-Motor-Fader)
 - Hardware built using: [Control Theory Motor Fader Guide](https://tttapa.github.io/Pages/Arduino/Control-Theory/Motor-Fader/)
 - Open Source PCB Board using Arduino Nano: [Old Version](https://github.com/tttapa/Control-Surface-Motor-Fader/discussions/20#discussioncomment-8327277)
+- Raspberry Pi4B running Volumio 3.799
 
 ---
 

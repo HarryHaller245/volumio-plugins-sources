@@ -7,6 +7,14 @@ supporting real-time feedback and multiple seek modes.
 # write documentation
 
 ### TODOs & Next Steps
+-**VERSION UPDATE PROCESS**:
+  - Update documentation.md
+  - Update readme.md
+  - Update Version in package.json
+  - Update logs & strings
+  - Update logs & strings translations
+  - Push Update
+
 - **High Priority**:
   - FIX something is wrong with touch callbacks and indexing/channel parsing on recv ? 
   - Implement album/queue seek logic

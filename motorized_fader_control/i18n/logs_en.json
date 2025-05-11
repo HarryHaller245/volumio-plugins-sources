@@ -2,10 +2,10 @@
     "LOGS": {
       "SEPARATOR": "--------------------------------------------------------------------",
       "START": {
-        "HEADER": "Starting motorized fader control plugin...",
+        "HEADER": "Starting plugin:",
         "SETUP": "Setting up plugin...",
         "FADER_CONTROLLER": "Starting FaderController...",
-        "SERVICES": "SERVICES enabled: ",
+        "SERVICES": "Services enabled: ",
         "VOLUME_LISTENER": "Registering Volumio volume change listener...",
         "SUCCESS": "Plugin started successfully!",
         "ERROR": "Error starting plugin: "

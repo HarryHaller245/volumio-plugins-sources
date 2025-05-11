@@ -1,5 +1,6 @@
 'use strict';
 
+const packageInfo = require('./package.json'); 
 var libQ = require('kew');
 var fs=require('fs-extra');
 var config = new (require('v-conf'))();
@@ -24,7 +25,7 @@ const { info } = require('console');
 const { create } = require('domain');
 
 module.exports = motorizedFaderControl;
- 4
+
 function motorizedFaderControl(context) {
     const self = this;
 
@@ -61,10 +62,6 @@ function motorizedFaderControl(context) {
 
 };
 
-//TODO: Implement and Use i18n logs_en.json: EXAMPLE: self.logger.info(`${self.logs.LOGS.START.HEADER}
-//TODO: Add Logging to services and eventbus
-//TODO: Remove additional LOGS. in logs_en.js and logs
-
 //* START ################################################################################
 
 motorizedFaderControl.prototype.onVolumioStart = function() {
@@ -86,7 +83,9 @@ motorizedFaderControl.prototype.onStart = function() {
         // Initialize logs first
         self.initializeLogs();
         self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
-        self.logger.info(`${self.logs.LOGS.START.HEADER}`);
+        self.logger.info(`${self.logs.LOGS.START.HEADER} ${packageInfo.name}...`);
+        self.logger.info(`Version: ${packageInfo.version}`);
+        self.logger.info(`Description: ${packageInfo.description}`);
         self.logger.info(`${self.logs.LOGS.SEPARATOR}`);
 
         // Initialize core components
