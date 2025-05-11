@@ -2,7 +2,7 @@
 var { BaseService, VolumeService, TrackService, AlbumService } = require('./services');
 const EventBus = require('./EventBus');
 const StateCache = require('./StateCache');
-var { FaderController, FaderMove} = require('./faderController');
+var { FaderController, FaderMove} = require('./FaderController');
 const CustomLogger = require('./CustomLogger');
 
 module.exports = {
