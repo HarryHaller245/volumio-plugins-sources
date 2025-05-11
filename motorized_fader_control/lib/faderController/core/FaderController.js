@@ -153,6 +153,8 @@ class FaderController extends FaderEventEmitter {
       fader.on('move', (index, info) => this.emit('move', index, info));
       fader.on('move/start', (index, info) => this.emit('move/start', index, info));
       fader.on('move/complete', (index, info) => this.emit('move/complete', index, info));
+      fader.on('move/step/start', (index, info) => this.emit('move/step/start', index, info));
+      fader.on('move/step/complete', (index, info) => this.emit('move/step/complete', index, info));
       fader.on('configChange', (index, config) => this.emit('configChange', index, config));
     });
   }

@@ -119,13 +119,18 @@ class MIDIQueue extends FaderEventEmitter {
             if (!this.faders[index].touch) {
               const position = this.get_position(nextMessage.message);
               if (!this.config.feedback_midi || !this.feedbackTracker.isTrackingFeedback(index) || options.disableFeedback) {
-                this.faders[index].emitMoveStart(position, Date.now());
+                this.logger.debug(`Feedback disabled for fader ${index} due to :`);
+                this.logger.debug(`- config.feedback_midi: ${this.config.feedback_midi}`);
+                this.logger.debug(`- options.disableFeedback: ${options.disableFeedback}`);
+                this.logger.debug(`- feedbackTracker.isTrackingFeedback: ${this.feedbackTracker.isTrackingFeedback(index)}`);
+                this.faders[index].emitMoveStepStart(position, Date.now()); // use new moveStepStart event
               }
               await this.send(nextMessage.message);
 
               if (!this.config.feedback_midi || !this.feedbackTracker.isTrackingFeedback(index) || options.disableFeedback) {
+
                 this.controller.getFader(index).updatePositionFeedback(position);
-                this.controller.getFader(index).emitMoveComplete(this.feedbackTracker.getFeedbackStatistics(index));
+                this.controller.getFader(index).emitMoveStepComplete(this.feedbackTracker.getFeedbackStatistics(index));// use new moveStepStop event
               }
 
               this.emit('midi/sent', { message: nextMessage.message });

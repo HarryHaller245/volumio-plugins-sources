@@ -33,7 +33,7 @@ class MIDIFeedbackTracker {
       });
 
       // Emit move/start event
-      this.controller.getFader(faderIndex).emitMoveStart(targetPosition, Date.now());
+      this.controller.getFader(faderIndex).emitMoveStepStart(targetPosition, Date.now()); //use emitMoveStepStart
 
       // Set a timeout for the first feedback message
       setTimeout(() => {
@@ -79,7 +79,7 @@ class MIDIFeedbackTracker {
           }
         }
 
-        this.controller.getFader(faderIndex).emitMoveComplete(this.getFeedbackStatistics(faderIndex));
+        this.controller.getFader(faderIndex).emitMoveStepComplete(this.getFeedbackStatistics(faderIndex));
       }
     } catch (error) {
       this.controller.emit('error', {

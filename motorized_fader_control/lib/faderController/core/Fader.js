@@ -73,6 +73,17 @@ class Fader extends FaderEventEmitter {
     this.emit('move/start', this.index, this.info);
   }
 
+  emitMoveStepStart(targetPosition, startTime) {
+    this.info.targetPosition = targetPosition;
+    this.info.startTime = startTime;
+    this.emit('move/step/start', this.index, this.info); // Changed event name
+  }
+
+  emitMoveStepComplete(statistics) {
+    this.info.statistics = statistics;
+    this.emit('move/step/complete', this.index, this.info); // Changed event name
+}
+
   get info() {
     return {
       index: this.index,

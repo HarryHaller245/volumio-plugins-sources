@@ -127,26 +127,31 @@ class CalibrationEngine {
   }
 
   calculateOptimalSettings(faderData) {
-    let bestResolution = 1;
-    let bestConsistency = Infinity;
-
-    for (const [resolution, data] of Object.entries(faderData)) {
-      const avgStdDev = Object.values(data).reduce((sum, test) => sum + test.stdDev, 0) / Object.keys(data).length;
-      if (avgStdDev < bestConsistency) {
-        bestConsistency = avgStdDev;
-        bestResolution = Number(resolution);
+      let bestResolution = 1;
+      let bestConsistency = Infinity;
+  
+      for (const [resolution, data] of Object.entries(faderData)) {
+          const avgStdDev = Object.values(data).reduce((sum, test) => sum + (test.stdDev || 0), 0) / Object.keys(data).length;
+          if (avgStdDev < bestConsistency) {
+              bestConsistency = avgStdDev;
+              bestResolution = Number(resolution);
+          }
       }
-    }
-
-    const refSpeed = 100;
-    const effectiveSpeed = faderData[bestResolution][refSpeed].effectiveSpeed;
-    const speedFactor = refSpeed / effectiveSpeed;
-
-    return {
-      resolution: bestResolution,
-      speedFactor,
-      consistency: bestConsistency
-    };
+  
+      const refSpeed = 100;
+      if (!faderData[bestResolution] || !faderData[bestResolution][refSpeed]) {
+          this.config.logger.error(`CALIBRATION ERROR: Missing data for resolution ${bestResolution} and speed ${refSpeed}`);
+          throw new CalibrationError(`Missing calibration data for resolution ${bestResolution} and speed ${refSpeed}`);
+      }
+  
+      const effectiveSpeed = faderData[bestResolution][refSpeed].effectiveSpeed;
+      const speedFactor = refSpeed / effectiveSpeed;
+  
+      return {
+          resolution: bestResolution,
+          speedFactor,
+          consistency: bestConsistency
+      };
   }
 
   printCalibrationTable(data) {
