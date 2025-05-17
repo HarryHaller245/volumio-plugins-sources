@@ -31,6 +31,10 @@
       "type": "boolean",
       "value": true
     },
+    "DISABLE_INTERNAL_EVENT_LOGGING": {
+      "type": "boolean",
+      "value": true
+    },
     "FADER_CONTROLLER_CALIBRATION_ON_START": {
       "type": "boolean",
       "value": true

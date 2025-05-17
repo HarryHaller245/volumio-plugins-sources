@@ -1,10 +1,11 @@
 const EventEmitter = require('events');
 
 class FaderEventEmitter extends EventEmitter {
-  constructor(logger) {
+  constructor(logger, config = {}) {
     super();
     this.logger = logger;
     this.noLogEvents = new Set(); // Set of events to exclude from logging
+    this.disableInternalEventLogging = config.disableInternalEventLogging || false; // Config flag
   }
 
   /**

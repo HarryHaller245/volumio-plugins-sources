@@ -41,7 +41,7 @@ const {
  */
 class FaderController extends FaderEventEmitter {
   constructor(config = {}) {
-    super(config.logger);
+    super(config.logger, { disableInternalEventLogging: config.disableInternalEventLogging });
 
     // Default calibration configuration
     const defaultCalibrationConfig = {
@@ -73,6 +73,7 @@ class FaderController extends FaderEventEmitter {
       calibrateOnStart: true,
       feedback_midi: true, // enable if midi device supports feedback
       feedback_tolerance: 10, // tolerance for feedback
+      disableInternalEventLogging: false, // Disable internal event logging
       ...config
     };
 
@@ -117,8 +118,7 @@ class FaderController extends FaderEventEmitter {
 
   createFaders() {
     return this.config.faderIndexes.map(index => {
-      const fader = new Fader(index, this.config);
-      return fader;
+      return new Fader(index, this.config);
     });
   }
 

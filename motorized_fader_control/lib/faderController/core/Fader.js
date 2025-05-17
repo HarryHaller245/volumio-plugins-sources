@@ -3,7 +3,7 @@ const FaderEventEmitter = require('../events/FaderEventEmitter'); // Use the new
 
 class Fader extends FaderEventEmitter {
   constructor(index, config) {
-    super(config.logger);
+    super(config.logger, { disableInternalEventLogging: config.disableInternalEventLogging });
     
     this.index = index;
     this.position = 0;

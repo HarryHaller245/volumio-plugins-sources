@@ -1195,7 +1195,8 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                     resolutions: [1, 0.8, 0.5, 0.2], // Default resolutions
                     warmupRuns: self.config.get('CALIBRATION_WARMUP_RUNS', 1), // New warmup runs parameter
                     measureRuns: self.config.get('CALIBRATION_MEASURE_RUNS', 2) // New measure runs parameter
-                }
+                },
+                disableInternalEventLogging: self.config.get('DISABLE_INTERNAL_EVENT_LOGGING', false)
             };
 
             if (!controllerConfig.faderIndexes?.length) {
