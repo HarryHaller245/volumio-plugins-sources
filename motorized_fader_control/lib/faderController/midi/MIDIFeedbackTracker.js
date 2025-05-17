@@ -61,9 +61,18 @@ class MIDIFeedbackTracker {
         this.controller.getFader(faderIndex).emitMoveStepStart(targetPosition, stats.startTime);
       }
 
-      if (Math.abs(currentPosition - targetPosition) <= this.controller.config.feedback_tolerance) {
+      // Log the current position, target position, and difference
+      const positionDifference = Math.abs(currentPosition - targetPosition);
+      this.controller.config.logger.debug(`Fader ${faderIndex}: Current Position: ${currentPosition}, Target Position: ${targetPosition}, Difference: ${positionDifference}`);
+
+      if (positionDifference <= this.controller.config.feedback_tolerance) {
+        this.controller.config.logger.debug(`Fader ${faderIndex}: Position within tolerance (${this.controller.config.feedback_tolerance}). Marking movement as complete.`);
         this.markMovementComplete(faderIndex);
+      } else {
+        this.controller.config.logger.debug(`Fader ${faderIndex}: Position outside tolerance (${this.controller.config.feedback_tolerance}). Movement not complete.`);
       }
+    } else {
+      this.controller.config.logger.debug(`Fader ${faderIndex}: No feedback tracking found.`);
     }
   }
 

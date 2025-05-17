@@ -60,6 +60,9 @@ function motorizedFaderControl(context) {
 
     this.isSeeking = false; // is seeking flag
 
+    this.boundVolumeHandler = this.handleVolumeUpdate.bind(this);
+    this.volumeUpdateCallback = null;
+
 };
 
 //* START ################################################################################
@@ -903,47 +906,35 @@ motorizedFaderControl.prototype.setupVolumioBridge = function () {
 };
 
 motorizedFaderControl.prototype.unregisterVolumeUpdateCallback = function() {
-    const self = this;
 
     try {
-        // Check if the callback exists
-        if (self.volumeUpdateCallback) {
-            const callbacks = self.commandRouter.callbacks['volumioupdatevolume'];
-            if (callbacks) {
-                const oldCount = callbacks.length;
-                self.logger.debug(`Removing Volumio callbacks for 'volumioupdatevolume'. Current count: ${oldCount}`);
-                
-                // Filter out the callback
-                self.commandRouter.callbacks['volumioupdatevolume'] = callbacks.filter((listener) => listener !== self.volumeUpdateCallback);
-                const newCount = self.commandRouter.callbacks['volumioupdatevolume'].length;
-                self.logger.debug(`Removed Volumio callbacks for 'volumioupdatevolume'.`);
-            }
+        // Unregister the volume update callback
+        if (this.volumeUpdateCallback) {
+            this.commandRouter.volumioRemoveCallback('volumioupdatevolume', self.volumeUpdateCallback);
+            this.volumeUpdateCallback = null;
         }
     } catch (error) {
-        self.logger.error(`Error while unregistering volume update callback: ${error.message}`);
+        this.logger.error(`Error while unregistering volume update callback: ${error.message}`);
     }
 };
 
 motorizedFaderControl.prototype.registerVolumeUpdateCallback = function() {
     const self = this;
     try {
-        // Check if the callback already exists
+        // First remove any existing callback
         if (self.volumeUpdateCallback) {
-            self.logger.warn(`Volume update callback already registered.`);
-            return;
+            self.unregisterVolumeUpdateCallback();
         }
-        // Register the callback
-        self.volumeUpdateCallback = (data) => {
-            self.logger.debug(`Volume update callback triggered with data: ${JSON.stringify(data)}`);
-            self.handleVolumeUpdate(data);
-        };
-        self.commandRouter.addCallback('volumioupdatevolume', self.volumeUpdateCallback.bind(self));;
-        self.logger.debug(`Registered volume update callback.`);
+        
+        // Register new callback
+        self.volumeUpdateCallback = self.boundVolumeHandler;
+        self.commandRouter.addCallback('volumioupdatevolume', self.volumeUpdateCallback);
+        self.logger.info('Volume update callback registered successfully');
+    } catch (error) {
+        self.logger.error('Failed to register volume callback:', error);
+        throw error;
     }
-    catch (error) {
-        self.logger.error(`Error while registering volume update callback: ${error.message}`);
-    }
-}
+};
 
 // State Validation Middleware //! deprecated, there is a validation in cachePlaybackState
 //* avoid unnecesary state updates
@@ -1359,6 +1350,12 @@ motorizedFaderControl.prototype.setupErrorHandling = function() {
         self.logger.error(`FaderController error: ${error.message}`);
         if (error.details) {
             self.logger.error(`FaderController error details: ${JSON.stringify(error.details)}`);
+        }
+
+        // Check for the specific "Cannot lock port" error
+        if (error.message.includes('Cannot lock port')) {
+            self.logger.error('Critical error: Cannot lock port. Stopping plugin...');
+            self.onStop(); // Stop the plugin gracefully
         }
     });
 

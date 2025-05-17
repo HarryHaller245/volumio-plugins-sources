@@ -113,7 +113,11 @@ class MIDIQueue extends FaderEventEmitter {
           const targetPosition = this.get_position(messages[messages.length - 1].message);
   
           // Route 'move/start' to MIDIFeedbackTracker
-          this.feedbackTracker.handleMoveStart(faderIndex, targetPosition);
+          // this.feedbackTracker.handleMoveStart(faderIndex, targetPosition);
+          // if we dont have feedback tracking configured we just spoof the feedback message
+          if (!this.config.feedback_midi || this.config.feedback_midi === 'software' || options.disableFeedback) {
+            this.feedbackTracker.handleFeedbackMessage(faderIndex, targetPosition);
+          }
   
           while (messages.length > 0) {
             const nextMessage = messages.shift();
@@ -124,8 +128,14 @@ class MIDIQueue extends FaderEventEmitter {
               await this.send(nextMessage.message);
   
               // Route 'move/step/start' and 'move/step/complete' to MIDIFeedbackTracker
-              this.feedbackTracker.handleMoveStep(faderIndex, position, isLastStep);
-  
+              // this should only be necessary if the feedback is in software mode ?
+              // this.feedbackTracker.handleMoveStep(faderIndex, position, isLastStep);
+              // this.feedbackTracker.handleMoveStep(faderIndex, position, isLastStep);
+              // if we dont have feedback tracking configured we just spoof the feedback message
+              if (!this.config.feedback_midi  || this.config.feedback_midi === 'software' || options.disableFeedback) {
+                this.feedbackTracker.handleFeedbackMessage(faderIndex, position);
+              }
+
               // Resolve the promise after the message is sent
               if (this.pendingPromises.has(nextMessage.id)) {
                 const { resolve, timer } = this.pendingPromises.get(nextMessage.id);

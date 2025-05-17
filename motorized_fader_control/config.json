@@ -13,7 +13,7 @@
     },
     "FADER_CONTROLLER_FEEDBACK_TOLERANCE": {
       "type": "number",
-      "value": 10
+      "value": 20
     },
     "FADER_CONTROLLER_QUEUE_OVERFLOW": {
       "type": "number",

@@ -433,13 +433,21 @@ class FaderController extends FaderEventEmitter {
     return this.calibrationEngine.runCalibration(indexes); // Delegate to CalibrationEngine
   }
 
+  async runCalibrationMove(index, StartProgression, EndProgression, speed, resolution) {
+    const fader = this.getFader(index);
+    const faderMove = new FaderMove([index], [StartProgression], [EndProgression], speed, resolution);
+    await this.moveFaders(faderMove, false, false);
+
+    return duration
+  }
+
   //* basic calibration #############################################
   async calibrate(indexes) {
     this.config.logger.debug(`Calibrating...`);
     return await this.testCalibrationMoves(indexes);
   }
 
-  async testCalibrationMoves(indexes, speed_up = 100, speed_down = 50, resolution = 1) {
+  async testCalibrationMoves(indexes, speed_up = 50, speed_down = 10, resolution = 1) {
     try {
       let moves = [
         new FaderMove(indexes, 100, speed_up, resolution),
@@ -515,7 +523,7 @@ class FaderController extends FaderEventEmitter {
     try {
       await this.checkMIDIDeviceReady();
       if (this.config.calibrateOnStart) await this.calibrate(this.config.faderIndexes);
-      this.emit('ready');
+      this.emit('internal:ready');
       this.config.logger.info(`FaderController started successfully`);
     } catch (error) {
       this.config.logger.error('Startup failed:', error);
