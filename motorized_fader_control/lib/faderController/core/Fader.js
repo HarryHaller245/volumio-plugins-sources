@@ -12,6 +12,9 @@ class Fader extends FaderEventEmitter {
     this.echoMode = false;
     this.progressionMap = [0, 100];
     this.speedFactor = 1;
+
+    this.excludeFromLogging(['internal:move/step/start', 'internal:move/step/complete']);
+
   }
 
   setProgressionMap([min, max]) {
@@ -45,7 +48,7 @@ class Fader extends FaderEventEmitter {
   updateTouchState(touch) {
     if (this.touch !== touch) {
       this.touch = touch;
-      this.emit(touch ? 'touch' : 'untouch', this.index, this.info);
+      this.emit(touch ? 'internal:touch' : 'internal:untouch', this.index, this.info);
     }
   }
 
@@ -53,7 +56,7 @@ class Fader extends FaderEventEmitter {
     this.position = position;
     this.progression = (position / 16383) * 100;
     if (this.touch) {
-      this.emit('move', this.index, this.info);
+      this.emit('internal:move', this.index, this.info);
     }
   }
 
@@ -64,25 +67,25 @@ class Fader extends FaderEventEmitter {
 
   emitMoveComplete(statistics) {
     this.info.statistics = statistics;
-    this.emit('move/complete', this.index, this.info);
+    this.emit('internal:move/complete', this.index, this.info); // Internal event
   }
-
+  
   emitMoveStart(targetPosition, startTime) {
     this.info.targetPosition = targetPosition;
     this.info.startTime = startTime;
-    this.emit('move/start', this.index, this.info);
+    this.emit('internal:move/start', this.index, this.info); // Internal event
   }
-
+  
   emitMoveStepStart(targetPosition, startTime) {
     this.info.targetPosition = targetPosition;
     this.info.startTime = startTime;
-    this.emit('move/step/start', this.index, this.info); // Changed event name
+    this.emit('internal:move/step/start', this.index, this.info); // Internal event
   }
-
+  
   emitMoveStepComplete(statistics) {
     this.info.statistics = statistics;
-    this.emit('move/step/complete', this.index, this.info); // Changed event name
-}
+    this.emit('internal:move/step/complete', this.index, this.info); // Internal event
+  }
 
   get info() {
     return {
@@ -104,10 +107,10 @@ class Fader extends FaderEventEmitter {
 
   setEchoMode(echo) {
     this.echoMode = echo;
-    this.emit('configChange', this.index, {
+    this.emit('internal:configChange', this.index, {
       echoMode: this.echoMode
     });
-    this.emit(echo ? 'echo/on' : 'echo/off', this.index, {
+    this.emit(echo ? 'internal:echo/on' : 'internal:echo/off', this.index, {
       echoMode: this.echoMode
     });
   }

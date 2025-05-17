@@ -77,4 +77,4 @@ class MIDIFeedbackTrackerError extends Error {
     }
 }
 
-module.exports = {FaderControllerError, SerialPortError, MIDIError, CalibrationError, MIDIQueueError, MIDIFeedbackTrackerError}
+module.exports = {FaderControllerError, SerialPortError, MIDIError, CalibrationError, MIDIQueueError, MIDIFeedbackTrackerError, FaderErrors, SerialErrors}

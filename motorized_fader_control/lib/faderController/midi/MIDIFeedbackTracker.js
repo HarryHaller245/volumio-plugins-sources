@@ -10,7 +10,12 @@ class MIDIFeedbackTracker {
   }
 
   clearFeedback(faderIndex) {
-    this.trackedFeedback.delete(faderIndex);
+    if (this.feedbackTracking.has(faderIndex)) {
+      this.controller.config.logger.debug(`Clearing feedback for fader ${faderIndex}`);
+      this.feedbackTracking.delete(faderIndex);
+    } else {
+      this.controller.config.logger.debug(`No feedback to clear for fader ${faderIndex}`);
+    }
   }
 
   clearAllFeedback() {
@@ -36,8 +41,7 @@ class MIDIFeedbackTracker {
       // Track feedback for the fader
       this.feedbackTracking.set(faderIndex, { targetPosition });
   
-      // Emit move/step/start event
-
+      this.controller.config.logger.debug(`Starting feedbackTracker for fader ${faderIndex}`);
       this.controller.getFader(faderIndex).emitMoveStart(targetPosition, Date.now());
   
       // Set a timeout for the first feedback message
@@ -83,7 +87,6 @@ class MIDIFeedbackTracker {
             currentStat.unitsPerSecond = Math.abs(targetPosition - this.controller.getFader(faderIndex).position) / (currentStat.duration / 1000);
           }
         }
-
         this.controller.getFader(faderIndex).emitMoveComplete(this.getFeedbackStatistics(faderIndex));
       }
     } catch (error) {

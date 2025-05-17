@@ -4,6 +4,15 @@ class FaderEventEmitter extends EventEmitter {
   constructor(logger) {
     super();
     this.logger = logger;
+    this.noLogEvents = new Set(); // Set of events to exclude from logging
+  }
+
+  /**
+   * Add events to the no-log list.
+   * @param {string[]} events - Array of event names to exclude from logging.
+   */
+  excludeFromLogging(events) {
+    events.forEach(event => this.noLogEvents.add(event));
   }
 
   /**
@@ -14,11 +23,17 @@ class FaderEventEmitter extends EventEmitter {
    */
   emit(event, ...args) {
     try {
-      if (event === 'error') {
-        const error = args[0];
-        this.logger.error(`Error emitted: ${error.message}`, error);
-      } else {
-        this.logger.debug(`Event emitted: ${event} args: ${JSON.stringify(args)}`, ...args);
+      const isInternal = event.startsWith('internal:');
+      if (!this.noLogEvents.has(event)) {
+        if (event === 'error') {
+          const error = args[0];
+          this.logger.error(`Error emitted: ${error.message}`, error);
+        } else {
+          const logMessage = isInternal
+            ? `Internal event emitted: ${event} args: ${JSON.stringify(args)}`
+            : `External event emitted: ${event} args: ${JSON.stringify(args)}`;
+          this.logger.debug(logMessage, ...args);
+        }
       }
       return super.emit(event, ...args);
     } catch (err) {
@@ -33,7 +48,9 @@ class FaderEventEmitter extends EventEmitter {
    * @param {Function} listener - The event listener function.
    */
   on(event, listener) {
-    this.logger.debug(`Listener registered for event: ${event}`);
+    if (!this.noLogEvents.has(event)) {
+      this.logger.debug(`Listener registered for event: ${event}`);
+    }
     super.on(event, listener);
   }
 
@@ -43,7 +60,9 @@ class FaderEventEmitter extends EventEmitter {
    * @param {Function} listener - The event listener function.
    */
   off(event, listener) {
-    this.logger.debug(`Listener removed for event: ${event}`);
+    if (!this.noLogEvents.has(event)) {
+      this.logger.debug(`Listener removed for event: ${event}`);
+    }
     super.off(event, listener);
   }
 }

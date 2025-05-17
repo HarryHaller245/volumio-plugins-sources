@@ -69,11 +69,8 @@ class MIDIQueue extends FaderEventEmitter {
 
         // Track target position if feedback is enabled
         if (this.config.feedback_midi && !options.disableFeedback) {
-          this.logger.debug(`Starting feedbackTracker for fader ${faderIndex}`);
           const targetPosition = this.get_position(message);
           this.feedbackTracker.trackFeedbackStart(faderIndex, targetPosition);
-        } else {
-          this.controller.getFader(faderIndex).emitMoveStart(targetPosition, Date.now());
         }
 
         this.process(options);
@@ -231,9 +228,7 @@ class MIDIQueue extends FaderEventEmitter {
         }
   
         // Clear feedback tracking for the specific fader
-        if (this.config.feedback_midi) {
-          this.feedbackTracker.clearFeedback(faderIndex);
-        }
+        this.feedbackTracker.clearFeedback(faderIndex);
       }
   
       this.isProcessing = false;

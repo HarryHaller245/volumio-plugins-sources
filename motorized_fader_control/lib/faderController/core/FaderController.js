@@ -146,16 +146,16 @@ class FaderController extends FaderEventEmitter {
 
   listenFaders(faders) { // pass events of faders
     faders.forEach(fader => {
-      fader.on('touch', (index, info) => this.emit('touch', index, info));
-      fader.on('untouch', (index, info) => this.emit('untouch', index, info));
-      fader.on('echo/on', (index, echoMode) => this.emit('echo/on', index, echoMode));
-      fader.on('echo/off', (index, echoMode) => this.emit('echo/off', index, echoMode));
-      fader.on('move', (index, info) => this.emit('move', index, info));
-      fader.on('move/start', (index, info) => this.emit('move/start', index, info));
-      fader.on('move/complete', (index, info) => this.emit('move/complete', index, info));
-      fader.on('move/step/start', (index, info) => this.emit('move/step/start', index, info));
-      fader.on('move/step/complete', (index, info) => this.emit('move/step/complete', index, info));
-      fader.on('configChange', (index, config) => this.emit('configChange', index, config));
+      fader.on('internal:touch', (index, info) => this.emit('touch', index, info));
+      fader.on('internal:untouch', (index, info) => this.emit('untouch', index, info));
+      fader.on('internal:echo/on', (index, echoMode) => this.emit('echo/on', index, echoMode));
+      fader.on('internal:echo/off', (index, echoMode) => this.emit('echo/off', index, echoMode));
+      fader.on('internal:move', (index, info) => this.emit('move', index, info));
+      fader.on('internal:move/start', (index, info) => this.emit('move/start', index, info)); // External event
+      fader.on('internal:move/complete', (index, info) => this.emit('move/complete', index, info)); // External event
+      fader.on('internal:move/step/start', (index, info) => this.emit('move/step/start', index, info)); // External event
+      fader.on('internal:move/step/complete', (index, info) => this.emit('move/step/complete', index, info)); // External event
+      fader.on('internal:configChange', (index, config) => this.emit('configChange', index, config));
     });
   }
 
@@ -275,6 +275,14 @@ class FaderController extends FaderEventEmitter {
     try {
       if (interrupt) this.clearQueue(move.indexes);
       
+      // Emit 'move/start' for each fader in the move
+      move.indexes.forEach((index, i) => {
+        const fader = this.getFader(index);
+        const target = move.targets[i];
+        const targetPosition = fader.progressionToPosition(target);
+        fader.emitMoveStart(targetPosition, Date.now());
+      });
+
       if (this.config.MoveLog) {
           this.config.logger.debug(`Move: ${JSON.stringify(move)}`);
       }
@@ -319,6 +327,14 @@ class FaderController extends FaderEventEmitter {
       }
       this.config.logger.debug(`moveFaders: disableFeedback=${disableFeedback}`);
       await this.sendPositions(positions, options);
+      
+      if (disableFeedback) {
+        move.indexes.forEach((index) => {
+          const fader = this.getFader(index);
+          fader.emitMoveComplete({}); // Pass empty stats or appropriate data
+        });
+      }
+      
     } catch (error) {
       this.config.logger.error(`Error in moveFaders: ${error.message}`, {
         move,
