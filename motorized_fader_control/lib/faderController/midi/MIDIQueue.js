@@ -4,7 +4,7 @@ const MIDIQueueError = require('../errors.js');
 
 class MIDIQueue extends FaderEventEmitter {
   constructor(serial, controller, delay = 0.01, timeout = 500000) {
-    super(controller.config.logger); // Pass the logger to FaderEventEmitter
+    super(controller.config.logger, controller.config); // Pass the logger to FaderEventEmitter
     this.serial = serial;
     this.queue = new Map();
     this.delay = delay;
@@ -70,6 +70,7 @@ class MIDIQueue extends FaderEventEmitter {
         // Track target position if feedback is enabled
         if (this.config.feedback_midi && !options.disableFeedback) {
           const targetPosition = this.get_position(message);
+          //maybe we can only really start tracking feedback after the first feedback message is received
           this.feedbackTracker.trackFeedbackStart(faderIndex, targetPosition);
         }
 
@@ -87,9 +88,9 @@ class MIDIQueue extends FaderEventEmitter {
    */
   async process(options = {}) {
     if (this.isProcessing || this.queue.size === 0) return;
-
+  
     this.isProcessing = true;
-
+  
     try {
       const availableFaders = [];
       for (const [faderIndex, messages] of this.queue) {
@@ -98,55 +99,46 @@ class MIDIQueue extends FaderEventEmitter {
           if (availableFaders.length >= this.max_batchSize) break;
         }
       }
-
+  
       if (availableFaders.length === 0) {
         this.isProcessing = false;
         return;
       }
-
+  
       await Promise.all(availableFaders.map(async faderIndex => {
         this.currentBatch.add(faderIndex);
         const messages = this.queue.get(faderIndex);
-
+  
         if (messages && messages.length > 0) {
-          const nextMessage = messages.shift();
-
-          if (messages.length === 0) {
-            this.queue.delete(faderIndex);
-          }
-
-          try {
-            const index = this.get_index(nextMessage.message);
-            if (!this.faders[index].touch) {
-              const position = this.get_position(nextMessage.message);
-              if (!this.config.feedback_midi || !this.feedbackTracker.isTrackingFeedback(index) || options.disableFeedback) {
-                this.logger.debug(`Feedback disabled for fader ${index} due to :`);
-                this.logger.debug(`- config.feedback_midi: ${this.config.feedback_midi}`);
-                this.logger.debug(`- options.disableFeedback: ${options.disableFeedback}`);
-                this.logger.debug(`- feedbackTracker.isTrackingFeedback: ${this.feedbackTracker.isTrackingFeedback(index)}`);
-                this.logger.debug(`- process: options=${JSON.stringify(options)}`);
-                this.faders[index].emitMoveStepStart(position, Date.now()); // use new moveStepStart event
-              }
+          const targetPosition = this.get_position(messages[messages.length - 1].message);
+  
+          // Route 'move/start' to MIDIFeedbackTracker
+          this.feedbackTracker.handleMoveStart(faderIndex, targetPosition);
+  
+          while (messages.length > 0) {
+            const nextMessage = messages.shift();
+            const position = this.get_position(nextMessage.message);
+            const isLastStep = messages.length === 0;
+  
+            try {
               await this.send(nextMessage.message);
-
-              if (!this.config.feedback_midi || !this.feedbackTracker.isTrackingFeedback(index) || options.disableFeedback) {
-                // if no feedback just immediately emit moveComplete, however this here is a step
-                this.controller.getFader(index).updatePositionFeedback(position);
-                this.controller.getFader(index).emitMoveStepComplete(this.feedbackTracker.getFeedbackStatistics(index));// use new moveStepStop event
-              }
-
+  
+              // Route 'move/step/start' and 'move/step/complete' to MIDIFeedbackTracker
+              this.feedbackTracker.handleMoveStep(faderIndex, position, isLastStep);
+  
+              // Resolve the promise after the message is sent
               if (this.pendingPromises.has(nextMessage.id)) {
                 const { resolve, timer } = this.pendingPromises.get(nextMessage.id);
                 clearTimeout(timer);
                 resolve();
                 this.pendingPromises.delete(nextMessage.id);
               }
+            } catch (error) {
+              this.handleError(error, { message: nextMessage.message });
             }
-          } catch (error) {
-            this.handleError(error, { message: nextMessage.message });
           }
         }
-
+  
         this.currentBatch.delete(faderIndex);
       }));
     } catch (error) {
@@ -185,7 +177,7 @@ class MIDIQueue extends FaderEventEmitter {
             this.handleError(error, { message });
             reject(error);
           } else {
-            this.emit('midi/sent', { message: message });
+            this.emit('internal:midi/sent', { message: message });
             resolve();
           }
         });

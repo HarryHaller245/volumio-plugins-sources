@@ -41,7 +41,7 @@ const {
  */
 class FaderController extends FaderEventEmitter {
   constructor(config = {}) {
-    super(config.logger, { disableInternalEventLogging: config.disableInternalEventLogging });
+    super(config.logger, config);
 
     // Default calibration configuration
     const defaultCalibrationConfig = {
@@ -74,6 +74,7 @@ class FaderController extends FaderEventEmitter {
       feedback_midi: true, // enable if midi device supports feedback
       feedback_tolerance: 10, // tolerance for feedback
       disableInternalEventLogging: false, // Disable internal event logging
+      disableEventLogging: false, // Disable all event logging
       ...config
     };
 
@@ -150,7 +151,7 @@ class FaderController extends FaderEventEmitter {
       fader.on('internal:untouch', (index, info) => this.emit('untouch', index, info));
       fader.on('internal:echo/on', (index, echoMode) => this.emit('echo/on', index, echoMode));
       fader.on('internal:echo/off', (index, echoMode) => this.emit('echo/off', index, echoMode));
-      fader.on('internal:move', (index, info) => this.emit('move', index, info));
+      fader.on('internal:move', (index, info) => this.emit('move', index, info)); // user move
       fader.on('internal:move/start', (index, info) => this.emit('move/start', index, info)); // External event
       fader.on('internal:move/complete', (index, info) => this.emit('move/complete', index, info)); // External event
       fader.on('internal:move/step/start', (index, info) => this.emit('move/step/start', index, info)); // External event
@@ -216,26 +217,17 @@ class FaderController extends FaderEventEmitter {
     }
   }
 
-  getFeedbackStatistics(faderIndex) {
-    return this.midiQueue.getFeedbackStatistics(faderIndex);
-  }
-
   handleFaderMove(message) {
     const position = (message.data2 << 7) | message.data1;
     const fader = this.getFader(message.channel);
   
     if (fader) {
       // Check if this is feedback for a software-driven movement
-      if (!fader.touch && this.midiQueue.feedbackTracker.isTrackingFeedback(message.channel)) { //! not sure about this
-        const targetPosition = this.midiQueue.get_position(message.channel);
-        const tolerance = this.config.feedback_tolerance || 10;
-
+      if (!fader.touch && this.midiQueue.feedbackTracker.isTrackingFeedback(message.channel)) {
+        
+        this.midiQueue.feedbackTracker.handleFeedbackMessage(message.channel, position);
         fader.updatePositionFeedback(position);
 
-        if (Math.abs(position - targetPosition) <= tolerance) {
-          this.midiQueue.feedbackTracker.markMovementComplete(message.channel);
-          this.config.logger.debug(`Fader ${message.channel} reached target position: ${position}`);
-        }
       } else {
         // Handle user-driven movement
         fader.updatePositionUser(position);
@@ -274,67 +266,37 @@ class FaderController extends FaderEventEmitter {
   async moveFaders(move, interrupt = false, disableFeedback = false) {
     try {
       if (interrupt) this.clearQueue(move.indexes);
-      
-      // Emit 'move/start' for each fader in the move
-      move.indexes.forEach((index, i) => {
-        const fader = this.getFader(index);
-        const target = move.targets[i];
-        const targetPosition = fader.progressionToPosition(target);
-        fader.emitMoveStart(targetPosition, Date.now());
-      });
-
-      if (this.config.MoveLog) {
-          this.config.logger.debug(`Move: ${JSON.stringify(move)}`);
+  
+      // Enable feedback simulation if feedback is disabled
+      if (!this.config.feedback_midi || disableFeedback) {
+        this.midiQueue.feedbackTracker.enableSoftwareFeedback();
+      } else {
+        this.midiQueue.feedbackTracker.disableSoftwareFeedback();
       }
-
+  
       const movements = move.indexes.map((index, i) => {
-          const fader = this.getFader(index);
-          const effectiveSpeed = this.calculateEffectiveSpeed(
-              move.speeds[i], 
-              fader.speedFactor,
-              fader.progression,
-              move.targets[i]
-          );
-          
-          if (this.config.MoveLog) {
-              this.config.logger.debug(`Fader ${index} ` +
-                  `speedFactor: ${fader.speedFactor.toFixed(2)}, ` +
-                  `effectiveSpeed: ${effectiveSpeed.toFixed(2)}`);
-          }
-
-          return {
-              index,
-              target: fader.mapProgression(move.targets[i]),
-              speed: effectiveSpeed,
-              resolution: move.resolution
-          };
+        const fader = this.getFader(index);
+        const effectiveSpeed = this.calculateEffectiveSpeed(
+          move.speeds[i],
+          fader.speedFactor,
+          fader.progression,
+          move.targets[i]
+        );
+  
+        return {
+          index,
+          target: fader.mapProgression(move.targets[i]),
+          speed: effectiveSpeed,
+          resolution: move.resolution
+        };
       });
-
+  
       const positions = this.calculateMovements(movements);
-      if (this.config.MoveLog) {
-        //log the number of positions per fader
-        const positionsPerFader = positions.reduce((acc, pos) => {
-          acc[pos.index] = (acc[pos.index] || 0) + 1;
-          return acc;
-        }, {});
-        this.config.logger.debug(`Generated ${JSON.stringify(positionsPerFader)} positions`);
-      }
-      if (this.config.ValueLog) {
-        this.config.logger.debug(`Positions: ${JSON.stringify(positions)}`);
-      }
-      const options = {
-        disableFeedback: disableFeedback
-      }
-      this.config.logger.debug(`moveFaders: disableFeedback=${disableFeedback}`);
+      const options = { disableFeedback };
+  
       await this.sendPositions(positions, options);
-      
-      if (disableFeedback) {
-        move.indexes.forEach((index) => {
-          const fader = this.getFader(index);
-          fader.emitMoveComplete({}); // Pass empty stats or appropriate data
-        });
-      }
-      
+      this._LogMove(positions, options, movements, interrupt);
+  
     } catch (error) {
       this.config.logger.error(`Error in moveFaders: ${error.message}`, {
         move,
@@ -345,6 +307,39 @@ class FaderController extends FaderEventEmitter {
         move
       }));
       throw error;
+    }
+  }
+
+  _LogMove(positions, options, movements, interrupt) {
+    if (this.config.MoveLog) {
+      this.config.logger.debug('========== MOVE LOG ==========');
+  
+      // Log general movement details
+      this.config.logger.debug(`Interrupt: ${interrupt}`);
+      this.config.logger.debug(`Feedback Disabled: ${options.disableFeedback}`);
+      this.config.logger.debug(`Number of Positions: ${positions.length}`);
+  
+      // Log detailed movement information for each fader
+      movements.forEach((movement, i) => {
+        const position = positions.find(pos => pos.index === movement.index);
+        this.config.logger.debug(`Fader ${movement.index}:`);
+        this.config.logger.debug(`  Target Position: ${movement.target}`);
+        this.config.logger.debug(`  Effective Speed: ${movement.speed}`);
+        this.config.logger.debug(`  Resolution: ${movement.resolution}`);
+        if (position) {
+          this.config.logger.debug(`  Final Position Sent: ${position.value}`);
+        }
+      });
+  
+      this.config.logger.debug('==============================');
+    }
+  
+    if (this.config.ValueLog) {
+      this.config.logger.debug('========== MOVE VALUE LOG ==========');
+      positions.forEach(pos => {
+        this.config.logger.debug(`Fader ${pos.index}: Position Sent: ${pos.value}`);
+      });
+      this.config.logger.debug('====================================');
     }
   }
 
@@ -580,6 +575,7 @@ class FaderController extends FaderEventEmitter {
       }));
     }
   }
+
   async closeSerial() {
     try {
       if (this.serial?.isOpen) {
@@ -587,7 +583,7 @@ class FaderController extends FaderEventEmitter {
           this.serial.close(err => {
             if (err) {
               const error = new SerialPortError('Error closing serial port', err);
-              this.config.logger.error(error.message, err);
+              this.config.logger.error(error.message, { originalError: err });
               return reject(error);
             }
             this.config.logger.info('Serial port closed successfully');
@@ -596,13 +592,12 @@ class FaderController extends FaderEventEmitter {
         });
       } else {
         this.config.logger.info('Serial port was not open');
-        return Promise.resolve(); // Resolve positively if the serial port isn't open
       }
     } catch (error) {
       const serialError = new SerialPortError('Error in closeSerial', error);
-      this.config.logger.error(serialError.message, error);
-      this.emit('error', serialError);
-      throw serialError;
+      this.config.logger.error(serialError.message, { originalError: error });
+      this.emit('error', serialError); // Emit the error for higher-level handling
+      throw serialError; // Re-throw the error for propagation
     }
   }
 

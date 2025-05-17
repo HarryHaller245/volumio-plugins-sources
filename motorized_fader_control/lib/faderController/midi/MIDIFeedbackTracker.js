@@ -1,8 +1,9 @@
 class MIDIFeedbackTracker {
   constructor(controller) {
     this.controller = controller;
-    this.feedbackTracking = new Map(); // Track feedback for each fader
-    this.feedbackStatistics = new Map(); // Track statistics for each fader
+    this.feedbackTracking = new Map();
+    this.feedbackStatistics = new Map();
+    this.softwareFeedback = false; // Software feedback only, move is considered complete as soon as sent
   }
 
   isTrackingFeedback(faderIndex) {
@@ -25,82 +26,122 @@ class MIDIFeedbackTracker {
   getTargetPosition(faderIndex) {
     return this.feedbackTracking.get(faderIndex);
   }
+  
+  enableSoftwareFeedback() {
+    this.softwareFeedback = true;
+  }
+
+  disableSoftwareFeedback() {
+    this.softwareFeedback = false;
+  }
 
   trackFeedbackStart(faderIndex, targetPosition) {
-    try {
-      // Initialize statistics for the fader if not already present
-      if (!this.feedbackStatistics.has(faderIndex)) {
-        this.feedbackStatistics.set(faderIndex, []);
+    if (!this.feedbackStatistics.has(faderIndex)) {
+      this.feedbackStatistics.set(faderIndex, []);
+    }
+
+    this.feedbackStatistics.get(faderIndex).push({
+      targetPosition,
+      startTime: Date.now(),
+      completed: false,
+      started: false // New flag to track if the movement has started
+    });
+
+    this.feedbackTracking.set(faderIndex, { targetPosition });
+  }
+
+  handleFeedbackMessage(faderIndex, currentPosition) {
+    if (this.feedbackTracking.has(faderIndex)) {
+      const { targetPosition } = this.feedbackTracking.get(faderIndex);
+      const stats = this.feedbackStatistics.get(faderIndex).find(stat => stat.targetPosition === targetPosition && !stat.completed);
+
+      if (stats && !stats.started) {
+        stats.started = true;
+        stats.startTime = Date.now();
+        this.controller.getFader(faderIndex).emitMoveStepStart(targetPosition, stats.startTime);
       }
-      this.feedbackStatistics.get(faderIndex).push({
-        targetPosition,
-        startTime: Date.now(),
-        completed: false,
-      });
-  
-      // Track feedback for the fader
-      this.feedbackTracking.set(faderIndex, { targetPosition });
-  
-      this.controller.config.logger.debug(`Starting feedbackTracker for fader ${faderIndex}`);
-      this.controller.getFader(faderIndex).emitMoveStart(targetPosition, Date.now());
-  
-      // Set a timeout for the first feedback message
-      setTimeout(() => {
-        if (this.feedbackTracking.has(faderIndex)) {
-          this.controller.emit('error', {
-            code: 'MIDI_FEEDBACK_ERROR',
-            message: `Feedback timeout for fader ${faderIndex}`,
-            faderIndex,
-            targetPosition
-          });
-  
-          // Disable feedback watching and continue
-          this.markMovementComplete(faderIndex);
-          this.controller.config.feedback_midi = true;
-          this.controller.config.logger.warn(`Disabling feedback watching due to timeout for fader ${faderIndex}`);
-        }
-      }, 5000); 
-    } catch (error) {
-      this.controller.emit('error', {
-        ...error,
-        code: 'MIDI_FEEDBACK_TRACK_ERROR',
-        message: `Failed to track feedback for fader ${faderIndex}`,
-        details: { faderIndex, targetPosition }
-      });
+
+      if (Math.abs(currentPosition - targetPosition) <= this.controller.config.feedback_tolerance) {
+        this.markMovementComplete(faderIndex);
+      }
     }
   }
 
   markMovementComplete(faderIndex) {
-    try {
-      if (this.feedbackTracking.has(faderIndex)) {
-        const { targetPosition } = this.feedbackTracking.get(faderIndex);
-        this.feedbackTracking.delete(faderIndex);
-
-        // Update statistics
-        const stats = this.feedbackStatistics.get(faderIndex);
-        if (stats) {
-          const currentStat = stats.find(stat => stat.targetPosition === targetPosition && !stat.completed);
-          if (currentStat) {
-            currentStat.completed = true;
-            currentStat.endTime = Date.now();
-            currentStat.duration = currentStat.endTime - currentStat.startTime;
-            currentStat.unitsPerSecond = Math.abs(targetPosition - this.controller.getFader(faderIndex).position) / (currentStat.duration / 1000);
-          }
-        }
-        this.controller.getFader(faderIndex).emitMoveComplete(this.getFeedbackStatistics(faderIndex));
+    if (this.softwareFeedback) {
+      const fader = this.controller.getFader(faderIndex);
+      fader.updatePositionFeedback(fader.position);
+      fader.emitMoveStepComplete(this.getFeedbackStatistics(faderIndex));
+      fader.emitMoveComplete(this.getFeedbackStatistics(faderIndex));
+  
+      // Log statistics if MoveLog is enabled
+      if (this.controller.config.MoveLog) {
+        this.logMoveStatistics(faderIndex);
       }
-    } catch (error) {
-      this.controller.emit('error', {
-        ...error,
-        code: 'MIDI_MARK_COMPLETE_ERROR',
-        message: `Failed to mark movement complete for fader ${faderIndex}`,
-        details: { faderIndex }
-      });
+      return;
+    }
+  
+    if (this.feedbackTracking.has(faderIndex)) {
+      const { targetPosition } = this.feedbackTracking.get(faderIndex);
+      this.feedbackTracking.delete(faderIndex);
+  
+      const stats = this.feedbackStatistics.get(faderIndex).find(stat => stat.targetPosition === targetPosition && !stat.completed);
+      if (stats) {
+        stats.completed = true;
+        stats.endTime = Date.now();
+        stats.duration = stats.endTime - stats.startTime;
+      }
+  
+      const fader = this.controller.getFader(faderIndex);
+      fader.emitMoveStepComplete(this.getFeedbackStatistics(faderIndex));
+      fader.emitMoveComplete(this.getFeedbackStatistics(faderIndex));
+  
+      // Log statistics if MoveLog is enabled
+      if (this.controller.config.MoveLog) {
+        this.logMoveStatistics(faderIndex);
+      }
+    }
+  }
+
+  handleMoveStart(faderIndex, targetPosition) {
+    const fader = this.controller.getFader(faderIndex);
+    fader.emitMoveStart(targetPosition, Date.now());
+  }
+
+  handleMoveStep(faderIndex, position, isLastStep = false) {
+    const fader = this.controller.getFader(faderIndex);
+
+    // Emit 'move/step/start'
+    fader.emitMoveStepStart(position, Date.now());
+
+    // Emit 'move/step/complete'
+    fader.emitMoveStepComplete(this.getFeedbackStatistics(faderIndex));
+
+    // Emit 'move/complete' if this is the last step
+    if (isLastStep) {
+      fader.emitMoveComplete(this.getFeedbackStatistics(faderIndex));
     }
   }
 
   getFeedbackStatistics(faderIndex) {
-    return this.feedbackStatistics.get(faderIndex) || [false];
+    return this.feedbackStatistics.get(faderIndex) || [];
+  }
+
+  logMoveStatistics(faderIndex) {
+    const stats = this.getFeedbackStatistics(faderIndex);
+    if (stats && stats.length > 0) {
+      const lastStat = stats[stats.length - 1]; // Get the most recent statistics
+      this.controller.config.logger.debug('========== MOVE STATISTICS ==========');
+      this.controller.config.logger.debug(`Fader Index: ${faderIndex}`);
+      this.controller.config.logger.debug(`Target Position: ${lastStat.targetPosition}`);
+      this.controller.config.logger.debug(`Start Time: ${new Date(lastStat.startTime).toISOString()}`);
+      this.controller.config.logger.debug(`End Time: ${new Date(lastStat.endTime).toISOString()}`);
+      this.controller.config.logger.debug(`Duration: ${lastStat.duration} ms`);
+      this.controller.config.logger.debug(`Tracking Type: ${this.softwareFeedback ? 'Software' : 'Hardware'}`);
+      this.controller.config.logger.debug('=====================================');
+    } else {
+      this.controller.config.logger.debug(`No statistics available for fader ${faderIndex}`);
+    }
   }
 
 }

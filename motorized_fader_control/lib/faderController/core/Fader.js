@@ -3,7 +3,7 @@ const FaderEventEmitter = require('../events/FaderEventEmitter'); // Use the new
 
 class Fader extends FaderEventEmitter {
   constructor(index, config) {
-    super(config.logger, { disableInternalEventLogging: config.disableInternalEventLogging });
+    super(config.logger, config);
     
     this.index = index;
     this.position = 0;
@@ -13,7 +13,7 @@ class Fader extends FaderEventEmitter {
     this.progressionMap = [0, 100];
     this.speedFactor = 1;
 
-    this.excludeFromLogging(['internal:move/step/start', 'internal:move/step/complete']);
+    this.excludeFromLogging(['internal:move/step/start', 'internal:move/step/complete', 'move/step/start', 'move/step/complete']);
 
   }
 
@@ -107,9 +107,6 @@ class Fader extends FaderEventEmitter {
 
   setEchoMode(echo) {
     this.echoMode = echo;
-    this.emit('internal:configChange', this.index, {
-      echoMode: this.echoMode
-    });
     this.emit(echo ? 'internal:echo/on' : 'internal:echo/off', this.index, {
       echoMode: this.echoMode
     });

@@ -25,7 +25,7 @@
     },
     "FADER_CONTROLLER_VALUE_LOG": {
       "type": "boolean",
-      "value": true
+      "value": false
     },
     "FADER_CONTROLLER_MOVE_LOG": {
       "type": "boolean",
@@ -34,6 +34,10 @@
     "DISABLE_INTERNAL_EVENT_LOGGING": {
       "type": "boolean",
       "value": true
+    },
+    "DISABLE_EVENT_LOGGING": {
+      "type": "boolean",
+      "value": false
     },
     "FADER_CONTROLLER_CALIBRATION_ON_START": {
       "type": "boolean",

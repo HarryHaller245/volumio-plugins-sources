@@ -911,12 +911,12 @@ motorizedFaderControl.prototype.unregisterVolumeUpdateCallback = function() {
             const callbacks = self.commandRouter.callbacks['volumioupdatevolume'];
             if (callbacks) {
                 const oldCount = callbacks.length;
-                self.logger.debug(`Rmoving Volumio callbacks for 'volumioupdatevolume'. Current count: ${oldCount}`);
+                self.logger.debug(`Removing Volumio callbacks for 'volumioupdatevolume'. Current count: ${oldCount}`);
                 
                 // Filter out the callback
                 self.commandRouter.callbacks['volumioupdatevolume'] = callbacks.filter((listener) => listener !== self.volumeUpdateCallback);
                 const newCount = self.commandRouter.callbacks['volumioupdatevolume'].length;
-                self.logger.debug(`Removed ${oldCount - newCount} Volumio callbacks for 'volumioupdatevolume'.`);
+                self.logger.debug(`Removed Volumio callbacks for 'volumioupdatevolume'.`);
             }
         }
     } catch (error) {
@@ -1196,7 +1196,8 @@ motorizedFaderControl.prototype.setupFaderController = function() {
                     warmupRuns: self.config.get('CALIBRATION_WARMUP_RUNS', 1), // New warmup runs parameter
                     measureRuns: self.config.get('CALIBRATION_MEASURE_RUNS', 2) // New measure runs parameter
                 },
-                disableInternalEventLogging: self.config.get('DISABLE_INTERNAL_EVENT_LOGGING', false)
+                disableInternalEventLogging: self.config.get('DISABLE_INTERNAL_EVENT_LOGGING', false),
+                disableEventLogging: self.config.get('DISABLE_EVENT_LOGGING', true)
             };
 
             if (!controllerConfig.faderIndexes?.length) {
@@ -1353,24 +1354,23 @@ return {
 motorizedFaderControl.prototype.setupErrorHandling = function() {
     const self = this;
 
-    //Fader Controller Errors:
+    // Fader Controller Errors:
     self.faderController.on('error', (error) => {
         self.logger.error(`FaderController error: ${error.message}`);
         if (error.details) {
-            self.logger.error(`FaderController error details: ${error.details}`);
+            self.logger.error(`FaderController error details: ${JSON.stringify(error.details)}`);
         }
-        //TODO add specific error handling
     });
 
-    // Global error handler
-    process.on('unhandledRejection', (error) => {
-        self.logger.error('Unhandled rejection:', error);
-        self.onStop()
+    // Global error handler for unhandled promise rejections
+    process.on('unhandledRejection', (reason, promise) => {
+        self.logger.error('Unhandled rejection at:', promise, 'reason:', reason);
+        self.onStop(); // Attempt to stop the plugin gracefully
     });
 
     // Event bus error handling
     self.eventBus.on('error', (error) => {
-        self.logger.error('error:', error);
+        self.logger.error('EventBus error:', error);
     });
 
     // Service error handling
